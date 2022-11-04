@@ -24,9 +24,6 @@ use TYPO3\CMS\Form\Domain\Model\FormElements\AbstractFormElement;
 use TYPO3\CMS\Form\Domain\Model\FormElements\GenericFormElement;
 use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
-/**
- * Test case
- */
 class AbstractFormElementTest extends UnitTestCase
 {
     /**
@@ -34,7 +31,6 @@ class AbstractFormElementTest extends UnitTestCase
      */
     public function newInstanceHasNoProperties(): void
     {
-        /** @var AbstractFormElement $subject */
         $subject = $this->getMockForAbstractClass(AbstractFormElement::class, ['an_id', 'a_type']);
         self::assertNotNull($subject);
         self::assertCount(0, $subject->getProperties());
@@ -45,7 +41,6 @@ class AbstractFormElementTest extends UnitTestCase
      */
     public function setSimpleProperties(): void
     {
-        /** @var AbstractFormElement $subject */
         $subject = $this->getMockForAbstractClass(AbstractFormElement::class, ['an_id', 'a_type']);
 
         $subject->setProperty('foo', 'bar');
@@ -64,7 +59,6 @@ class AbstractFormElementTest extends UnitTestCase
      */
     public function overrideProperties(): void
     {
-        /** @var AbstractFormElement $subject */
         $subject = $this->getMockForAbstractClass(AbstractFormElement::class, ['an_id', 'a_type']);
 
         $subject->setProperty('foo', 'bar');
@@ -81,7 +75,6 @@ class AbstractFormElementTest extends UnitTestCase
      */
     public function setArrayProperties(): void
     {
-        /** @var AbstractFormElement $subject */
         $subject = $this->getMockForAbstractClass(AbstractFormElement::class, ['an_id', 'a_type']);
 
         $subject->setProperty('foo', ['bar' => 'baz', 'bla' => 'blubb']);
@@ -168,7 +161,6 @@ class AbstractFormElementTest extends UnitTestCase
      */
     public function initializeFormElementExpectedCallInitializeFormObjectHooks(): void
     {
-        /** @var \PHPUnit\Framework\MockObject\MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface|AbstractFormElement $abstractFormElementMock */
         $abstractFormElementMock = $this->getMockForAbstractClass(
             AbstractFormElement::class,
             [],
@@ -178,7 +170,6 @@ class AbstractFormElementTest extends UnitTestCase
             true,
             []
         );
-        /** @var \PHPUnit\Framework\MockObject\MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface|AbstractFormElement $secondMock */
         $secondMock = $this->getMockForAbstractClass(
             AbstractFormElement::class,
             [],
@@ -210,7 +201,6 @@ class AbstractFormElementTest extends UnitTestCase
      */
     public function getUniqueIdentifierExpectedUnique(): void
     {
-        /** @var \PHPUnit\Framework\MockObject\MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface|AbstractFormElement $abstractFormElementMock1 */
         $abstractFormElementMock1 = $this->getMockForAbstractClass(
             AbstractFormElement::class,
             [],
@@ -223,7 +213,6 @@ class AbstractFormElementTest extends UnitTestCase
             ]
         );
 
-        /** @var \PHPUnit\Framework\MockObject\MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface|AbstractFormElement $abstractFormElementMock2 */
         $abstractFormElementMock2 = $this->getMockForAbstractClass(
             AbstractFormElement::class,
             [],

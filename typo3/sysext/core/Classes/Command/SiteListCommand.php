@@ -43,7 +43,7 @@ class SiteListCommand extends Command
     /**
      * Shows a table with all configured sites
      */
-    protected function execute(InputInterface $input, OutputInterface $output)
+    protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $io = new SymfonyStyle($input, $output);
         $sites = $this->siteFinder->getAllSites();
@@ -51,7 +51,7 @@ class SiteListCommand extends Command
         if (empty($sites)) {
             $io->title('No sites configured');
             $io->note('Configure new sites in the "Sites" module.');
-            return 0;
+            return Command::SUCCESS;
         }
 
         $io->title('All configured sites');
@@ -93,6 +93,6 @@ class SiteListCommand extends Command
             );
         }
         $table->render();
-        return 0;
+        return Command::SUCCESS;
     }
 }

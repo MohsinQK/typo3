@@ -19,7 +19,7 @@ namespace TYPO3\CMS\Frontend\Typolink;
 
 use TYPO3\CMS\Core\Context\Context;
 use TYPO3\CMS\Core\Domain\Repository\PageRepository;
-use TYPO3\CMS\Core\Http\ServerRequestFactory;
+use TYPO3\CMS\Core\Http\NormalizedParams;
 use TYPO3\CMS\Core\Routing\PageArguments;
 use TYPO3\CMS\Core\Site\Entity\NullSite;
 use TYPO3\CMS\Core\Site\Entity\Site;
@@ -79,16 +79,21 @@ abstract class AbstractTypolinkBuilder
                 'path' => $matches[4],
             ];
             $isUrlModified = false;
-            // Set scheme and host if not yet part of the URL:
+            // Set scheme and host if not yet part of the URL
             if (empty($urlParts['host'])) {
-                $urlParts['scheme'] = GeneralUtility::getIndpEnv('TYPO3_SSL') ? 'https' : 'http';
-                $urlParts['host'] = GeneralUtility::getIndpEnv('HTTP_HOST');
+                $normalizedParams = $this->contentObjectRenderer->getRequest()->getAttribute('normalizedParams');
+                // @todo: This fallback should vanish mid-term: typolink has a dependency to ServerRequest
+                //        and should expect the normalizedParams argument is properly set as well. When for
+                //        instance CLI triggers this code, it should have set up a proper request.
+                $normalizedParams ??= NormalizedParams::createFromRequest($this->contentObjectRenderer->getRequest());
+                $urlParts['scheme'] = $normalizedParams->isHttps() ? 'https' : 'http';
+                $urlParts['host'] = $normalizedParams->getHttpHost();
                 $urlParts['path'] = '/' . ltrim($urlParts['path'], '/');
                 // absRefPrefix has been prepended to $url beforehand
                 // so we only modify the path if no absRefPrefix has been set
                 // otherwise we would destroy the path
                 if ($this->getTypoScriptFrontendController()->absRefPrefix === '') {
-                    $urlParts['path'] = GeneralUtility::getIndpEnv('TYPO3_SITE_PATH') . ltrim($urlParts['path'], '/');
+                    $urlParts['path'] = $normalizedParams->getSitePath() . ltrim($urlParts['path'], '/');
                 }
                 $isUrlModified = true;
             }
@@ -176,10 +181,20 @@ abstract class AbstractTypolinkBuilder
             || in_array((string)$tsfe->config['config']['doctype'], ['xhtml_trans', 'xhtml_basic', 'html5'], true);
 
         $target = '';
-        if (isset($conf[$name])) {
+        if (isset($conf[$name]) && $conf[$name] !== '') {
             $target = $conf[$name];
         } elseif ($targetAttributeAllowed && !($conf['directImageLink'] ?? false)) {
-            $target = $fallbackTarget;
+            switch ($name) {
+                case 'extTarget':
+                case 'fileTarget':
+                    $target = $fallbackTarget ?: (string)($tsfe->config['config'][$name] ?? '');
+                    break;
+                case 'target':
+                    $target = $fallbackTarget ?: (string)($tsfe->config['config']['intTarget'] ?? '');
+                    break;
+                default:
+                    $target = $fallbackTarget;
+            }
         }
         if (isset($conf[$name . '.']) && $conf[$name . '.']) {
             $target = (string)$this->contentObjectRenderer->stdWrap($target, $conf[$name . '.'] ?? []);
@@ -199,7 +214,7 @@ abstract class AbstractTypolinkBuilder
         // However, this is added to avoid any exceptions when trying to create a link.
         // Detecting the "first" site usually comes from the fact that TSFE needs to be instantiated
         // during tests
-        $request = $GLOBALS['TYPO3_REQUEST'] ?? ServerRequestFactory::fromGlobals();
+        $request = $this->contentObjectRenderer->getRequest();
         $site = $request->getAttribute('site');
         if (!$site instanceof Site) {
             $sites = GeneralUtility::makeInstance(SiteFinder::class)->getAllSites();
@@ -225,6 +240,7 @@ abstract class AbstractTypolinkBuilder
             GeneralUtility::makeInstance(FrontendUserAuthentication::class)
         );
         $this->typoScriptFrontendController->sys_page = GeneralUtility::makeInstance(PageRepository::class);
+        // @deprecated since v12, will be removed with v13
         $this->typoScriptFrontendController->tmpl = GeneralUtility::makeInstance(TemplateService::class);
         return $this->typoScriptFrontendController;
     }

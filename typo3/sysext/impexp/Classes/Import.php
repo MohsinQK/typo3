@@ -20,6 +20,7 @@ namespace TYPO3\CMS\Impexp;
 use TYPO3\CMS\Backend\Utility\BackendUtility;
 use TYPO3\CMS\Core\Configuration\FlexForm\FlexFormTools;
 use TYPO3\CMS\Core\Core\Environment;
+use TYPO3\CMS\Core\Database\Connection;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\DataHandling\DataHandler;
 use TYPO3\CMS\Core\Exception;
@@ -1038,7 +1039,7 @@ class Import extends ImportExport
                         // If it's empty or a uid to another record the FileExtensionFilter will throw an exception or
                         // delete the reference record if the file extension of the related record doesn't match.
                         if (!($table === 'sys_file_reference' && $field === 'uid_local')) {
-                            $importData[$table][$ID][$field] = '';
+                            $importData[$table][$ID][$field] = $this->getReferenceDefaultValue($GLOBALS['TCA'][$table]['columns'][$field]['config']);
                         }
                         break;
                     case 'flex':
@@ -1052,12 +1053,29 @@ class Import extends ImportExport
                         // cleared, because the configuration array contains only string values, which are furthermore
                         // important for the further import, e.g. the base path.
                         if (!($table === 'sys_file_storage' && $field === 'configuration')) {
-                            $importData[$table][$ID][$field] = '';
+                            $importData[$table][$ID][$field] = $this->getReferenceDefaultValue($GLOBALS['TCA'][$table]['columns'][$field]['config']);
                         }
                         break;
                 }
             }
         }
+    }
+
+    /**
+     * Get the default value for a reference field.
+     *
+     * @param array $configuration The TCA configuration of the accordant field
+     * @return int|float|string
+     */
+    protected function getReferenceDefaultValue(array $configuration): int|float|string
+    {
+        if (!empty($configuration['MM']) || !empty($configuration['foreign_field'])) {
+            return 0;
+        }
+        if (array_key_exists('default', $configuration)) {
+            return $configuration['default'];
+        }
+        return '';
     }
 
     /**
@@ -1078,15 +1096,15 @@ class Import extends ImportExport
             ->where(
                 $queryBuilder->expr()->eq(
                     'file',
-                    $queryBuilder->createNamedParameter($file, \PDO::PARAM_INT)
+                    $queryBuilder->createNamedParameter($file, Connection::PARAM_INT)
                 ),
                 $queryBuilder->expr()->eq(
                     'sys_language_uid',
-                    $queryBuilder->createNamedParameter($sysLanguageUid, \PDO::PARAM_INT)
+                    $queryBuilder->createNamedParameter($sysLanguageUid, Connection::PARAM_INT)
                 ),
                 $queryBuilder->expr()->eq(
                     'pid',
-                    $queryBuilder->createNamedParameter($pid, \PDO::PARAM_INT)
+                    $queryBuilder->createNamedParameter($pid, Connection::PARAM_INT)
                 )
             )
             ->executeQuery()

@@ -30,11 +30,11 @@ use TYPO3\CMS\Core\Charset\CharsetConverter;
 use TYPO3\CMS\Core\Imaging\Icon;
 use TYPO3\CMS\Core\Imaging\IconFactory;
 use TYPO3\CMS\Core\Localization\LanguageService;
-use TYPO3\CMS\Core\Messaging\AbstractMessage;
 use TYPO3\CMS\Core\Page\JavaScriptModuleInstruction;
 use TYPO3\CMS\Core\Page\PageRenderer;
 use TYPO3\CMS\Core\Pagination\ArrayPaginator;
 use TYPO3\CMS\Core\Pagination\SimplePagination;
+use TYPO3\CMS\Core\Type\ContextualFeedbackSeverity;
 use TYPO3\CMS\Core\Utility\ArrayUtility;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Extbase\Mvc\View\JsonView;
@@ -320,7 +320,7 @@ class FormManagerController extends AbstractBackendController
             $this->addFlashMessage(
                 sprintf($controllerConfiguration['deleteAction']['errorMessage'], $formPersistenceIdentifier),
                 $controllerConfiguration['deleteAction']['errorTitle'],
-                AbstractMessage::ERROR,
+                ContextualFeedbackSeverity::ERROR,
                 true
             );
         }
@@ -331,7 +331,7 @@ class FormManagerController extends AbstractBackendController
      * Return a list of all accessible file mountpoints.
      *
      * Only registered mount points from
-     * TYPO3.CMS.Form.persistenceManager.allowedFileMounts
+     * persistenceManager.allowedFileMounts
      * are listed. This list will be reduced by the configured
      * mount points for the current backend user.
      */
@@ -457,7 +457,7 @@ class FormManagerController extends AbstractBackendController
      * and accessible.
      *
      * Valid template paths has to be configured within
-     * TYPO3.CMS.Form.formManager.selectablePrototypesConfiguration.[('identifier':  $prototypeName)].newFormTemplates.[('templatePath': $templatePath)]
+     * formManager.selectablePrototypesConfiguration.[('identifier':  $prototypeName)].newFormTemplates.[('templatePath': $templatePath)]
      */
     protected function isValidTemplatePath(string $prototypeName, string $templatePath): bool
     {
@@ -497,6 +497,7 @@ class FormManagerController extends AbstractBackendController
             ->setDataAttributes(['identifier' => 'newForm'])
             ->setHref('#')
             ->setTitle($this->getLanguageService()->sL('LLL:EXT:form/Resources/Private/Language/Database.xlf:formManager.create_new_form'))
+            ->setShowLabelText(true)
             ->setIcon($this->iconFactory->getIcon('actions-add', Icon::SIZE_SMALL));
         $buttonBar->addButton($addFormButton, ButtonBar::BUTTON_POSITION_LEFT);
 

@@ -21,6 +21,7 @@ use TYPO3\CMS\Backend\Routing\PreviewUriBuilder;
 use TYPO3\CMS\Backend\Utility\BackendUtility;
 use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
 use TYPO3\CMS\Core\Core\Environment;
+use TYPO3\CMS\Core\DataHandling\PageDoktypeRegistry;
 use TYPO3\CMS\Core\Imaging\Icon;
 use TYPO3\CMS\Core\Imaging\IconFactory;
 use TYPO3\CMS\Core\Localization\LanguageService;
@@ -851,8 +852,8 @@ abstract class ImportExport
                 '<em>%s, "%s"</em> : <span title="%s">%s</span>',
                 $softref['field'],
                 $softref['spKey'],
-                htmlspecialchars($softref['matchString']),
-                htmlspecialchars(GeneralUtility::fixed_lgd_cs($softref['matchString'], 60))
+                htmlspecialchars($softref['matchString'] ?? ''),
+                htmlspecialchars(GeneralUtility::fixed_lgd_cs($softref['matchString'] ?? '', 60))
             );
             if ($softref['subst']['type'] ?? false) {
                 if ($softref['subst']['title'] ?? false) {
@@ -929,12 +930,7 @@ abstract class ImportExport
      */
     protected function checkDokType(string $table, int $dokType): bool
     {
-        $allowedTableList = $GLOBALS['PAGES_TYPES'][$dokType]['allowedTables'] ?? $GLOBALS['PAGES_TYPES']['default']['allowedTables'];
-        $allowedArray = GeneralUtility::trimExplode(',', $allowedTableList, true);
-        if (str_contains($allowedTableList, '*') || in_array($table, $allowedArray, true)) {
-            return true;
-        }
-        return false;
+        return GeneralUtility::makeInstance(PageDoktypeRegistry::class)->isRecordTypeAllowedForDoktype($table, $dokType);
     }
 
     /**

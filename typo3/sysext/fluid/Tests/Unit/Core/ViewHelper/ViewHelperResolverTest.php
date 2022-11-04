@@ -17,19 +17,15 @@ declare(strict_types=1);
 
 namespace TYPO3\CMS\Fluid\Tests\Unit\Core\ViewHelper;
 
-use Psr\Container\ContainerInterface;
+use Symfony\Component\DependencyInjection\Container;
 use TYPO3\CMS\Fluid\Core\ViewHelper\ViewHelperResolver;
 use TYPO3\CMS\Fluid\ViewHelpers\CObjectViewHelper;
 use TYPO3\CMS\Fluid\ViewHelpers\Format\HtmlentitiesViewHelper;
 use TYPO3\CMS\Fluid\ViewHelpers\RenderViewHelper;
 use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
-/**
- * Test case
- */
 class ViewHelperResolverTest extends UnitTestCase
 {
-    use \Prophecy\PhpUnit\ProphecyTrait;
     /**
      * @test
      * @dataProvider getResolveViewHelperNameTestValues
@@ -40,7 +36,7 @@ class ViewHelperResolverTest extends UnitTestCase
     public function resolveViewHelperClassNameResolvesExpectedViewHelperClassName($namespace, $method, $expected): void
     {
         $viewHelperResolver = new ViewHelperResolver(
-            $this->prophesize(ContainerInterface::class)->reveal(),
+            new Container(),
             [
                 'f' => [
                     0 => 'TYPO3Fluid\Fluid\ViewHelpers',

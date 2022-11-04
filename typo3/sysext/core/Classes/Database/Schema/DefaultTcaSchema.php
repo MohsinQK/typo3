@@ -90,12 +90,8 @@ class DefaultTcaSchema
                 $options = [
                     'default' => 0,
                     'notnull' => true,
-                    'unsigned' => false,
+                    'unsigned' => true,
                 ];
-                if (empty($tableDefinition['ctrl']['versioningWS'])) {
-                    // We need negative pid's (-1) if table is workspace aware
-                    $options['unsigned'] = true;
-                }
                 $tables[$tablePosition]->addColumn($this->quote('pid'), 'integer', $options);
                 $pidColumnAdded = true;
             }
@@ -121,21 +117,6 @@ class DefaultTcaSchema
             ) {
                 $tables[$tablePosition]->addColumn(
                     $this->quote($tableDefinition['ctrl']['crdate']),
-                    'integer',
-                    [
-                        'default' => 0,
-                        'notnull' => true,
-                        'unsigned' => true,
-                    ]
-                );
-            }
-
-            // cruser_id column
-            if (!empty($tableDefinition['ctrl']['cruser_id'])
-                && !$this->isColumnDefinedForTable($tables, $tableName, $tableDefinition['ctrl']['cruser_id'])
-            ) {
-                $tables[$tablePosition]->addColumn(
-                    $this->quote($tableDefinition['ctrl']['cruser_id']),
                     'integer',
                     [
                         'default' => 0,
@@ -503,6 +484,26 @@ class DefaultTcaSchema
                     }
                 }
             }
+
+            // Add slug fields for all tables, defining slug columns (TCA type=slug)
+            if (isset($tableDefinition['columns']) && is_array($tableDefinition['columns'])) {
+                foreach ($tableDefinition['columns'] as $fieldName => $fieldConfig) {
+                    if ((string)($fieldConfig['config']['type'] ?? '') !== 'slug'
+                        || $this->isColumnDefinedForTable($tables, $tableName, $fieldName)
+                    ) {
+                        continue;
+                    }
+
+                    $tables[$tablePosition]->addColumn(
+                        $this->quote($fieldName),
+                        'string',
+                        [
+                            'length' => 2048,
+                            'notnull' => false,
+                        ]
+                    );
+                }
+            }
         }
 
         return $tables;
@@ -685,9 +686,6 @@ class DefaultTcaSchema
         }
         if (!empty($tableDefinition['tstamp'])) {
             $prioritizedFieldNames[] = $tableDefinition['tstamp'];
-        }
-        if (!empty($tableDefinition['cruser_id'])) {
-            $prioritizedFieldNames[] = $tableDefinition['cruser_id'];
         }
         if (!empty($tableDefinition['delete'])) {
             $prioritizedFieldNames[] = $tableDefinition['delete'];

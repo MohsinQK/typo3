@@ -18,6 +18,7 @@ namespace TYPO3\CMS\Backend\Security;
 use Psr\Http\Message\ServerRequestInterface;
 use TYPO3\CMS\Backend\Tree\TreeNode;
 use TYPO3\CMS\Backend\Tree\TreeNodeCollection;
+use TYPO3\CMS\Core\Database\Connection;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Http\ApplicationType;
 use TYPO3\CMS\Core\Tree\Event\ModifyTreeDataEvent;
@@ -56,7 +57,6 @@ final class CategoryPermissionsAspect
         $treeData = $event->getTreeData();
 
         if (!$GLOBALS['BE_USER']->isAdmin() && $dataProvider->getTableName() === $this->categoryTableName) {
-
             // Get User permissions related to category
             $categoryMountPoints = $GLOBALS['BE_USER']->getCategoryMountPoints();
 
@@ -85,7 +85,6 @@ final class CategoryPermissionsAspect
                     $treeData->removeChildNodes();
 
                     // Create an empty tree node collection to receive the secured nodes.
-                    /** @var TreeNodeCollection $securedTreeNodeCollection */
                     $securedTreeNodeCollection = GeneralUtility::makeInstance(TreeNodeCollection::class);
 
                     foreach ($categoryMountPoints as $categoryMountPoint) {
@@ -115,7 +114,6 @@ final class CategoryPermissionsAspect
 
         // If any User permission, recursively traverse the tree and set tree part as mount point
         foreach ($treeNodeCollection as $treeNode) {
-
             /** @var TreeNode $treeNode */
             if ((int)$treeNode->getId() === $categoryMountPoint) {
                 $result = $treeNode;
@@ -123,7 +121,6 @@ final class CategoryPermissionsAspect
             }
 
             if ($treeNode->hasChildNodes()) {
-
                 /** @var TreeNode $node */
                 $node = $this->lookUpCategoryMountPointInTreeNodes($categoryMountPoint, $treeNode->getChildNodes());
                 if ($node !== null) {
@@ -149,7 +146,7 @@ final class CategoryPermissionsAspect
             ->select('parent')
             ->from($this->categoryTableName)
             ->where(
-                $queryBuilder->expr()->eq('uid', $queryBuilder->createNamedParameter($uid, \PDO::PARAM_INT))
+                $queryBuilder->expr()->eq('uid', $queryBuilder->createNamedParameter($uid, Connection::PARAM_INT))
             )
             ->executeQuery()
             ->fetchAssociative();

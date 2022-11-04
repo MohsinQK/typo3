@@ -20,6 +20,7 @@ use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
 use TYPO3\CMS\Backend\Utility\BackendUtility;
+use TYPO3\CMS\Core\Database\Connection;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Log\LogDataTrait;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
@@ -47,7 +48,7 @@ class ListSysLogCommand extends Command
      * @param OutputInterface $output
      * @return int
      */
-    protected function execute(InputInterface $input, OutputInterface $output)
+    protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $io = new SymfonyStyle($input, $output);
         $io->title($this->getDescription());
@@ -74,7 +75,7 @@ class ListSysLogCommand extends Command
             ->where(
                 $queryBuilder->expr()->gt(
                     'tstamp',
-                    $queryBuilder->createNamedParameter($GLOBALS['EXEC_TIME'] - 24 * 3600, \PDO::PARAM_INT)
+                    $queryBuilder->createNamedParameter($GLOBALS['EXEC_TIME'] - 24 * 3600, Connection::PARAM_INT)
                 )
             )
             ->orderBy('tstamp', 'DESC')
@@ -116,7 +117,7 @@ class ListSysLogCommand extends Command
             $content[] = $result;
         }
         $io->table($tableHeaders, $content);
-        return 0;
+        return Command::SUCCESS;
     }
 
     /**

@@ -15,6 +15,7 @@ cgl:
   script:
     - Build/Scripts/runTests.sh -s composerInstall -p 8.1
     - Build/Scripts/runTests.sh -s cgl -n -p 8.1
+    - Build/Scripts/runTests.sh -s cglHeader -n -p 8.1
 
 grunt clean:
   stage: integrity
@@ -50,6 +51,7 @@ integration various:
     - Build/Scripts/runTests.sh -s checkBom -p 8.1
     - Build/Scripts/runTests.sh -s checkComposer -p 8.1
     - Build/Scripts/runTests.sh -s checkTestMethodsPrefix -p 8.1
+    - Build/Scripts/runTests.sh -s checkNamespaceIntegrity -p 8.1
 
 lint php 8.1:
   stage: integrity
@@ -73,15 +75,24 @@ lint scss ts html:
     - Build/Scripts/runTests.sh -s lintTypescript
     - Build/Scripts/runTests.sh -s lintHtml
 
-phpstan php 8.1:
+phpstan php 8.1 locked:
+  stage: integrity
+  needs: []
+  only:
+    - schedules
+  script:
+    - Build/Scripts/runTests.sh -s composerInstall -p 8.1
+    - Build/Scripts/runTests.sh -s phpstan -p 8.1
+
+phpstan php 8.1 max:
   stage: integrity
   needs: []
   only:
     - schedules
   cache:
-    key: main-composer-phpstan-81
+    key: main-composer-max
     paths:
       - .cache
   script:
-    - Build/Scripts/runTests.sh -s composerInstall -p 8.1
+    - Build/Scripts/runTests.sh -s composerInstallMax -p 8.1
     - Build/Scripts/runTests.sh -s phpstan -p 8.1

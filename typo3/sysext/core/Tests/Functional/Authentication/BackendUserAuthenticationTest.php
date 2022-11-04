@@ -27,11 +27,6 @@ use TYPO3\TestingFramework\Core\Functional\FunctionalTestCase;
 class BackendUserAuthenticationTest extends FunctionalTestCase
 {
     /**
-     * The fixture which is used when initializing a backend user
-     */
-    protected string $backendUserFixture = __DIR__ . '/Fixtures/be_users.xml';
-
-    /**
      * @var AuthenticationService
      */
     protected $authenticationService;
@@ -57,7 +52,8 @@ class BackendUserAuthenticationTest extends FunctionalTestCase
         parent::setUp();
         $this->importCSVDataSet(__DIR__ . '/Fixtures/be_groups.csv');
         $this->importCSVDataSet(__DIR__ . '/Fixtures/pages.csv');
-        $this->setUpBackendUserFromFixture(2);
+        $this->importCSVDataSet(__DIR__ . '/Fixtures/be_users.csv');
+        $this->setUpBackendUser(2);
         /** @var BackendUserAuthentication $backendUser */
         $backendUser = $GLOBALS['BE_USER'];
         $this->subject = $backendUser;
@@ -109,7 +105,7 @@ class BackendUserAuthenticationTest extends FunctionalTestCase
      */
     public function getDefaultUploadFolderFallsBackToDefaultStorage(): void
     {
-        $this->importDataSet('PACKAGE:typo3/testing-framework/Resources/Core/Functional/Fixtures/sys_file_storage.xml');
+        $this->importCSVDataSet(__DIR__ . '/../Fixtures/sys_file_storage.csv');
         $path = 'user_upload/some-folder-that-does-not-exist';
         $fullPathToStorageBase = Environment::getPublicPath() . '/fileadmin/' . $path;
         GeneralUtility::rmdir($fullPathToStorageBase);
@@ -146,5 +142,71 @@ class BackendUserAuthenticationTest extends FunctionalTestCase
         // This will setup a user and therefore implicit call the ->checkAuthentication() method
         // which should fail since the user in the fixture has MFA activated but not yet passed.
         $this->setUpBackendUser(4);
+    }
+
+    public function isImportEnabledDataProvider(): array
+    {
+        return [
+            'admin user' => [
+                1,
+                '',
+                true,
+            ],
+            'editor user' => [
+                2,
+                '',
+                false,
+            ],
+            'editor user - enableImportForNonAdminUser = 1' => [
+                2,
+                'options.impexp.enableImportForNonAdminUser = 1',
+                true,
+            ],
+        ];
+    }
+
+    /**
+     * @test
+     * @dataProvider isImportEnabledDataProvider
+     */
+    public function isImportEnabledReturnsExpectedValues(int $userId, string $tsConfig, bool $expected): void
+    {
+        $GLOBALS['TYPO3_CONF_VARS']['BE']['defaultUserTSconfig'] = $tsConfig;
+
+        $subject = $this->setUpBackendUser($userId);
+        self::assertEquals($expected, $subject->isImportEnabled());
+    }
+
+    public function isExportEnabledDataProvider(): array
+    {
+        return [
+            'admin user' => [
+                1,
+                '',
+                true,
+            ],
+            'editor user' => [
+                2,
+                '',
+                false,
+            ],
+            'editor user - enableExportForNonAdminUser = 1' => [
+                2,
+                'options.impexp.enableExportForNonAdminUser = 1',
+                true,
+            ],
+        ];
+    }
+
+    /**
+     * @test
+     * @dataProvider isExportEnabledDataProvider
+     */
+    public function isExportEnabledReturnsExpectedValues(int $userId, string $tsConfig, bool $expected): void
+    {
+        $GLOBALS['TYPO3_CONF_VARS']['BE']['defaultUserTSconfig'] = $tsConfig;
+
+        $subject = $this->setUpBackendUser($userId);
+        self::assertEquals($expected, $subject->isExportEnabled());
     }
 }

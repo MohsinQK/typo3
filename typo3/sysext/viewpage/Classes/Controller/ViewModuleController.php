@@ -32,9 +32,9 @@ use TYPO3\CMS\Core\Exception\SiteNotFoundException;
 use TYPO3\CMS\Core\Imaging\Icon;
 use TYPO3\CMS\Core\Imaging\IconFactory;
 use TYPO3\CMS\Core\Localization\LanguageService;
-use TYPO3\CMS\Core\Messaging\AbstractMessage;
 use TYPO3\CMS\Core\Site\SiteFinder;
 use TYPO3\CMS\Core\Type\Bitmask\Permission;
+use TYPO3\CMS\Core\Type\ContextualFeedbackSeverity;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Core\Utility\MathUtility;
 
@@ -76,7 +76,7 @@ class ViewModuleController
             $view->addFlashMessage(
                 $languageService->sL('LLL:EXT:viewpage/Resources/Private/Language/locallang.xlf:noValidPageSelected'),
                 '',
-                AbstractMessage::INFO
+                ContextualFeedbackSeverity::INFO
             );
             return $view->renderResponse('Empty');
         }
@@ -93,7 +93,7 @@ class ViewModuleController
             $view->addFlashMessage(
                 $languageService->sL('LLL:EXT:viewpage/Resources/Private/Language/locallang.xlf:noSiteConfiguration'),
                 '',
-                AbstractMessage::WARNING
+                ContextualFeedbackSeverity::WARNING
             );
             return $view->renderResponse('Empty');
         }
@@ -106,7 +106,7 @@ class ViewModuleController
 
         $custom = $moduleData->get('States')['custom'] ?? [];
         $custom['width'] = MathUtility::forceIntegerInRange($custom['width'] ?? 320, 300);
-        $custom['height'] = MathUtility::forceIntegerInRange($current['custom'] ?? 480, 300);
+        $custom['height'] = MathUtility::forceIntegerInRange($custom['height'] ?? 480, 300);
 
         $view->assignMultiple([
             'current' => $current,
@@ -156,6 +156,7 @@ class ViewModuleController
                 ]),
             ])
             ->setTitle($languageService->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.showPage'))
+            ->setShowLabelText(true)
             ->setIcon($this->iconFactory->getIcon('actions-view-page', Icon::SIZE_SMALL));
         $buttonBar->addButton($showButton);
 

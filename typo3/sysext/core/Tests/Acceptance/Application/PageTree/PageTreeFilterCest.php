@@ -2,8 +2,6 @@
 
 declare(strict_types=1);
 
-namespace TYPO3\CMS\Core\Tests\Acceptance\Application\PageTree;
-
 /*
  * This file is part of the TYPO3 CMS project.
  *
@@ -16,6 +14,8 @@ namespace TYPO3\CMS\Core\Tests\Acceptance\Application\PageTree;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Core\Tests\Acceptance\Application\PageTree;
 
 use Facebook\WebDriver\WebDriverKeys;
 use TYPO3\CMS\Core\Tests\Acceptance\Support\ApplicationTester;
@@ -45,12 +45,10 @@ class PageTreeFilterCest
     public function filterTreeForPage(ApplicationTester $I): void
     {
         $I->fillField($this->filterInputField, 'Group');
-        $this->timeoutForAjaxRequest($I);
-        $I->waitForElement('#typo3-pagetree-tree .nodes .node', 10);
-
+        $this->waitForPageTreeLoad($I);
         // [#91884] no Enter key press on purpose. The search should start by itself without additional Enter key press
         // and this assertion makes sure the filter worked
-        $I->cantSee('inline expandsingle', $this->inPageTree);
+        $I->waitForElementNotVisible('//*[text()=\'inline expandsingle\']');
 
         $I->canSee('elements group', $this->inPageTree);
         $I->canSee('inline mngroup', $this->inPageTree);
@@ -61,8 +59,7 @@ class PageTreeFilterCest
 
         $I->click($this->pageTreeSecondaryOptions);
         $I->click($this->pageTreeReloadButton);
-        $this->timeoutForAjaxRequest($I);
-        $I->waitForElement('#typo3-pagetree-tree .nodes .node', 5);
+        $this->waitForPageTreeLoad($I);
 
         // [#91885] filter must still apply after page tree reload
         $I->amGoingTo('prove the filter applies after page tree reload');
@@ -73,18 +70,18 @@ class PageTreeFilterCest
     public function clearFilterReloadsPageTreeWithoutFilterApplied(ApplicationTester $I): void
     {
         $I->fillField($this->filterInputField, 'Group');
-        $this->timeoutForAjaxRequest($I);
+        $this->waitForPageTreeLoad($I);
+        $I->waitForElementNotVisible('//*[text()=\'inline expandsingle\']');
 
         $I->canSee('elements group', $this->inPageTree);
         $I->canSee('inline mngroup', $this->inPageTree);
-        $I->cantSee('inline expandsingle', $this->inPageTree);
 
         $I->pressKey($this->filterInputField, WebDriverKeys::ESCAPE);
-        $this->timeoutForAjaxRequest($I);
+        $this->waitForPageTreeLoad($I);
 
+        $I->waitForElementVisible('//*[text()=\'inline expandsingle\']');
         $I->canSee('elements group', $this->inPageTree);
         $I->canSee('inline mngroup', $this->inPageTree);
-        $I->canSee('inline expandsingle', $this->inPageTree);
     }
 
     /**
@@ -93,25 +90,28 @@ class PageTreeFilterCest
     public function deletingPageWithFilterAppliedRespectsFilterUponPageTreeReload(ApplicationTester $I, ModalDialog $modalDialog): void
     {
         $I->fillField($this->filterInputField, 'Group');
-        $this->timeoutForAjaxRequest($I);
+        $this->waitForPageTreeLoad($I);
 
         $I->canSee('elements group', $this->inPageTree);
         $I->canSee('inline mngroup', $this->inPageTree);
 
+        $this->waitForPageTreeLoad($I);
+        $I->waitForText('inline mn', 5);
+        $I->waitForElementClickable('//*[text()=\'inline mn\']');
         $I->clickWithRightButton('//*[text()=\'inline mn\']');
-
-        $I->canSeeElement('#contentMenu0');
+        $I->waitForElement('[data-callback-action="deleteRecord"]');
         $I->click('[data-callback-action="deleteRecord"]', '#contentMenu0');
 
         // don't use $modalDialog->clickButtonInDialog due to too low timeout
         $modalDialog->canSeeDialog();
         $I->click('button[name="delete"]', ModalDialog::$openedModalButtonContainerSelector);
         $I->waitForElementNotVisible(ModalDialog::$openedModalSelector, 30);
-        $this->timeoutForAjaxRequest($I);
+        $this->waitForPageTreeLoad($I);
 
         $I->canSee('elements group', $this->inPageTree);
-        $I->cantSee('inline mngroup', $this->inPageTree);
-        $I->cantSee('inline expandsingle', $this->inPageTree);
+        $I->waitForElementNotVisible('//*[text()=\'inline mn\']');
+        $I->waitForElementNotVisible('//*[text()=\'inline mngroup\']');
+        $I->waitForElementNotVisible('//*[text()=\'inline expandsingle\']');
     }
 
     protected function clearPageTreeFilters(ApplicationTester $I): void
@@ -121,8 +121,9 @@ class PageTreeFilterCest
         $I->click($this->pageTreeReloadButton);
     }
 
-    protected function timeoutForAjaxRequest(ApplicationTester $I): void
+    protected function waitForPageTreeLoad(ApplicationTester $I): void
     {
-        $I->wait(0.5);
+        $I->waitForElement('#typo3-pagetree-tree .nodes .node', 10);
+        $I->waitForElementNotVisible('#typo3-pagetree .svg-tree-loader', 10);
     }
 }

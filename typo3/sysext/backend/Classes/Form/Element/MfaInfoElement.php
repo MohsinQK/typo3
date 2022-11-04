@@ -124,7 +124,7 @@ class MfaInfoElement extends AbstractFormElement
                     }
                     if ($isDeactivationAllowed) {
                         $childHtml[] = '<button type="button"';
-                        $childHtml[] =  ' class="btn btn-default btn-sm pull-right t3js-deactivate-provider-button"';
+                        $childHtml[] =  ' class="btn btn-default btn-sm float-end t3js-deactivate-provider-button"';
                         $childHtml[] =  ' data-confirmation-title="' . htmlspecialchars(sprintf($lang->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:buttons.deactivateMfaProvider'), $lang->sL($activeProvider->getTitle()))) . '"';
                         $childHtml[] =  ' data-confirmation-content="' . htmlspecialchars(sprintf($lang->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:buttons.deactivateMfaProvider.confirmation.text'), $lang->sL($activeProvider->getTitle()))) . '"';
                         $childHtml[] =  ' data-confirmation-cancel-text="' . htmlspecialchars($lang->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.cancel')) . '"';
@@ -171,7 +171,7 @@ class MfaInfoElement extends AbstractFormElement
 
         // JavaScript is not needed in case deactivation is not allowed or no active providers exist
         if ($isDeactivationAllowed && $activeProviders !== []) {
-            $resultArray['requireJsModules'][] = JavaScriptModuleInstruction::create(
+            $resultArray['javaScriptModules'][] = JavaScriptModuleInstruction::create(
                 '@typo3/backend/form-engine/element/mfa-info-element.js'
             )->instance('#' . $fieldId, ['userId' => $userId, 'tableName' => $tableName]);
         }

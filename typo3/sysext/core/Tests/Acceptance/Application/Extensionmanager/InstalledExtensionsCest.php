@@ -66,7 +66,7 @@ class InstalledExtensionsCest
     public function checkIfUploadFormAppears(ApplicationTester $I): void
     {
         $I->cantSeeElement('.module-body .extension-upload-form');
-        $I->click('a[title="Upload Extension .t3x/.zip"]', '.module-docheader');
+        $I->click('a[title="Upload Extension"]', '.module-docheader');
         $I->seeElement('.module-body .extension-upload-form');
     }
 
@@ -82,7 +82,7 @@ class InstalledExtensionsCest
 
         $I->switchToContentFrame();
         $I->waitForElementVisible('//*[@id="typo3-extension-list"]/tbody/tr[@id="belog"]');
-        $I->click('a[data-bs-original-title="Deactivate"]', '//*[@id="typo3-extension-list"]/tbody/tr[@id="belog"]');
+        $I->click('a[aria-label="Deactivate"]', '//*[@id="typo3-extension-list"]/tbody/tr[@id="belog"]');
 
         $I->switchToMainFrame();
         $I->cantSeeElement('#system_BelogLog');
@@ -94,7 +94,7 @@ class InstalledExtensionsCest
 
         $I->switchToContentFrame();
         $I->waitForElementVisible('//*[@id="typo3-extension-list"]/tbody/tr[@id="belog"]');
-        $I->click('a[data-bs-original-title="Activate"]', '//*[@id="typo3-extension-list"]/tbody/tr[@id="belog"]');
+        $I->click('a[aria-label="Activate"]', '//*[@id="typo3-extension-list"]/tbody/tr[@id="belog"]');
 
         $I->switchToMainFrame();
         $I->seeElement('#system_BelogLog');

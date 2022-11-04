@@ -1,5 +1,7 @@
 .. include:: /Includes.rst.txt
 
+.. _deprecation-97019:
+
 ===========================================================
 Deprecation: #97019 - Deprecate order of validation message
 ===========================================================
@@ -18,20 +20,19 @@ adapted for the "date" validator.
 
 Since the order can only be adjusted by changing the key within the form
 configuration, this patch adds according comments to the form configuration.
-The breaking change will be done with TYPO3 13.0.
-
+The breaking change will be done with TYPO3 v13.0.
 
 Impact
 ======
 
 Since the YAML keys within the form configuration of the "date" form element
-will change in TYPO3 v13, custom configurations/ implementations can fail. An
+will change in TYPO3 v13, custom configurations/implementations can fail. An
 according comment has been added to the configuration file of the form
 framework. Furthermore, the new key has been reserved.
 
 Current configuration in TYPO3 v12 (simplified):
 
-.. code-block:: yaml
+..  code-block:: yaml
 
     TYPO3:
       CMS:
@@ -60,7 +61,7 @@ Current configuration in TYPO3 v12 (simplified):
 
 New configuration in TYPO3 v13 (simplified):
 
-.. code-block:: yaml
+..  code-block:: yaml
 
     TYPO3:
       CMS:
@@ -85,11 +86,9 @@ New configuration in TYPO3 v13 (simplified):
                               identifier: validationErrorMessage
                               # ...
 
-
 As you can see the key :yaml:`200` is not in use anymore. Instead, a new key
 :yaml:`400` has been introduced. The new configuration is commented in TYPO3 v12
 and will be enabled in TYPO3 v13.
-
 
 Affected Installations
 ======================
@@ -99,11 +98,10 @@ All TYPO3 installations are affected as soon as the form configuration of the
 installations where the above mentioned keys have been set or unset need to
 be migrated to the new configuration.
 
-
 Migration
 =========
 
 Check your form configuration accordingly and adapt your custom configuration.
-That is, check if you set/ unset the above mentioned keys.
+That is, check if you set/unset the above mentioned keys.
 
 .. index:: Backend, NotScanned, ext:form

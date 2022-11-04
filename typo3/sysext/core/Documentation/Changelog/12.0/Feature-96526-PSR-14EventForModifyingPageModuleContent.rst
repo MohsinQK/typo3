@@ -1,7 +1,9 @@
 .. include:: /Includes.rst.txt
 
+.. _feature-96526:
+
 ================================================================
-Feature: #96526 - PSR-14 Event for modifying page module content
+Feature: #96526 - PSR-14 event for modifying page module content
 ================================================================
 
 See :issue:`96526`
@@ -9,7 +11,7 @@ See :issue:`96526`
 Description
 ===========
 
-A new PSR-14 Event :php:`TYPO3\CMS\Backend\Controller\Event\ModifyPageLayoutContentEvent`
+A new PSR-14 event :php:`TYPO3\CMS\Backend\Controller\Event\ModifyPageLayoutContentEvent`
 has been introduced which serves as a more powerful and flexible alternative
 for the now removed hooks :php:`$GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['cms/layout/db_layout.php']['drawHeaderHook']`
 and :php:`$GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['cms/layout/db_layout.php']['drawFooterHook']`.
@@ -22,18 +24,18 @@ the module, but to also overwrite existing content or to reorder the content.
 Example
 =======
 
-Registration of the Event in your extensions' :file:`Services.yaml`:
+Registration of the event in your extension's :file:`Services.yaml`:
 
-.. code-block:: yaml
+..  code-block:: yaml
 
-  MyVendor\MyPackage\Backend\MyEventListener:
-    tags:
-      - name: event.listener
-        identifier: 'my-package/backend/modify-page-module-content'
+    MyVendor\MyPackage\Backend\MyEventListener:
+      tags:
+        - name: event.listener
+          identifier: 'my-package/backend/modify-page-module-content'
 
 The corresponding event listener class:
 
-.. code-block:: php
+..  code-block:: php
 
     use TYPO3\CMS\Backend\Controller\Event\ModifyPageLayoutContentEvent;
 
@@ -57,7 +59,7 @@ in TYPO3 v9. If needed, the information can be retrieved from the request direct
 
 An example to get the current :php:`$id`:
 
-.. code-block:: php
+..  code-block:: php
 
     public function __invoke(ModifyPageLayoutContentEvent $event): void
     {

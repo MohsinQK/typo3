@@ -25,12 +25,6 @@ abstract class AbstractActionWorkspacesTestCase extends AbstractActionTestCase
 
     protected array $coreExtensionsToLoad = ['workspaces'];
 
-    public function changeHotelSortingWithOfferNotWorkspaceAware(): void
-    {
-        $GLOBALS['TCA']['tx_testirreforeignfield_offer']['ctrl']['versioningWS'] = false;
-        $this->actionService->moveRecord(self::TABLE_Hotel, self::VALUE_HotelIdFirst, -self::VALUE_HotelIdSecond);
-    }
-
     public function createAndLocalizeParentContentWithHotelAndOfferChildrenAndDiscardLocalizedParent(): void
     {
         $newTableIds = $this->actionService->createNewRecords(

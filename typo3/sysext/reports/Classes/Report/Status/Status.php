@@ -19,24 +19,19 @@ use Psr\Http\Message\ServerRequestInterface;
 use TYPO3\CMS\Backend\View\BackendViewFactory;
 use TYPO3\CMS\Core\Localization\LanguageService;
 use TYPO3\CMS\Core\Registry;
+use TYPO3\CMS\Core\Type\ContextualFeedbackSeverity;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Reports\ExtendedStatusProviderInterface;
 use TYPO3\CMS\Reports\Registry\StatusRegistry;
 use TYPO3\CMS\Reports\RequestAwareReportInterface;
 use TYPO3\CMS\Reports\RequestAwareStatusProviderInterface;
 use TYPO3\CMS\Reports\Status as ReportStatus;
-use TYPO3\CMS\Reports\StatusProviderInterface;
 
 /**
  * The status report
  */
 class Status implements RequestAwareReportInterface
 {
-    /**
-     * @var StatusProviderInterface[][]
-     */
-    protected array $statusProviders = [];
-
     /**
      * Constructor for class tx_reports_report_Status
      */
@@ -90,15 +85,13 @@ class Status implements RequestAwareReportInterface
     public function getSystemStatus(ServerRequestInterface $request = null): array
     {
         $status = [];
-        foreach ($this->statusRegistry->getProviders() as $statusProviderList) {
-            $statusProviderId = $statusProviderList->getLabel();
-            if (!isset($status[$statusProviderId])) {
-                $status[$statusProviderId] = [];
-            }
-            if ($statusProviderList instanceof RequestAwareStatusProviderInterface) {
-                $statuses = $statusProviderList->getStatus($request);
+        foreach ($this->statusRegistry->getProviders() as $statusProvider) {
+            $statusProviderId = $statusProvider->getLabel();
+            $status[$statusProviderId] ??= [];
+            if ($statusProvider instanceof RequestAwareStatusProviderInterface) {
+                $statuses = $statusProvider->getStatus($request);
             } else {
-                $statuses = $statusProviderList->getStatus();
+                $statuses = $statusProvider->getStatus();
             }
             $status[$statusProviderId] = array_merge($status[$statusProviderId], $statuses);
         }
@@ -113,13 +106,11 @@ class Status implements RequestAwareReportInterface
     public function getDetailedSystemStatus(): array
     {
         $status = [];
-        foreach ($this->statusProviders as $statusProviderId => $statusProviderList) {
-            $status[$statusProviderId] = [];
-            foreach ($statusProviderList as $statusProvider) {
-                if ($statusProvider instanceof ExtendedStatusProviderInterface) {
-                    $statuses = $statusProvider->getDetailedStatus();
-                    $status[$statusProviderId] = array_merge($status[$statusProviderId], $statuses);
-                }
+        foreach ($this->statusRegistry->getProviders() as $statusProvider) {
+            $statusProviderId = $statusProvider->getLabel();
+            if ($statusProvider instanceof ExtendedStatusProviderInterface) {
+                $statuses = $statusProvider->getDetailedStatus();
+                $status[$statusProviderId] = array_merge($status[$statusProviderId] ?? [], $statuses);
             }
         }
         return $status;
@@ -133,20 +124,20 @@ class Status implements RequestAwareReportInterface
      */
     public function getHighestSeverity(array $statusCollection): int
     {
-        $highestSeverity = ReportStatus::NOTICE;
+        $highestSeverity = ContextualFeedbackSeverity::NOTICE;
         foreach ($statusCollection as $providerStatuses) {
             /** @var ReportStatus $status */
             foreach ($providerStatuses as $status) {
-                if ($status->getSeverity() > $highestSeverity) {
+                if ($status->getSeverity()->value > $highestSeverity->value) {
                     $highestSeverity = $status->getSeverity();
                 }
                 // Reached the highest severity level, no need to go on
-                if ($highestSeverity == ReportStatus::ERROR) {
+                if ($highestSeverity === ContextualFeedbackSeverity::ERROR) {
                     break;
                 }
             }
         }
-        return $highestSeverity;
+        return $highestSeverity->value;
     }
 
     /**
@@ -169,12 +160,12 @@ class Status implements RequestAwareReportInterface
         $view = $this->backendViewFactory->create($request);
         return $view->assignMultiple([
             'statusCollection' => $statusCollection,
-            'severityClassMapping' => [
-                ReportStatus::NOTICE => 'notice',
-                ReportStatus::INFO => 'info',
-                ReportStatus::OK => 'success',
-                ReportStatus::WARNING => 'warning',
-                ReportStatus::ERROR => 'danger',
+            'severityIconMapping' => [
+                ContextualFeedbackSeverity::NOTICE->value => 'actions-info',
+                ContextualFeedbackSeverity::INFO->value => 'actions-info',
+                ContextualFeedbackSeverity::OK->value => 'actions-check',
+                ContextualFeedbackSeverity::WARNING->value => 'actions-exclamation',
+                ContextualFeedbackSeverity::ERROR->value => 'actions-exclamation',
             ],
         ])->render('StatusReport');
     }

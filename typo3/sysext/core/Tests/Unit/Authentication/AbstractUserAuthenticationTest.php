@@ -60,7 +60,6 @@ class AbstractUserAuthenticationTest extends UnitTestCase
 
         GeneralUtility::addInstance(ConnectionPool::class, $connectionPool->reveal());
 
-        /** @var AbstractUserAuthentication $mock */
         $mock = $this->getMockBuilder(AbstractUserAuthentication::class)
             ->addMethods(['dummy'])
             ->disableOriginalConstructor()
@@ -70,6 +69,6 @@ class AbstractUserAuthenticationTest extends UnitTestCase
         $mock->checkPid_value = null;
         $mock->user_table = 'be_users';
         $result = $mock->getAuthInfoArray();
-        self::assertEquals('', $result['db_user']['checkPidList']);
+        self::assertEquals('', $result['db_user']['enable_clause']);
     }
 }

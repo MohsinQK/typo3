@@ -29,7 +29,7 @@ class Extension extends AbstractEntity
     /**
      * Category index for distributions
      */
-    const DISTRIBUTION_CATEGORY = 10;
+    public const DISTRIBUTION_CATEGORY = 10;
 
     /**
      * Contains default categories.
@@ -628,7 +628,6 @@ class Extension extends AbstractEntity
      */
     public static function createFromExtensionArray(array $extensionArray): self
     {
-        /** @var Extension $extension */
         $extension = GeneralUtility::makeInstance(self::class);
         $extension->setExtensionKey($extensionArray['key']);
         if (isset($extensionArray['version'])) {

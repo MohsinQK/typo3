@@ -18,11 +18,15 @@ declare(strict_types=1);
 namespace TYPO3\CMS\Extensionmanager\ViewHelpers;
 
 use TYPO3\CMS\Core\Configuration\ExtensionConfiguration;
+use TYPO3\CMS\Core\Imaging\Icon;
+use TYPO3\CMS\Core\Imaging\IconFactory;
 use TYPO3\CMS\Core\Localization\LanguageService;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\CMS\Extbase\Mvc\RequestInterface;
 use TYPO3\CMS\Extbase\Mvc\Web\Routing\UriBuilder;
 use TYPO3\CMS\Extbase\Service\ExtensionService;
 use TYPO3\CMS\Extensionmanager\Domain\Model\Extension;
+use TYPO3\CMS\Fluid\Core\Rendering\RenderingContext;
 use TYPO3\CMS\Fluid\ViewHelpers\Form\AbstractFormViewHelper;
 
 /**
@@ -38,10 +42,16 @@ final class DownloadExtensionViewHelper extends AbstractFormViewHelper
     protected $tagName = 'form';
 
     protected ExtensionService $extensionService;
+    protected IconFactory $iconFactory;
 
     public function injectExtensionService(ExtensionService $extensionService): void
     {
         $this->extensionService = $extensionService;
+    }
+
+    public function injectIconFactory(IconFactory $iconFactory): void
+    {
+        $this->iconFactory = $iconFactory;
     }
 
     public function initializeArguments(): void
@@ -66,7 +76,11 @@ final class DownloadExtensionViewHelper extends AbstractFormViewHelper
         }
         $pathSelector .= '</ul>';
         $uriBuilder = GeneralUtility::makeInstance(UriBuilder::class);
-        $uriBuilder->setRequest($this->renderingContext->getRequest());
+        /** @var RenderingContext $renderingContext */
+        $renderingContext = $this->renderingContext;
+        /** @var RequestInterface $request */
+        $request = $renderingContext->getRequest();
+        $uriBuilder->setRequest($request);
         $action = 'checkDependencies';
         $uriBuilder->reset();
         $uriBuilder->setFormat('json');
@@ -88,7 +102,7 @@ final class DownloadExtensionViewHelper extends AbstractFormViewHelper
                     class="btn btn-default"
                     value="' . htmlspecialchars($titleAndValue) . '"
                 >
-                    <span class="t3-icon fa fa-cloud-download"></span>
+                    ' . $this->iconFactory->getIcon('actions-download', Icon::SIZE_SMALL)->render() . '
                 </button>
             </div>';
 

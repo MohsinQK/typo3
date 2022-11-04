@@ -20,7 +20,6 @@ use Psr\Log\LoggerInterface;
 use Psr\Log\LogLevel;
 use Symfony\Component\Finder\Finder;
 use TYPO3\CMS\Backend\Configuration\TypoScript\ConditionMatching\ConditionMatcher as BackendConditionMatcher;
-use TYPO3\CMS\Core\Configuration\TypoScript\ConditionMatching\AbstractConditionMatcher;
 use TYPO3\CMS\Core\Http\ApplicationType;
 use TYPO3\CMS\Core\Log\LogManager;
 use TYPO3\CMS\Core\Resource\Security\FileNameValidator;
@@ -31,7 +30,10 @@ use TYPO3\CMS\Core\Utility\StringUtility;
 use TYPO3\CMS\Frontend\Configuration\TypoScript\ConditionMatching\ConditionMatcher as FrontendConditionMatcher;
 
 /**
- * The TypoScript parser
+ * The TypoScript parser.
+ *
+ * @deprecated This class should not be used anymore, last core usages will be removed during v12.
+ *             Using methods or properties of this class will start logging deprecation messages.
  */
 class TypoScriptParser
 {
@@ -751,8 +753,6 @@ class TypoScriptParser
                         $condition = '[' . $condition . ']';
                     }
 
-                    /** @var AbstractConditionMatcher $conditionMatcher */
-                    $conditionMatcher = null;
                     if (($GLOBALS['TYPO3_REQUEST'] ?? null) instanceof ServerRequestInterface
                         && ApplicationType::fromRequest($GLOBALS['TYPO3_REQUEST'])->isFrontend()
                     ) {
@@ -801,7 +801,7 @@ class TypoScriptParser
                     $filePointerPathParts = explode('/', substr($filename, 4));
 
                     // remove file part, determine whether to load setup or constants
-                    [$includeType, ] = explode('.', (string)array_pop($filePointerPathParts));
+                    [$includeType] = explode('.', (string)array_pop($filePointerPathParts));
 
                     if (in_array($includeType, ['setup', 'constants'])) {
                         // adapt extension key to required format (no underscores)

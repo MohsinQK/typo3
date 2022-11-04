@@ -25,8 +25,8 @@ use TYPO3\CMS\Belog\Domain\Model\LogEntry;
 use TYPO3\CMS\Belog\Domain\Repository\LogEntryRepository;
 use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
 use TYPO3\CMS\Core\Database\ConnectionPool;
-use TYPO3\CMS\Core\Messaging\AbstractMessage;
 use TYPO3\CMS\Core\Type\Bitmask\Permission;
+use TYPO3\CMS\Core\Type\ContextualFeedbackSeverity;
 use TYPO3\CMS\Core\Utility\ExtensionManagementUtility;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Extbase\Http\ForwardResponse;
@@ -67,10 +67,6 @@ class BackendLogController extends ActionController
 
     /**
      * Show general information and the installed modules
-     *
-     * @param Constraint|null $constraint
-     * @param string $operation
-     * @return ResponseInterface
      */
     public function listAction(Constraint $constraint = null, string $operation = ''): ResponseInterface
     {
@@ -125,6 +121,7 @@ class BackendLogController extends ActionController
 
         return $this->moduleTemplateFactory
             ->create($this->request)
+            ->setFlashMessageQueue($this->getFlashMessageQueue())
             ->setTitle(LocalizationUtility::translate('LLL:EXT:belog/Resources/Private/Language/locallang_mod.xlf:mlang_tabs_tab'))
             ->assignMultiple($viewVariables)
             ->renderResponse('BackendLog/List');
@@ -133,15 +130,13 @@ class BackendLogController extends ActionController
     /**
      * Delete all log entries that share the same message with the log entry given
      * in $errorUid
-     *
-     * @param int $errorUid
      */
     public function deleteMessageAction(int $errorUid): ResponseInterface
     {
-        /** @var \TYPO3\CMS\Belog\Domain\Model\LogEntry $logEntry */
+        /** @var LogEntry|null $logEntry */
         $logEntry = $this->logEntryRepository->findByUid($errorUid);
         if (!$logEntry) {
-            $this->addFlashMessage(LocalizationUtility::translate('actions.delete.noRowFound', 'belog') ?? '', '', AbstractMessage::WARNING);
+            $this->addFlashMessage(LocalizationUtility::translate('actions.delete.noRowFound', 'belog') ?? '', '', ContextualFeedbackSeverity::WARNING);
             return new ForwardResponse('list');
         }
         $numberOfDeletedRows = $this->logEntryRepository->deleteByMessageDetails($logEntry);
@@ -151,10 +146,8 @@ class BackendLogController extends ActionController
 
     /**
      * Get module states (the constraint object) from user data
-     *
-     * @return Constraint
      */
-    protected function getConstraintFromBeUserData()
+    protected function getConstraintFromBeUserData(): Constraint
     {
         $serializedConstraint = $this->request->getAttribute('moduleData')->get('constraint');
         $constraint = null;
@@ -166,8 +159,6 @@ class BackendLogController extends ActionController
 
     /**
      * Save current constraint object in be user settings (uC)
-     *
-     * @param Constraint $constraint
      */
     protected function persistConstraintInBeUserData(Constraint $constraint): void
     {
@@ -181,7 +172,7 @@ class BackendLogController extends ActionController
      * (memory exhaustion in php), reset the constraints in be user settings, so
      * the belog can be accessed again in the next call.
      */
-    protected function resetConstraintsOnMemoryExhaustionError()
+    protected function resetConstraintsOnMemoryExhaustionError(): void
     {
         $reservedMemory = new \SplFixedArray(187500); // 3M
         register_shutdown_function(function () use (&$reservedMemory): void {
@@ -201,9 +192,6 @@ class BackendLogController extends ActionController
      * '12345' is a sub array to split entries by day, number is first second of day
      *
      * [pid][dayTimestamp][items]
-     *
-     * @param QueryResultInterface $logEntries
-     * @return array
      */
     protected function groupLogEntriesDay(QueryResultInterface $logEntries): array
     {
@@ -216,8 +204,8 @@ class BackendLogController extends ActionController
                 $targetStructure[-1] = [];
             }
             // Get day timestamp of log entry and create sub array if needed
-            // @todo Replace deprecated strftime in php 8.1. Suppress warning in v11.
-            $timestampDay = strtotime(@strftime('%d.%m.%Y', $entry->getTstamp()) ?: '');
+            $entryTimestamp = \DateTimeImmutable::createFromFormat('U', (string)$entry->getTstamp());
+            $timestampDay = strtotime($entryTimestamp->format('d.m.Y'));
             if (!is_array($targetStructure[$pid][$timestampDay] ?? false)) {
                 $targetStructure[$pid][$timestampDay] = [];
             }
@@ -231,11 +219,11 @@ class BackendLogController extends ActionController
     /**
      * Create options for the user / group drop down.
      * This is not moved to a repository by intention to not mix up this 'meta' data
-     * with real repository work
+     * with real repository work.
      *
      * @return array Key is the option name, value its label
      */
-    protected function createUserAndGroupListForSelectOptions()
+    protected function createUserAndGroupListForSelectOptions(): array
     {
         $userGroupArray = [];
         // Two meta entries: 'all' and 'self'
@@ -274,7 +262,7 @@ class BackendLogController extends ActionController
      *
      * @return array Key is uid of workspace, value its label
      */
-    protected function createWorkspaceListForSelectOptions()
+    protected function createWorkspaceListForSelectOptions(): array
     {
         if (!ExtensionManagementUtility::isLoaded('workspaces')) {
             return [];
@@ -313,29 +301,25 @@ class BackendLogController extends ActionController
 
     /**
      * Create options for the 'depth of page levels' selector.
-     * This is shown if the module is displayed in page -> info
      *
      * @return array Key is depth identifier (1 = One level), value the localized select option label
      */
-    protected function createPageDepthOptions()
+    protected function createPageDepthOptions(): array
     {
-        $options = [
-            0 => LocalizationUtility::translate('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.depth_0', 'lang'),
-            1 => LocalizationUtility::translate('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.depth_1', 'lang'),
-            2 => LocalizationUtility::translate('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.depth_2', 'lang'),
-            3 => LocalizationUtility::translate('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.depth_3', 'lang'),
-            4 => LocalizationUtility::translate('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.depth_4', 'lang'),
-            999 => LocalizationUtility::translate('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.depth_infi', 'lang'),
+        return [
+            0 => LocalizationUtility::translate('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.depth_0'),
+            1 => LocalizationUtility::translate('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.depth_1'),
+            2 => LocalizationUtility::translate('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.depth_2'),
+            3 => LocalizationUtility::translate('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.depth_3'),
+            4 => LocalizationUtility::translate('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.depth_4'),
+            999 => LocalizationUtility::translate('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.depth_infi'),
         ];
-        return $options;
     }
 
     /**
      * Calculate the start- and end timestamp
-     *
-     * @param Constraint $constraint
      */
-    protected function setStartAndEndTimeFromTimeSelector(Constraint $constraint)
+    protected function setStartAndEndTimeFromTimeSelector(Constraint $constraint): void
     {
         $startTime = $constraint->getManualDateStart() ? $constraint->getManualDateStart()->getTimestamp() : 0;
         $endTime = $constraint->getManualDateStop() ? $constraint->getManualDateStop()->getTimestamp() : 0;

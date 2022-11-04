@@ -19,15 +19,15 @@ namespace TYPO3\CMS\Backend\Tests\UnitDeprecated\Form\FormDataProvider;
 
 use Prophecy\Argument;
 use Prophecy\PhpUnit\ProphecyTrait;
+use Psr\EventDispatcher\EventDispatcherInterface;
 use TYPO3\CMS\Backend\Form\FormDataProvider\TcaFlexPrepare;
 use TYPO3\CMS\Core\Cache\CacheManager;
 use TYPO3\CMS\Core\Cache\Frontend\FrontendInterface;
+use TYPO3\CMS\Core\Configuration\FlexForm\FlexFormTools;
+use TYPO3\CMS\Core\Tests\Unit\Fixtures\EventDispatcher\MockEventDispatcher;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
-/**
- * Test case
- */
 class TcaFlexPrepareTest extends UnitTestCase
 {
     use ProphecyTrait;
@@ -45,6 +45,10 @@ class TcaFlexPrepareTest extends UnitTestCase
         GeneralUtility::setSingletonInstance(CacheManager::class, $cacheManagerProphecy->reveal());
         $cacheFrontendProphecy = $this->prophesize(FrontendInterface::class);
         $cacheManagerProphecy->getCache(Argument::cetera())->willReturn($cacheFrontendProphecy->reveal());
+
+        $eventDispatcher = new MockEventDispatcher();
+        GeneralUtility::addInstance(EventDispatcherInterface::class, $eventDispatcher);
+        GeneralUtility::addInstance(FlexFormTools::class, new FlexFormTools($eventDispatcher));
 
         $this->subject = new TcaFlexPrepare();
     }

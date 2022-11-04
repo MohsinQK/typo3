@@ -45,6 +45,17 @@ class DebugExceptionHandlerTest extends UnitTestCase
             ->getMock();
     }
 
+    protected function tearDown(): void
+    {
+        $previousExceptionHandler = set_exception_handler(function () {});
+        restore_exception_handler();
+        if ($previousExceptionHandler !== null) {
+            // testcase exception handler detected, remove it
+            restore_exception_handler();
+        }
+        parent::tearDown();
+    }
+
     /**
      * @test
      */
@@ -56,6 +67,7 @@ class DebugExceptionHandlerTest extends UnitTestCase
         $this->subject->echoExceptionWeb($exception);
         $output = ob_get_contents();
         ob_end_clean();
+
         self::assertStringContainsString(htmlspecialchars($message), $output);
         self::assertStringNotContainsString($message, $output);
     }
@@ -105,7 +117,7 @@ class DebugExceptionHandlerTest extends UnitTestCase
     {
         $subject = new DebugExceptionHandler();
 
-        $logger = new class() implements LoggerInterface {
+        $logger = new class () implements LoggerInterface {
             use LoggerTrait;
             public array $records = [];
             public function log($level, string|\Stringable $message, array $context = []): void

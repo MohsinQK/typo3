@@ -24,6 +24,7 @@ use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
 use TYPO3\CMS\Backend\Utility\BackendUtility;
 use TYPO3\CMS\Core\Core\Bootstrap;
+use TYPO3\CMS\Core\Database\Connection;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\DataHandling\DataHandler;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
@@ -77,7 +78,7 @@ Manual repair suggestions:
      * @param OutputInterface $output
      * @return int
      */
-    protected function execute(InputInterface $input, OutputInterface $output)
+    protected function execute(InputInterface $input, OutputInterface $output): int
     {
         // Make sure the _cli_ user is loaded
         Bootstrap::initializeBackendAuthentication();
@@ -143,7 +144,7 @@ Manual repair suggestions:
         } else {
             $io->success('No orphan records found.');
         }
-        return 0;
+        return Command::SUCCESS;
     }
 
     /**
@@ -179,7 +180,7 @@ Manual repair suggestions:
                     ->where(
                         $queryBuilder->expr()->eq(
                             'pid',
-                            $queryBuilder->createNamedParameter($pageId, \PDO::PARAM_INT)
+                            $queryBuilder->createNamedParameter($pageId, Connection::PARAM_INT)
                         )
                     )
                     ->executeQuery();
@@ -212,7 +213,7 @@ Manual repair suggestions:
                 ->where(
                     $queryBuilder->expr()->eq(
                         'pid',
-                        $queryBuilder->createNamedParameter($pageId, \PDO::PARAM_INT)
+                        $queryBuilder->createNamedParameter($pageId, Connection::PARAM_INT)
                     )
                 )
                 ->orderBy('sorting')

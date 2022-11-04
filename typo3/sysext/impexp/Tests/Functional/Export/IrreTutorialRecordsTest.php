@@ -17,10 +17,8 @@ declare(strict_types=1);
 
 namespace TYPO3\CMS\Impexp\Tests\Functional\Export;
 
-use PHPUnit\Framework\MockObject\MockObject;
 use TYPO3\CMS\Impexp\Export;
 use TYPO3\CMS\Impexp\Tests\Functional\AbstractImportExportTestCase;
-use TYPO3\TestingFramework\Core\AccessibleObjectInterface;
 
 class IrreTutorialRecordsTest extends AbstractImportExportTestCase
 {
@@ -40,10 +38,8 @@ class IrreTutorialRecordsTest extends AbstractImportExportTestCase
     {
         $recordTypesIncludeFields = include __DIR__ . '/../Fixtures/IrreRecordsIncludeFields.php';
 
-        // @todo irre_tutorial.xml contains duplicate sorting values that need careful consideration before converting to csv
-        $this->importDataSet(__DIR__ . '/../Fixtures/DatabaseImports/irre_tutorial.xml');
+        $this->importCSVDataSet(__DIR__ . '/../Fixtures/DatabaseImports/irre_tutorial.csv');
 
-        /** @var Export|MockObject|AccessibleObjectInterface $subject */
         $subject = $this->getAccessibleMock(Export::class, ['setMetaData']);
         $subject->setPid(1);
         $subject->setTables(['_ALL']);

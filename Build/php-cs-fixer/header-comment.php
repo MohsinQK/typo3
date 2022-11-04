@@ -26,10 +26,13 @@ $finder = PhpCsFixer\Finder::create()
     // Configuration files do not need header comments
     ->exclude('Configuration')
     ->notName('*locallang*.php')
-    ->notName('AdditionalConfiguration.php')
     ->notName('ext_localconf.php')
     ->notName('ext_tables.php')
     ->notName('ext_emconf.php')
+    // ClassAliasMap files do not need header comments
+    ->notName('ClassAliasMap.php')
+    // CodeSnippets and Examples in Documentation do not need header comments
+    ->exclude('Documentation')
     // Third-party inclusion files should not have a changed comment
     ->notName('Rfc822AddressesParser.php')
     ->notName('ClassMapGenerator.php')
@@ -48,9 +51,10 @@ LICENSE.txt file that was distributed with this source code.
 The TYPO3 project - inspiring people to share!
 COMMENT;
 
-return PhpCsFixer\Config::create()
+return (new \PhpCsFixer\Config())
     ->setRiskyAllowed(false)
     ->setRules([
+        'no_extra_blank_lines' => true,
         'header_comment' => [
             'header' => $headerComment,
             'comment_type' => 'comment',

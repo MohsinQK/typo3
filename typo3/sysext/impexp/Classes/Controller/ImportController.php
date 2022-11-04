@@ -27,13 +27,13 @@ use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
 use TYPO3\CMS\Core\Imaging\Icon;
 use TYPO3\CMS\Core\Imaging\IconFactory;
 use TYPO3\CMS\Core\Localization\LanguageService;
-use TYPO3\CMS\Core\Messaging\AbstractMessage;
 use TYPO3\CMS\Core\Resource\DuplicationBehavior;
 use TYPO3\CMS\Core\Resource\File;
 use TYPO3\CMS\Core\Resource\Filter\FileExtensionFilter;
 use TYPO3\CMS\Core\Resource\Folder;
 use TYPO3\CMS\Core\Resource\ResourceFactory;
 use TYPO3\CMS\Core\Type\Bitmask\Permission;
+use TYPO3\CMS\Core\Type\ContextualFeedbackSeverity;
 use TYPO3\CMS\Core\Utility\File\ExtendedFileUtility;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Impexp\Import;
@@ -59,7 +59,7 @@ class ImportController
 
     public function handleRequest(ServerRequestInterface $request): ResponseInterface
     {
-        if (!$this->isImportEnabled()) {
+        if (!$this->getBackendUser()->isImportEnabled()) {
             throw new \RuntimeException(
                 'Import module is disabled for non admin users and userTsConfig options.impexp.enableImportForNonAdminUser is not enabled.',
                 1464435459
@@ -92,7 +92,7 @@ class ImportController
             $view->addFlashMessage(
                 $languageService->sL('LLL:EXT:impexp/Resources/Private/Language/locallang.xlf:importdata_upload_nodata'),
                 $languageService->sL('LLL:EXT:impexp/Resources/Private/Language/locallang.xlf:importdata_upload_error'),
-                AbstractMessage::ERROR
+                ContextualFeedbackSeverity::ERROR
             );
         }
         if ($request->getMethod() === 'POST' && isset($parsedBody['_upload'])) {
@@ -109,7 +109,7 @@ class ImportController
         $importFolder = $import->getOrCreateDefaultImportExportFolder();
 
         $view->assignMultiple([
-            'importFolder' => ($importFolder instanceof Folder) ? $importFolder->getCombinedIdentifier(): '',
+            'importFolder' => ($importFolder instanceof Folder) ? $importFolder->getCombinedIdentifier() : '',
             'import' => $import,
             'errors' => $import->getErrorLog(),
             'preview' => $import->renderPreview(),
@@ -136,19 +136,11 @@ class ImportController
             ->buildDispatcherDataAttributes();
         $viewButton = $buttonBar->makeLinkButton()
             ->setTitle($this->getLanguageService()->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.showPage'))
+            ->setShowLabelText(true)
             ->setHref('#')
             ->setIcon($this->iconFactory->getIcon('actions-view-page', Icon::SIZE_SMALL))
             ->setDataAttributes($previewDataAttributes ?? []);
         $buttonBar->addButton($viewButton);
-    }
-
-    /**
-     * Check if import functionality is available for current user.
-     */
-    protected function isImportEnabled(): bool
-    {
-        $backendUser = $this->getBackendUser();
-        return $backendUser->isAdmin() || ($backendUser->getTSConfig()['options.']['impexp.']['enableImportForNonAdminUser'] ?? false);
     }
 
     protected function handleFileUpload(ServerRequestInterface $request): ?File
@@ -193,7 +185,7 @@ class ImportController
                     BackendUtility::setUpdateSignal('updatePageTree');
                 }
             } catch (\Exception $e) {
-                $view->addFlashMessage($e->getMessage(), '', AbstractMessage::ERROR);
+                $view->addFlashMessage($e->getMessage(), '', ContextualFeedbackSeverity::ERROR);
             }
         }
         return $import;

@@ -28,28 +28,11 @@ use TYPO3\CMS\FrontendLogin\Service\UserService;
  */
 class FrontendUserRepository
 {
-    /**
-     * @var Connection
-     */
-    protected $connection;
+    protected Connection $connection;
 
-    /**
-     * @var Context
-     */
-    protected $context;
-
-    /**
-     * @var UserService
-     */
-    protected $userService;
-
-    public function __construct(
-        UserService $userService,
-        Context $context
-    ) {
-        $this->userService = $userService;
+    public function __construct(protected UserService $userService, protected Context $context)
+    {
         $this->connection = GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable($this->getTable());
-        $this->context = $context;
     }
 
     public function getTable(): string
@@ -60,8 +43,6 @@ class FrontendUserRepository
     /**
      * Change the password for a user based on forgot password hash.
      *
-     * @param string $forgotPasswordHash The hash of the feUser that should be resolved.
-     * @param string $hashedPassword The new password.
      * @throws \TYPO3\CMS\Core\Context\Exception\AspectNotFoundException
      */
     public function updatePasswordAndInvalidateHash(string $forgotPasswordHash, string $hashedPassword): void
@@ -83,9 +64,6 @@ class FrontendUserRepository
 
     /**
      * Returns true if an user exists with hash as `felogin_forgothash`, otherwise false.
-     *
-     * @param string $hash The hash of the feUser that should be check for existence.
-     * @return bool Either true or false based on the existence of the user.
      */
     public function existsUserWithHash(string $hash): bool
     {
@@ -106,20 +84,17 @@ class FrontendUserRepository
     }
 
     /**
-     * Sets forgot hash for passed email address.
-     *
-     * @param string $emailAddress
-     * @param string $hash
+     * Sets forgot hash for passed user uid.
      */
-    public function updateForgotHashForUserByEmail(string $emailAddress, string $hash): void
+    public function updateForgotHashForUserByUid(int $uid, string $hash): void
     {
         $queryBuilder = $this->connection->createQueryBuilder();
         $query = $queryBuilder
             ->update($this->getTable())
             ->where(
                 $queryBuilder->expr()->eq(
-                    'email',
-                    $queryBuilder->createNamedParameter($emailAddress)
+                    'uid',
+                    $queryBuilder->createNamedParameter($uid, $this->connection::PARAM_INT)
                 )
             )
             ->set('felogin_forgotHash', $hash)
@@ -128,39 +103,14 @@ class FrontendUserRepository
     }
 
     /**
-     * Fetches array containing uid, username, email, first_name, middle_name & last_name by email
-     * or empty array if user was not found.
+     * Fetches array containing uid, username, email, first_name, middle_name & last_name by email or username.
+     * Returns null, if user was not found or if user has no email address set.
      *
-     * @param string $emailAddress
-     * @return array
-     */
-    public function fetchUserInformationByEmail(string $emailAddress): array
-    {
-        $queryBuilder = $this->connection->createQueryBuilder();
-
-        $query = $queryBuilder
-            ->select('uid', 'username', 'email', 'first_name', 'middle_name', 'last_name')
-            ->from($this->getTable())
-            ->where(
-                $queryBuilder->expr()->eq(
-                    'email',
-                    $queryBuilder->createNamedParameter($emailAddress)
-                )
-            )
-        ;
-        $result = $query->executeQuery()->fetchAssociative();
-        if (!is_array($result)) {
-            $result = [];
-        }
-        return $result;
-    }
-
-    /**
      * @param string $usernameOrEmail
      * @param array $pages
-     * @return string|null
+     * @return array|null
      */
-    public function findEmailByUsernameOrEmailOnPages(string $usernameOrEmail, array $pages = []): ?string
+    public function findUserByUsernameOrEmailOnPages(string $usernameOrEmail, array $pages = []): ?array
     {
         if ($usernameOrEmail === '') {
             return null;
@@ -168,29 +118,24 @@ class FrontendUserRepository
 
         $queryBuilder = $this->connection->createQueryBuilder();
         $query = $queryBuilder
-            ->select('email')
+            ->select('uid', 'username', 'email', 'first_name', 'middle_name', 'last_name')
             ->from($this->getTable())
             ->where(
                 $queryBuilder->expr()->or(
                     $queryBuilder->expr()->eq('username', $queryBuilder->createNamedParameter($usernameOrEmail)),
-                    $queryBuilder->expr()->eq('email', $queryBuilder->createNamedParameter($usernameOrEmail))
-                )
-            )
-        ;
+                    $queryBuilder->expr()->eq('email', $queryBuilder->createNamedParameter($usernameOrEmail)),
+                ),
+                $queryBuilder->expr()->neq('email', $this->connection->quote('')),
+            );
 
         if (!empty($pages)) {
             // respect storage pid
             $query->andWhere($queryBuilder->expr()->in('pid', $pages));
         }
 
-        $column = $query->executeQuery()->fetchOne();
-        return $column === false || $column === '' ? null : (string)$column;
+        return $query->executeQuery()->fetchAssociative() ?: null;
     }
 
-    /**
-     * @param string $hash
-     * @return array|null
-     */
     public function findOneByForgotPasswordHash(string $hash): ?array
     {
         if ($hash === '') {
@@ -214,10 +159,6 @@ class FrontendUserRepository
         return is_array($row) ? $row : null;
     }
 
-    /**
-     * @param int $uid
-     * @return int|null
-     */
     public function findRedirectIdPageByUserId(int $uid): ?int
     {
         $queryBuilder = $this->connection->createQueryBuilder();
@@ -232,7 +173,7 @@ class FrontendUserRepository
                 ),
                 $queryBuilder->expr()->eq(
                     $this->userService->getFeUserIdColumn(),
-                    $queryBuilder->createNamedParameter($uid, \PDO::PARAM_INT)
+                    $queryBuilder->createNamedParameter($uid, Connection::PARAM_INT)
                 )
             )
             ->setMaxResults(1)

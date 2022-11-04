@@ -42,7 +42,7 @@ class LocalDriver extends AbstractHierarchicalFilesystemDriver implements Stream
     /**
      * @var string
      */
-    const UNSAFE_FILENAME_CHARACTER_EXPRESSION = '\\x00-\\x2C\\/\\x3A-\\x3F\\x5B-\\x60\\x7B-\\xBF';
+    public const UNSAFE_FILENAME_CHARACTER_EXPRESSION = '\\x00-\\x2C\\/\\x3A-\\x3F\\x5B-\\x60\\x7B-\\xBF';
 
     /**
      * The absolute base path. It always contains a trailing slash.
@@ -356,7 +356,8 @@ class LocalDriver extends AbstractHierarchicalFilesystemDriver implements Stream
      *                     If a driver does not support the given property, it
      *                     should fall back to "name".
      * @param bool $sortRev TRUE to indicate reverse sorting (last to first)
-     * @return array
+     * @return array<string|int, string> folder identifiers (where key and value are identical, but int-like identifiers
+     *         will get converted to int array keys)
      * @throws \InvalidArgumentException
      */
     protected function getDirectoryItemList($folderIdentifier, $start, $numberOfItems, array $filterMethods, $includeFiles = true, $includeDirs = true, $recursive = false, $sort = '', $sortRev = false)
@@ -387,18 +388,19 @@ class LocalDriver extends AbstractHierarchicalFilesystemDriver implements Stream
 
             try {
                 if (
-                !$this->applyFilterMethodsToDirectoryItem(
-                    $filterMethods,
-                    $iteratorItem['name'],
-                    $iteratorItem['identifier'],
-                    $this->getParentFolderIdentifierOfIdentifier($iteratorItem['identifier'])
-                )
+                    !$this->applyFilterMethodsToDirectoryItem(
+                        $filterMethods,
+                        $iteratorItem['name'],
+                        $iteratorItem['identifier'],
+                        $this->getParentFolderIdentifierOfIdentifier($iteratorItem['identifier'])
+                    )
                 ) {
                     continue;
                 }
                 if ($start > 0) {
                     $start--;
                 } else {
+                    // The identifier can also be an int-like string, resulting in int array keys.
                     $items[$iteratorItem['identifier']] = $iteratorItem['identifier'];
                     // Decrement item counter to make sure we only return $numberOfItems
                     // we cannot do this earlier in the method (unlike moving the iterator forward) because we only add the
@@ -503,7 +505,8 @@ class LocalDriver extends AbstractHierarchicalFilesystemDriver implements Stream
      *                     If a driver does not support the given property, it
      *                     should fall back to "name".
      * @param bool $sortRev TRUE to indicate reverse sorting (last to first)
-     * @return array of Folder Identifier
+     * @return array<string|int, string> folder identifiers (where key and value are identical, but int-like identifiers
+     *         will get converted to int array keys)
      */
     public function getFoldersInFolder($folderIdentifier, $start = 0, $numberOfItems = 0, $recursive = false, array $folderNameFilterCallbacks = [], $sort = '', $sortRev = false)
     {
@@ -687,7 +690,6 @@ class LocalDriver extends AbstractHierarchicalFilesystemDriver implements Stream
     {
         $identifier = $this->canonicalizeAndCheckFileIdentifier($containerPath . PathUtility::basename($fileIdentifier));
 
-        /** @var FileInfo $fileInfo */
         $fileInfo = GeneralUtility::makeInstance(FileInfo::class, $fileIdentifier);
         switch ($property) {
             case 'size':
@@ -1079,7 +1081,6 @@ class LocalDriver extends AbstractHierarchicalFilesystemDriver implements Stream
         $targetFolderPath = $this->getAbsolutePath($newFolderIdentifier);
 
         mkdir($targetFolderPath);
-        /** @var \RecursiveDirectoryIterator $iterator */
         $iterator = new \RecursiveIteratorIterator(
             new \RecursiveDirectoryIterator($sourceFolderPath),
             \RecursiveIteratorIterator::SELF_FIRST,

@@ -18,8 +18,6 @@ declare(strict_types=1);
 namespace TYPO3\CMS\Backend\Tests\Unit\Form\FormDataProvider;
 
 use PHPUnit\Framework\MockObject\MockObject;
-use Prophecy\PhpUnit\ProphecyTrait;
-use Prophecy\Prophecy\ObjectProphecy;
 use TYPO3\CMS\Backend\Configuration\TranslationConfigurationProvider;
 use TYPO3\CMS\Backend\Form\Exception\DatabaseDefaultLanguageException;
 use TYPO3\CMS\Backend\Form\FormDataProvider\DatabaseLanguageRows;
@@ -27,25 +25,14 @@ use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
-/**
- * Test case
- */
 class DatabaseLanguageRowsTest extends UnitTestCase
 {
-    use ProphecyTrait;
-
-    /**
-     * @var DatabaseLanguageRows|MockObject
-     */
-    protected MockObject $subject;
-
-    /** @var ObjectProphecy<BackendUserAuthentication> */
-    protected ObjectProphecy $beUserProphecy;
+    protected DatabaseLanguageRows&MockObject $subject;
 
     protected function setUp(): void
     {
-        $this->beUserProphecy = $this->prophesize(BackendUserAuthentication::class);
-        $GLOBALS['BE_USER'] = $this->beUserProphecy;
+        parent::setUp();
+        $GLOBALS['BE_USER'] = $this->createMock(BackendUserAuthentication::class);
 
         $this->subject = $this->getMockBuilder(DatabaseLanguageRows::class)
             ->onlyMethods(['getRecordWorkspaceOverlay'])
@@ -244,9 +231,10 @@ class DatabaseLanguageRowsTest extends UnitTestCase
             'sys_language_uid' => 0,
         ];
 
-        $translationProphecy = $this->prophesize(TranslationConfigurationProvider::class);
-        GeneralUtility::addInstance(TranslationConfigurationProvider::class, $translationProphecy->reveal());
-        $translationProphecy->translationInfo('tt_content', 23, 3)->shouldBeCalled()->willReturn($translationResult);
+        $translationMock = $this->createMock(TranslationConfigurationProvider::class);
+        GeneralUtility::addInstance(TranslationConfigurationProvider::class, $translationMock);
+        $translationMock->expects(self::atLeastOnce())->method('translationInfo')
+            ->with('tt_content', 23, 3)->willReturn($translationResult);
 
         // The second call is the real check: The "additional overlay" should be fetched
         $this->subject->expects(self::exactly(2))
@@ -334,10 +322,10 @@ class DatabaseLanguageRowsTest extends UnitTestCase
             'sys_language_uid' => 0,
         ];
 
-        $translationProphecy = $this->prophesize(TranslationConfigurationProvider::class);
-        GeneralUtility::addInstance(TranslationConfigurationProvider::class, $translationProphecy->reveal());
-        $translationProphecy->translationInfo('tt_content', 23, 3)->shouldBeCalled()->willReturn($translationResult);
-        $translationProphecy->translationInfo('tt_content', 23, 2)->shouldNotBeCalled();
+        $translationMock = $this->createMock(TranslationConfigurationProvider::class);
+        GeneralUtility::addInstance(TranslationConfigurationProvider::class, $translationMock);
+        $translationMock->expects(self::once())->method('translationInfo')->with('tt_content', 23, 3)
+            ->willReturn($translationResult);
 
         // The second call is the real check: The "additional overlay" should be fetched
         $this->subject->expects(self::exactly(2))

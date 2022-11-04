@@ -61,7 +61,7 @@ class DashboardInitializationService
     protected $javaScriptModuleInstructions = [];
 
     /**
-     * @var list<string|list<string>>
+     * @var list<string|array{0:string, 1:string}>
      * @deprecated will be removed in TYPO3 v13.0
      */
     private $requireJsModules = [];
@@ -243,12 +243,11 @@ class DashboardInitializationService
     }
 
     /**
-     * @return list<string|list<string>>
+     * @return list<string|array{0:string, 1:string}>
      * @deprecated will be removed in TYPO3 v13.0
      */
     public function getRequireJsModules(): array
     {
-        trigger_error('DashboardInitializationService::getRequireJsModules is deprecated and will be removed in TYPO3 v13.0', E_USER_DEPRECATED);
         return $this->requireJsModules;
     }
 

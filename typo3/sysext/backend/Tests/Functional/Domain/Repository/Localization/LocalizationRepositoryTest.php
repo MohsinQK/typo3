@@ -21,9 +21,6 @@ use TYPO3\CMS\Backend\Domain\Repository\Localization\LocalizationRepository;
 use TYPO3\CMS\Core\Core\Bootstrap;
 use TYPO3\TestingFramework\Core\Functional\FunctionalTestCase;
 
-/**
- * Test case for TYPO3\CMS\Backend\Domain\Repository\Localization\LocalizationRepository
- */
 class LocalizationRepositoryTest extends FunctionalTestCase
 {
     /**
@@ -37,8 +34,8 @@ class LocalizationRepositoryTest extends FunctionalTestCase
     protected function setUp(): void
     {
         parent::setUp();
-
-        $this->setUpBackendUserFromFixture(1);
+        $this->importCSVDataSet(__DIR__ . '/../../../Fixtures/be_users.csv');
+        $this->setUpBackendUser(1);
         Bootstrap::initializeLanguageObject();
 
         $this->importCSVDataSet(__DIR__ . '/Fixtures/DefaultPagesAndContent.csv');

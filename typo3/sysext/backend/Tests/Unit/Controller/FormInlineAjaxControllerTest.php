@@ -17,26 +17,19 @@ declare(strict_types=1);
 
 namespace TYPO3\CMS\Backend\Tests\Unit\Controller;
 
-use Prophecy\PhpUnit\ProphecyTrait;
-use Psr\Http\Message\ServerRequestInterface;
 use TYPO3\CMS\Backend\Controller\FormInlineAjaxController;
 use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
+use TYPO3\CMS\Core\Http\ServerRequest;
 use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
-/**
- * Test case
- */
 class FormInlineAjaxControllerTest extends UnitTestCase
 {
-    use ProphecyTrait;
-
     /**
      * @test
      */
     public function createActionThrowsExceptionIfContextIsEmpty(): void
     {
-        $requestProphecy = $this->prophesize(ServerRequestInterface::class);
-        $requestProphecy->getParsedBody()->shouldBeCalled()->willReturn(
+        $request = (new ServerRequest())->withQueryParams(
             [
                 'ajax' => [
                     'context' => '',
@@ -45,7 +38,7 @@ class FormInlineAjaxControllerTest extends UnitTestCase
         );
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionCode(1489751361);
-        (new FormInlineAjaxController())->createAction($requestProphecy->reveal());
+        (new FormInlineAjaxController())->createAction($request);
     }
 
     /**
@@ -53,8 +46,7 @@ class FormInlineAjaxControllerTest extends UnitTestCase
      */
     public function createActionThrowsExceptionIfContextConfigSectionIsEmpty(): void
     {
-        $requestProphecy = $this->prophesize(ServerRequestInterface::class);
-        $requestProphecy->getParsedBody()->shouldBeCalled()->willReturn(
+        $request = (new ServerRequest())->withQueryParams(
             [
                 'ajax' => [
                     'context' => json_encode([ 'config' => '' ]),
@@ -63,7 +55,7 @@ class FormInlineAjaxControllerTest extends UnitTestCase
         );
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionCode(1489751362);
-        (new FormInlineAjaxController())->createAction($requestProphecy->reveal());
+        (new FormInlineAjaxController())->createAction($request);
     }
 
     /**
@@ -71,8 +63,7 @@ class FormInlineAjaxControllerTest extends UnitTestCase
      */
     public function createActionThrowsExceptionIfContextConfigSectionDoesNotValidate(): void
     {
-        $requestProphecy = $this->prophesize(ServerRequestInterface::class);
-        $requestProphecy->getParsedBody()->shouldBeCalled()->willReturn(
+        $request = (new ServerRequest())->withQueryParams(
             [
                 'ajax' => [
                     'context' => json_encode(
@@ -88,7 +79,7 @@ class FormInlineAjaxControllerTest extends UnitTestCase
         );
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionCode(1489751363);
-        (new FormInlineAjaxController())->createAction($requestProphecy->reveal());
+        (new FormInlineAjaxController())->createAction($request);
     }
 
     /**
@@ -96,8 +87,7 @@ class FormInlineAjaxControllerTest extends UnitTestCase
      */
     public function detailsActionThrowsExceptionIfContextIsEmpty(): void
     {
-        $requestProphecy = $this->prophesize(ServerRequestInterface::class);
-        $requestProphecy->getParsedBody()->shouldBeCalled()->willReturn(
+        $request = (new ServerRequest())->withQueryParams(
             [
                 'ajax' => [
                     'context' => '',
@@ -106,7 +96,7 @@ class FormInlineAjaxControllerTest extends UnitTestCase
         );
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionCode(1489751361);
-        (new FormInlineAjaxController())->detailsAction($requestProphecy->reveal());
+        (new FormInlineAjaxController())->detailsAction($request);
     }
 
     /**
@@ -114,8 +104,7 @@ class FormInlineAjaxControllerTest extends UnitTestCase
      */
     public function detailsActionThrowsExceptionIfContextConfigSectionIsEmpty(): void
     {
-        $requestProphecy = $this->prophesize(ServerRequestInterface::class);
-        $requestProphecy->getParsedBody()->shouldBeCalled()->willReturn(
+        $request = (new ServerRequest())->withQueryParams(
             [
                 'ajax' => [
                     'context' => json_encode([ 'config' => '' ]),
@@ -124,7 +113,7 @@ class FormInlineAjaxControllerTest extends UnitTestCase
         );
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionCode(1489751362);
-        (new FormInlineAjaxController())->detailsAction($requestProphecy->reveal());
+        (new FormInlineAjaxController())->detailsAction($request);
     }
 
     /**
@@ -132,8 +121,7 @@ class FormInlineAjaxControllerTest extends UnitTestCase
      */
     public function detailsActionThrowsExceptionIfContextConfigSectionDoesNotValidate(): void
     {
-        $requestProphecy = $this->prophesize(ServerRequestInterface::class);
-        $requestProphecy->getParsedBody()->shouldBeCalled()->willReturn(
+        $request = (new ServerRequest())->withQueryParams(
             [
                 'ajax' => [
                     'context' => json_encode(
@@ -149,7 +137,7 @@ class FormInlineAjaxControllerTest extends UnitTestCase
         );
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionCode(1489751363);
-        (new FormInlineAjaxController())->detailsAction($requestProphecy->reveal());
+        (new FormInlineAjaxController())->detailsAction($request);
     }
 
     /**
@@ -157,8 +145,7 @@ class FormInlineAjaxControllerTest extends UnitTestCase
      */
     public function synchronizeLocalizeActionThrowsExceptionIfContextIsEmpty(): void
     {
-        $requestProphecy = $this->prophesize(ServerRequestInterface::class);
-        $requestProphecy->getParsedBody()->shouldBeCalled()->willReturn(
+        $request = (new ServerRequest())->withQueryParams(
             [
                 'ajax' => [
                     'context' => '',
@@ -167,7 +154,7 @@ class FormInlineAjaxControllerTest extends UnitTestCase
         );
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionCode(1489751361);
-        (new FormInlineAjaxController())->synchronizeLocalizeAction($requestProphecy->reveal());
+        (new FormInlineAjaxController())->synchronizeLocalizeAction($request);
     }
 
     /**
@@ -175,8 +162,7 @@ class FormInlineAjaxControllerTest extends UnitTestCase
      */
     public function synchronizeLocalizeActionThrowsExceptionIfContextConfigSectionIsEmpty(): void
     {
-        $requestProphecy = $this->prophesize(ServerRequestInterface::class);
-        $requestProphecy->getParsedBody()->shouldBeCalled()->willReturn(
+        $request = (new ServerRequest())->withQueryParams(
             [
                 'ajax' => [
                     'context' => json_encode([ 'config' => '' ]),
@@ -185,7 +171,7 @@ class FormInlineAjaxControllerTest extends UnitTestCase
         );
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionCode(1489751362);
-        (new FormInlineAjaxController())->synchronizeLocalizeAction($requestProphecy->reveal());
+        (new FormInlineAjaxController())->synchronizeLocalizeAction($request);
     }
 
     /**
@@ -193,8 +179,7 @@ class FormInlineAjaxControllerTest extends UnitTestCase
      */
     public function synchronizeLocalizeActionThrowsExceptionIfContextConfigSectionDoesNotValidate(): void
     {
-        $requestProphecy = $this->prophesize(ServerRequestInterface::class);
-        $requestProphecy->getParsedBody()->shouldBeCalled()->willReturn(
+        $request = (new ServerRequest())->withQueryParams(
             [
                 'ajax' => [
                     'context' => json_encode(
@@ -210,7 +195,7 @@ class FormInlineAjaxControllerTest extends UnitTestCase
         );
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionCode(1489751363);
-        (new FormInlineAjaxController())->synchronizeLocalizeAction($requestProphecy->reveal());
+        (new FormInlineAjaxController())->synchronizeLocalizeAction($request);
     }
 
     /**
@@ -221,9 +206,7 @@ class FormInlineAjaxControllerTest extends UnitTestCase
      */
     public function getInlineExpandCollapseStateArraySwitchesToFallbackIfTheBackendUserDoesNotHaveAnUCInlineViewProperty(): void
     {
-        $backendUserProphecy = $this->prophesize(BackendUserAuthentication::class);
-        $backendUser = $backendUserProphecy->reveal();
-        $backendUser->uc = [];
+        $backendUser = $this->createMock(BackendUserAuthentication::class);
 
         $mockObject = $this->getAccessibleMock(
             FormInlineAjaxController::class,
@@ -246,8 +229,7 @@ class FormInlineAjaxControllerTest extends UnitTestCase
      */
     public function getInlineExpandCollapseStateArrayWillUnserializeUCInlineViewPropertyAsAnArrayWithData(): void
     {
-        $backendUserProphecy = $this->prophesize(BackendUserAuthentication::class);
-        $backendUser = $backendUserProphecy->reveal();
+        $backendUser = $this->createMock(BackendUserAuthentication::class);
         $backendUser->uc = ['inlineView' => json_encode(['foo' => 'bar'])];
 
         $mockObject = $this->getAccessibleMock(

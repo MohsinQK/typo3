@@ -38,6 +38,7 @@ use TYPO3\CMS\Backend\Template\ModuleTemplate;
 use TYPO3\CMS\Backend\Template\ModuleTemplateFactory;
 use TYPO3\CMS\Backend\Utility\BackendUtility;
 use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
+use TYPO3\CMS\Core\Database\Connection;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Database\Query\QueryBuilder;
 use TYPO3\CMS\Core\Database\Query\Restriction\DeletedRestriction;
@@ -49,13 +50,17 @@ use TYPO3\CMS\Core\Http\RedirectResponse;
 use TYPO3\CMS\Core\Imaging\Icon;
 use TYPO3\CMS\Core\Imaging\IconFactory;
 use TYPO3\CMS\Core\Localization\LanguageService;
-use TYPO3\CMS\Core\Messaging\AbstractMessage;
+use TYPO3\CMS\Core\Messaging\FlashMessage;
+use TYPO3\CMS\Core\Messaging\FlashMessageQueue;
+use TYPO3\CMS\Core\Messaging\FlashMessageService;
 use TYPO3\CMS\Core\Page\PageRenderer;
 use TYPO3\CMS\Core\Resource\Exception\FileDoesNotExistException;
 use TYPO3\CMS\Core\Resource\Exception\InsufficientUserPermissionsException;
 use TYPO3\CMS\Core\Resource\FileInterface;
 use TYPO3\CMS\Core\Resource\ResourceFactory;
+use TYPO3\CMS\Core\Routing\BackendEntryPointResolver;
 use TYPO3\CMS\Core\Type\Bitmask\Permission;
+use TYPO3\CMS\Core\Type\ContextualFeedbackSeverity;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Core\Utility\HttpUtility;
 use TYPO3\CMS\Core\Utility\MathUtility;
@@ -338,7 +343,8 @@ class EditDocumentController
         protected readonly IconFactory $iconFactory,
         protected readonly PageRenderer $pageRenderer,
         protected readonly UriBuilder $uriBuilder,
-        protected readonly ModuleTemplateFactory $moduleTemplateFactory
+        protected readonly ModuleTemplateFactory $moduleTemplateFactory,
+        protected readonly BackendEntryPointResolver $backendEntryPointResolver
     ) {
     }
 
@@ -534,7 +540,7 @@ class EditDocumentController
         }
         // If pages are being edited, we set an instruction about updating the page tree after this operation.
         if ($tce->pagetreeNeedsRefresh
-            && (isset($this->data['pages']) || $beUser->workspace != 0 && !empty($this->data))
+            && (isset($this->data['pages']) || $beUser->workspace !== 0 && !empty($this->data))
         ) {
             BackendUtility::setUpdateSignal('updatePageTree');
         }
@@ -636,6 +642,58 @@ class EditDocumentController
             // Recompile the store* values since editconf changed...
             $this->compileStoreData($request);
         }
+
+        // Explicitly require a save operation
+        if ($this->doSave) {
+            $erroneousRecords = $tce->printLogErrorMessages();
+            $messages = [];
+            $table = (string)key($this->editconf);
+            $uidList = GeneralUtility::intExplode(',', (string)key($this->editconf[$table]));
+
+            foreach ($uidList as $uid) {
+                $uid = (int)abs($uid);
+                if (!in_array($table . '.' . $uid, $erroneousRecords, true)) {
+                    $realUidInPayload = ($tceSubstId = array_search($uid, $tce->substNEWwithIDs, true)) !== false ? $tceSubstId : $uid;
+                    $row = $this->data[$table][$uid] ?? $this->data[$table][$realUidInPayload] ?? null;
+                    if ($row !== null) {
+                        if ($this->columnsOnly) {
+                            // If label of the record is not available, fetch it from database
+                            // This is the case when EditDocumentController is booted in single field mode (e.g. Template module > 'info/modify' > edit 'setup' field)
+                            $labelArray = [$GLOBALS['TCA'][$table]['ctrl']['label'] ?? null];
+                            $labelAltArray = GeneralUtility::trimExplode(',', $GLOBALS['TCA'][$table]['ctrl']['label_alt'] ?? '', true);
+                            $labelFields = array_unique(array_filter(array_merge($labelArray, $labelAltArray)));
+                            foreach ($labelFields as $labelField) {
+                                if (!isset($row[$labelField])) {
+                                    $tmpRecord = BackendUtility::getRecord($table, $uid, implode(',', $labelFields));
+                                    if ($tmpRecord !== null) {
+                                        $row = array_merge($row, $tmpRecord);
+                                    }
+                                    break;
+                                }
+                            }
+                        }
+                        $recordTitle = GeneralUtility::fixed_lgd_cs(BackendUtility::getRecordTitle($table, $row), (int)$this->getBackendUser()->uc['titleLen']);
+                        $messages[] = sprintf($this->getLanguageService()->getLL('notification.record_saved.message'), $recordTitle);
+                    }
+                }
+            }
+
+            // Add messages to the flash message container only if the request is a save action (excludes "duplicate")
+            if ($messages !== []) {
+                $title = count($messages) === 1 ? 'notification.record_saved.title.singular' : 'notification.record_saved.title.plural';
+                $flashMessageService = GeneralUtility::makeInstance(FlashMessageService::class);
+                $defaultFlashMessageQueue = $flashMessageService->getMessageQueueByIdentifier(FlashMessageQueue::NOTIFICATION_QUEUE);
+                $flashMessage = GeneralUtility::makeInstance(
+                    FlashMessage::class,
+                    implode(LF, $messages),
+                    $this->getLanguageService()->getLL($title),
+                    ContextualFeedbackSeverity::OK,
+                    true
+                );
+                $defaultFlashMessageQueue->enqueue($flashMessage);
+            }
+        }
+
         // If a document should be duplicated.
         if (isset($parsedBody['_duplicatedoc']) && is_array($this->editconf)) {
             $this->closeDocument(self::DOCUMENT_CLOSE_MODE_NO_REDIRECT, $request);
@@ -664,7 +722,6 @@ class EditDocumentController
                 $relatedPageId = -$nRec['t3ver_oid'];
             }
 
-            /** @var DataHandler $duplicateTce */
             $duplicateTce = GeneralUtility::makeInstance(DataHandler::class);
 
             $duplicateCmd = [
@@ -694,7 +751,6 @@ class EditDocumentController
             // Inform the user of the duplication
             $view->addFlashMessage($this->getLanguageService()->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.recordDuplicated'));
         }
-        $tce->printLogErrorMessages();
 
         if ($this->closeDoc < self::DOCUMENT_CLOSE_MODE_DEFAULT
             || isset($parsedBody['_saveandclosedok'])
@@ -743,7 +799,7 @@ class EditDocumentController
     /**
      * Generates markup for immediate action dispatching.
      */
-    protected function generatePreviewCode(): string
+    protected function generatePreviewCode(): ?string
     {
         $array_keys = array_keys($this->editconf);
         $this->previewData['table'] = reset($array_keys) ?: null;
@@ -1073,7 +1129,7 @@ class EditDocumentController
                         if ($command === 'edit') {
                             $lockInfo = BackendUtility::isRecordLocked($table, $formData['databaseRow']['uid']);
                             if ($lockInfo) {
-                                $view->addFlashMessage($lockInfo['msg'], '', AbstractMessage::WARNING);
+                                $view->addFlashMessage($lockInfo['msg'], '', ContextualFeedbackSeverity::WARNING);
                             }
                         }
 
@@ -1151,9 +1207,8 @@ class EditDocumentController
         return '<div class="callout callout-danger">' .
                 '<div class="media">' .
                     '<div class="media-left">' .
-                        '<span class="fa-stack fa-lg callout-icon">' .
-                            '<i class="fa fa-circle fa-stack-2x"></i>' .
-                            '<i class="fa fa-times fa-stack-1x"></i>' .
+                        '<span class="icon-emphasized">' .
+                            $this->iconFactory->getIcon('actions-close', Icon::SIZE_SMALL)->render() .
                         '</span>' .
                     '</div>' .
                     '<div class="media-body">' .
@@ -1217,7 +1272,7 @@ class EditDocumentController
                         $l18nParent
                     );
                 }
-                $this->registerDeleteButtonToButtonBar($buttonBar, ButtonBar::BUTTON_POSITION_LEFT, 6);
+                $this->registerDeleteButtonToButtonBar($buttonBar, ButtonBar::BUTTON_POSITION_LEFT, 6, $request);
                 $this->registerColumnsOnlyButtonToButtonBar($buttonBar, ButtonBar::BUTTON_POSITION_LEFT, 7);
                 $this->registerHistoryButtonToButtonBar($buttonBar, ButtonBar::BUTTON_POSITION_RIGHT, 1);
             }
@@ -1328,7 +1383,7 @@ class EditDocumentController
         ) {
             $pagesTSconfig = BackendUtility::getPagesTSconfig($this->pageinfo['uid'] ?? 0);
             if (isset($pagesTSconfig['TCEMAIN.']['preview.']['disableButtonForDokType'])) {
-                $excludeDokTypes = GeneralUtility::intExplode(',', $pagesTSconfig['TCEMAIN.']['preview.']['disableButtonForDokType'], true);
+                $excludeDokTypes = GeneralUtility::intExplode(',', (string)$pagesTSconfig['TCEMAIN.']['preview.']['disableButtonForDokType'], true);
             } else {
                 // exclude sys-folders, spacers and recycler by default
                 $excludeDokTypes = [
@@ -1441,7 +1496,7 @@ class EditDocumentController
     /**
      * Register the delete button to the button bar
      */
-    protected function registerDeleteButtonToButtonBar(ButtonBar $buttonBar, string $position, int $group): void
+    protected function registerDeleteButtonToButtonBar(ButtonBar $buttonBar, string $position, int $group, ServerRequestInterface $request): void
     {
         if ($this->firstEl['deleteAccess']
             && !$this->getDisableDelete()
@@ -1454,7 +1509,7 @@ class EditDocumentController
                 // The below is a hack to replace the return url with an url to the current module on id=0. Otherwise,
                 // this might lead to empty views, since the current id is the page, which is about to be deleted.
                 $parsedUrl = parse_url($returnUrl);
-                $routePath = str_replace(TYPO3_mainDir, '', $parsedUrl['path'] ?? '');
+                $routePath = str_replace($this->backendEntryPointResolver->getPathFromRequest($request), '', $parsedUrl['path'] ?? '');
                 parse_str($parsedUrl['query'] ?? '', $queryParams);
                 if ($routePath
                     && isset($queryParams['id'])
@@ -1502,11 +1557,17 @@ class EditDocumentController
                 'redirect' => $returnUrl,
             ]);
 
+            $recordInfo = $this->storeTitle;
+            if ($this->getBackendUser()->shallDisplayDebugInformation()) {
+                $recordInfo .= ' [' . $this->firstEl['table'] . ':' . $this->firstEl['uid'] . ']';
+            }
+
             $deleteButton = $buttonBar->makeLinkButton()
                 ->setClasses('t3js-editform-delete-record')
                 ->setDataAttributes([
                     'uid' => $this->firstEl['uid'],
                     'table' => $this->firstEl['table'],
+                    'record-info' => trim($recordInfo),
                     'reference-count-message' => $referenceCountMessage,
                     'translation-count-message' => $translationCountMessage,
                 ])
@@ -1630,7 +1691,7 @@ class EditDocumentController
             ->andWhere(
                 $queryBuilder->expr()->gt(
                     $GLOBALS['TCA']['tt_content']['ctrl']['transOrigPointerField'],
-                    $queryBuilder->createNamedParameter(0, \PDO::PARAM_INT)
+                    $queryBuilder->createNamedParameter(0, Connection::PARAM_INT)
                 )
             )
             ->executeQuery()
@@ -1647,7 +1708,7 @@ class EditDocumentController
             ->andWhere(
                 $queryBuilder->expr()->eq(
                     $GLOBALS['TCA']['tt_content']['ctrl']['transOrigPointerField'],
-                    $queryBuilder->createNamedParameter(0, \PDO::PARAM_INT)
+                    $queryBuilder->createNamedParameter(0, Connection::PARAM_INT)
                 )
             )
             ->executeQuery()
@@ -1671,15 +1732,15 @@ class EditDocumentController
             ->where(
                 $queryBuilder->expr()->eq(
                     'pid',
-                    $queryBuilder->createNamedParameter($page, \PDO::PARAM_INT)
+                    $queryBuilder->createNamedParameter($page, Connection::PARAM_INT)
                 ),
                 $queryBuilder->expr()->eq(
                     $languageField,
-                    $queryBuilder->createNamedParameter($language, \PDO::PARAM_INT)
+                    $queryBuilder->createNamedParameter($language, Connection::PARAM_INT)
                 ),
                 $queryBuilder->expr()->eq(
                     'colPos',
-                    $queryBuilder->createNamedParameter($column, \PDO::PARAM_INT)
+                    $queryBuilder->createNamedParameter($column, Connection::PARAM_INT)
                 )
             );
     }
@@ -1873,15 +1934,15 @@ class EditDocumentController
                             ->where(
                                 $queryBuilder->expr()->eq(
                                     'pid',
-                                    $queryBuilder->createNamedParameter($pid, \PDO::PARAM_INT)
+                                    $queryBuilder->createNamedParameter($pid, Connection::PARAM_INT)
                                 ),
                                 $queryBuilder->expr()->gt(
                                     $languageField,
-                                    $queryBuilder->createNamedParameter(0, \PDO::PARAM_INT)
+                                    $queryBuilder->createNamedParameter(0, Connection::PARAM_INT)
                                 ),
                                 $queryBuilder->expr()->eq(
                                     $transOrigPointerField,
-                                    $queryBuilder->createNamedParameter($rowsByLang[0]['uid'], \PDO::PARAM_INT)
+                                    $queryBuilder->createNamedParameter($rowsByLang[0]['uid'], Connection::PARAM_INT)
                                 )
                             )
                             ->executeQuery();
@@ -1988,11 +2049,11 @@ class EditDocumentController
                 ->where(
                     $queryBuilder->expr()->eq(
                         $GLOBALS['TCA'][$table]['ctrl']['languageField'],
-                        $queryBuilder->createNamedParameter($language, \PDO::PARAM_INT)
+                        $queryBuilder->createNamedParameter($language, Connection::PARAM_INT)
                     ),
                     $queryBuilder->expr()->eq(
                         $GLOBALS['TCA'][$table]['ctrl']['transOrigPointerField'],
-                        $queryBuilder->createNamedParameter($origUid, \PDO::PARAM_INT)
+                        $queryBuilder->createNamedParameter($origUid, Connection::PARAM_INT)
                     )
                 )
                 ->executeQuery()
@@ -2056,7 +2117,7 @@ class EditDocumentController
                 ->where(
                     $queryBuilder->expr()->eq(
                         $GLOBALS['TCA']['pages']['ctrl']['transOrigPointerField'],
-                        $queryBuilder->createNamedParameter($pageId, \PDO::PARAM_INT)
+                        $queryBuilder->createNamedParameter($pageId, Connection::PARAM_INT)
                     )
                 )
                 ->executeQuery();
@@ -2135,7 +2196,7 @@ class EditDocumentController
         $reqRecord = BackendUtility::getRecord($table, $theUid, 'uid,pid' . ($tableSupportsVersioning ? ',t3ver_oid' : ''));
         if (is_array($reqRecord)) {
             // If workspace is OFFLINE:
-            if ($this->getBackendUser()->workspace != 0) {
+            if ($this->getBackendUser()->workspace !== 0) {
                 // Check for versioning support of the table:
                 if ($tableSupportsVersioning) {
                     // If the record is already a version of "something" pass it by.

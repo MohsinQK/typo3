@@ -18,12 +18,12 @@ declare(strict_types=1);
 namespace TYPO3\CMS\Extbase\Tests\Unit\Mvc\Controller;
 
 use PHPUnit\Framework\MockObject\MockObject;
-use Prophecy\Argument;
-use Prophecy\PhpUnit\ProphecyTrait;
+use TYPO3\CMS\Core\Http\ServerRequest;
 use TYPO3\CMS\Core\Messaging\FlashMessage;
 use TYPO3\CMS\Core\Messaging\FlashMessageQueue;
 use TYPO3\CMS\Core\Messaging\FlashMessageService;
 use TYPO3\CMS\Core\Page\PageRenderer;
+use TYPO3\CMS\Core\Type\ContextualFeedbackSeverity;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Core\Utility\StringUtility;
 use TYPO3\CMS\Extbase\Configuration\ConfigurationManagerInterface;
@@ -32,6 +32,7 @@ use TYPO3\CMS\Extbase\Mvc\Controller\Arguments;
 use TYPO3\CMS\Extbase\Mvc\Controller\MvcPropertyMappingConfigurationService;
 use TYPO3\CMS\Extbase\Mvc\Exception\InvalidArgumentTypeException;
 use TYPO3\CMS\Extbase\Mvc\Exception\NoSuchActionException;
+use TYPO3\CMS\Extbase\Mvc\ExtbaseRequestParameters;
 use TYPO3\CMS\Extbase\Mvc\Request;
 use TYPO3\CMS\Extbase\Mvc\RequestInterface;
 use TYPO3\CMS\Extbase\Mvc\Web\Routing\UriBuilder;
@@ -47,15 +48,8 @@ use TYPO3Fluid\Fluid\View\ViewInterface;
 
 class ActionControllerTest extends UnitTestCase
 {
-    use ProphecyTrait;
-
     protected bool $resetSingletonInstances = true;
-
-    /**
-     * @var ActionController|MockObject|AccessibleObjectInterface
-     */
-    protected $actionController;
-
+    protected ActionController&MockObject&AccessibleObjectInterface $actionController;
     protected UriBuilder $mockUriBuilder;
     protected MvcPropertyMappingConfigurationService $mockMvcPropertyMappingConfigurationService;
 
@@ -66,7 +60,6 @@ class ActionControllerTest extends UnitTestCase
     {
         $mockRequest = $this->createMock(Request::class);
         $mockRequest->expects(self::once())->method('getControllerActionName')->willReturn('fooBar');
-        /** @var ActionController|MockObject|AccessibleObjectInterface */
         $mockController = $this->getAccessibleMockForAbstractClass(ActionController::class, [], '', false, true, true, ['fooBarAction']);
         $mockController->_set('request', $mockRequest);
         self::assertEquals('fooBarAction', $mockController->_call('resolveActionMethodName'));
@@ -81,7 +74,6 @@ class ActionControllerTest extends UnitTestCase
         $this->expectExceptionCode(1186669086);
         $mockRequest = $this->createMock(Request::class);
         $mockRequest->expects(self::once())->method('getControllerActionName')->willReturn('fooBar');
-        /** @var ActionController|MockObject|AccessibleObjectInterface */
         $mockController = $this->getAccessibleMockForAbstractClass(ActionController::class, [], '', false, true, true, ['otherBarAction']);
         $mockController->_set('request', $mockRequest);
         $mockController->_call('resolveActionMethodName');
@@ -283,9 +275,7 @@ class ActionControllerTest extends UnitTestCase
      */
     public function setViewConfigurationResolvesTemplateRootPathsForTemplateRootPath(array $configuration, array $expected): void
     {
-        /** @var ActionController|MockObject|AccessibleObjectInterface $mockController */
         $mockController = $this->getAccessibleMockForAbstractClass(ActionController::class, [], '', false, true, true, ['dummy']);
-        /** @var ConfigurationManagerInterface|MockObject $mockConfigurationManager */
         $mockConfigurationManager = $this->createMock(ConfigurationManagerInterface::class);
         $mockConfigurationManager->method('getConfiguration')->willReturn($configuration);
         $mockController->injectConfigurationManager($mockConfigurationManager);
@@ -362,9 +352,7 @@ class ActionControllerTest extends UnitTestCase
      */
     public function setViewConfigurationResolvesLayoutRootPathsForLayoutRootPath(array $configuration, array $expected): void
     {
-        /** @var ActionController|MockObject|AccessibleObjectInterface $mockController */
         $mockController = $this->getAccessibleMockForAbstractClass(ActionController::class, [], '', false, true, true, ['dummy']);
-        /** @var ConfigurationManagerInterface|MockObject $mockConfigurationManager */
         $mockConfigurationManager = $this->createMock(ConfigurationManagerInterface::class);
         $mockConfigurationManager->method('getConfiguration')->willReturn($configuration);
         $mockController->injectConfigurationManager($mockConfigurationManager);
@@ -441,9 +429,7 @@ class ActionControllerTest extends UnitTestCase
      */
     public function setViewConfigurationResolvesPartialRootPathsForPartialRootPath(array $configuration, array $expected): void
     {
-        /** @var ActionController|MockObject|AccessibleObjectInterface $mockController */
         $mockController = $this->getAccessibleMockForAbstractClass(ActionController::class, [], '', false, true, true, ['dummy']);
-        /** @var ConfigurationManagerInterface|MockObject $mockConfigurationManager */
         $mockConfigurationManager = $this->createMock(ConfigurationManagerInterface::class);
         $mockConfigurationManager->method('getConfiguration')->willReturn($configuration);
         $mockController->injectConfigurationManager($mockConfigurationManager);
@@ -521,20 +507,21 @@ class ActionControllerTest extends UnitTestCase
      */
     public function rendersAndAssignsAssetsFromViewIntoPageRenderer($viewMock, ?string $expectedHeader, ?string $expectedFooter): void
     {
-        $pageRenderer = $this->prophesize(PageRenderer::class);
-        GeneralUtility::setSingletonInstance(PageRenderer::class, $pageRenderer->reveal());
+        $pageRenderer = $this->createMock(PageRenderer::class);
         if (!empty(trim($expectedHeader ?? ''))) {
-            $pageRenderer->addHeaderData($expectedHeader)->shouldBeCalled();
+            $pageRenderer->expects(self::atLeastOnce())->method('addHeaderData')->with($expectedHeader);
         } else {
-            $pageRenderer->addHeaderData(Argument::any())->shouldNotBeCalled();
+            $pageRenderer->expects(self::never())->method('addHeaderData');
         }
         if (!empty(trim($expectedFooter ?? ''))) {
-            $pageRenderer->addFooterData($expectedFooter)->shouldBeCalled();
+            $pageRenderer->expects(self::atLeastOnce())->method('addFooterData')->with($expectedFooter);
         } else {
-            $pageRenderer->addFooterData(Argument::any())->shouldNotBeCalled();
+            $pageRenderer->expects(self::never())->method('addFooterData');
         }
+        GeneralUtility::setSingletonInstance(PageRenderer::class, $pageRenderer);
+
         $requestMock = $this->getMockBuilder(RequestInterface::class)->getMockForAbstractClass();
-        $subject = new class() extends ActionController {
+        $subject = new class () extends ActionController {
         };
         $viewProperty = new \ReflectionProperty($subject, 'view');
         $viewProperty->setAccessible(true);
@@ -590,43 +577,43 @@ class ActionControllerTest extends UnitTestCase
                 new FlashMessage('Simple Message'),
                 'Simple Message',
                 '',
-                FlashMessage::OK,
+                ContextualFeedbackSeverity::OK,
                 false,
             ],
             [
-                new FlashMessage('Some OK', 'Message Title', FlashMessage::OK, true),
+                new FlashMessage('Some OK', 'Message Title', ContextualFeedbackSeverity::OK, true),
                 'Some OK',
                 'Message Title',
-                FlashMessage::OK,
+                ContextualFeedbackSeverity::OK,
                 true,
             ],
             [
-                new FlashMessage('Some Info', 'Message Title', FlashMessage::INFO, true),
+                new FlashMessage('Some Info', 'Message Title', ContextualFeedbackSeverity::INFO, true),
                 'Some Info',
                 'Message Title',
-                FlashMessage::INFO,
+                ContextualFeedbackSeverity::INFO,
                 true,
             ],
             [
-                new FlashMessage('Some Notice', 'Message Title', FlashMessage::NOTICE, true),
+                new FlashMessage('Some Notice', 'Message Title', ContextualFeedbackSeverity::NOTICE, true),
                 'Some Notice',
                 'Message Title',
-                FlashMessage::NOTICE,
+                ContextualFeedbackSeverity::NOTICE,
                 true,
             ],
 
             [
-                new FlashMessage('Some Warning', 'Message Title', FlashMessage::WARNING, true),
+                new FlashMessage('Some Warning', 'Message Title', ContextualFeedbackSeverity::WARNING, true),
                 'Some Warning',
                 'Message Title',
-                FlashMessage::WARNING,
+                ContextualFeedbackSeverity::WARNING,
                 true,
             ],
             [
-                new FlashMessage('Some Error', 'Message Title', FlashMessage::ERROR, true),
+                new FlashMessage('Some Error', 'Message Title', ContextualFeedbackSeverity::ERROR, true),
                 'Some Error',
                 'Message Title',
-                FlashMessage::ERROR,
+                ContextualFeedbackSeverity::ERROR,
                 true,
             ],
         ];
@@ -640,7 +627,7 @@ class ActionControllerTest extends UnitTestCase
         $expectedMessage,
         $messageBody,
         $messageTitle = '',
-        $severity = FlashMessage::OK,
+        $severity = ContextualFeedbackSeverity::OK,
         $storeInSession = true
     ): void {
         $flashMessageQueue = $this->getMockBuilder(FlashMessageQueue::class)
@@ -660,15 +647,17 @@ class ActionControllerTest extends UnitTestCase
             ['dummy']
         );
 
-        $flashMessageService = $this->prophesize(FlashMessageService::class);
-        $flashMessageService->getMessageQueueByIdentifier(Argument::cetera())->willReturn($flashMessageQueue);
-        $controller->injectInternalFlashMessageService($flashMessageService->reveal());
+        $flashMessageService = $this->createMock(FlashMessageService::class);
+        $flashMessageService->method('getMessageQueueByIdentifier')->with(self::anything())->willReturn($flashMessageQueue);
+        $controller->injectInternalFlashMessageService($flashMessageService);
 
-        $extensionService = $this->prophesize(ExtensionService::class);
-        $extensionService->getPluginNamespace(Argument::cetera(), Argument::cetera())->willReturn('');
-        $controller->injectInternalExtensionService($extensionService->reveal());
+        $extensionService = $this->createMock(ExtensionService::class);
+        $extensionService->method('getPluginNamespace')->with(self::anything(), self::anything())->willReturn('');
+        $controller->injectInternalExtensionService($extensionService);
 
-        $controller->_set('request', new Request());
+        $serverRequest = (new ServerRequest())->withAttribute('extbase', new ExtbaseRequestParameters());
+        $request = new Request($serverRequest);
+        $controller->_set('request', $request);
 
         $controller->addFlashMessage($messageBody, $messageTitle, $severity, $storeInSession);
     }
@@ -680,7 +669,7 @@ class ActionControllerTest extends UnitTestCase
     {
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionCode(1243258395);
-        $controller = new class() extends ActionController {
+        $controller = new class () extends ActionController {
         };
         $controller->addFlashMessage(new \stdClass());
     }

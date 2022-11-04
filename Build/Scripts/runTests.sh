@@ -99,13 +99,21 @@ cleanTestFiles() {
     # > test related
     echo -n "Clean test related files ... " ; rm -rf \
         ../../../Build/phpunit/FunctionalTests-Job-*.xml \
-        ../../../typo3/sysext/core/Tests/Acceptance/AcceptanceTests-Job-* \
+        ../../../typo3/sysext/core/Tests/AcceptanceTests-Job-* \
         ../../../typo3/sysext/core/Tests/Acceptance/Support/_generated \
         ../../../typo3temp/var/tests/ ; \
         echo "done"
 }
 
+cleanRenderedDocumentationFiles() {
+    # > caches
+    echo -n "Clean rendered documentation files ... " ; rm -rf \
+        ../../../typo3/sysext/*/Documentation-GENERATED-temp ; \
+        echo "done"
+}
+
 # Load help text into $HELP
+# @todo Remove xdebug / php8.2 note after PHP8.2 image contains working xdebug.
 read -r -d '' HELP <<EOF
 TYPO3 core test runner. Execute acceptance, unit, functional and other test suites in
 a docker based test environment. Handles execution of single test files, sending
@@ -127,6 +135,8 @@ Options:
             - buildJavascript: execute typescript to javascript builder
             - cgl: test and fix all core php files
             - cglGit: test and fix latest committed patch for CGL compliance
+            - cglHeader: test and fix file header for all core php files
+            - cglHeaderGit: test and fix latest committed patch for CGL file header compliance
             - checkAnnotations: check php code for allowed annotations
             - checkBom: check UTF-8 files do not contain BOM
             - checkComposer: check composer.json files for version integrity
@@ -135,12 +145,14 @@ Options:
             - checkFilePathLength: test core file paths do not exceed maximum length
             - checkGitSubmodule: test core git has no sub modules defined
             - checkGruntClean: Verify "grunt build" is clean. Warning: Executes git commands! Usually used in CI only.
+            - checkNamespaceIntegrity: Verify namespace integrity in class and test code files are in good shape.
             - checkPermissions: test some core files for correct executable bits
             - checkRst: test .rst files for integrity
             - checkTestMethodsPrefix: check tests methods do not start with "test"
             - clean: clean up build, cache and testing related files and folders
             - cleanBuild: clean up build related files and folders
             - cleanCache: clean up cache related files and folders
+            - cleanRenderedDocumentation: clean up rendered documentation files and folders (Documentation-GENERATED-temp)
             - cleanTests: clean up test related files and folders
             - composerInstall: "composer install"
             - composerInstallMax: "composer update", with no platform.php config.
@@ -207,9 +219,10 @@ Options:
         Hack functional or acceptance tests into #numberOfChunks pieces and run tests of #chunk.
         Example -c 3/13
 
-    -p <8.1>
+    -p <8.1|8.2>
         Specifies the PHP minor version to be used
             - 8.1 (default): use PHP 8.1
+            - 8.2: use PHP 8.2 (note that xdebug is currently not available for PHP8.2)
 
     -e "<phpunit options>"
         Only with -s functional|functionalDeprecated|unit|unitDeprecated|unitRandom|acceptance
@@ -235,7 +248,7 @@ Options:
         replay the unit tests in that order.
 
     -n
-        Only with -s cgl|cglGit
+        Only with -s cgl|cglGit|cglHeader|cglGitHeader
         Activate dry-run in CGL check that does not actively change files and only prints broken ones.
 
     -u
@@ -258,7 +271,7 @@ Examples:
     # Run all core units tests and enable xdebug (have a PhpStorm listening on port 9003!)
     ./Build/Scripts/runTests.sh -x
 
-    # Run unit tests in phpunit verbose mode with xdebug on PHP 8.0 and filter for test canRetrieveValueWithGP
+    # Run unit tests in phpunit verbose mode with xdebug on PHP 8.1 and filter for test canRetrieveValueWithGP
     ./Build/Scripts/runTests.sh -x -p 8.1 -e "-v --filter canRetrieveValueWithGP"
 
     # Run functional tests in phpunit with a filtered test method name in a specified file
@@ -268,7 +281,7 @@ Examples:
     # Run unit tests with PHP 8.1 and have xdebug enabled
     ./Build/Scripts/runTests.sh -x -p 8.1
 
-    # Run functional tests on postgres with xdebug, php 8.0 and execute a restricted set of tests
+    # Run functional tests on postgres with xdebug, php 8.1 and execute a restricted set of tests
     ./Build/Scripts/runTests.sh -x -p 8.1 -s functional -d postgres typo3/sysext/core/Tests/Functional/Authentication
 
     # Run functional tests on mariadb 10.5
@@ -287,16 +300,6 @@ EOF
 # Test if docker-compose exists, else exit out with error
 if ! type "docker-compose" > /dev/null; then
     echo "This script relies on docker and docker-compose. Please install" >&2
-    exit 1
-fi
-
-# docker-compose v2 is enabled by docker for mac as experimental feature without
-# asking the user. v2 is currently broken. Detect the version and error out.
-DOCKER_COMPOSE_VERSION=$(docker-compose version --short)
-DOCKER_COMPOSE_MAJOR=$(echo "$DOCKER_COMPOSE_VERSION" | cut -d'.' -f1 | tr -d 'v')
-if [ "$DOCKER_COMPOSE_MAJOR" -gt "1" ]; then
-    echo "docker-compose $DOCKER_COMPOSE_VERSION is currently broken and not supported by runTests.sh."
-    echo "If you are running Docker Desktop for MacOS/Windows disable 'Use Docker Compose V2' (Preferences > General)"
     exit 1
 fi
 
@@ -397,7 +400,7 @@ while getopts ":a:s:c:d:i:j:k:p:e:xy:o:nhuv" OPT; do
             ;;
         p)
             PHP_VERSION=${OPTARG}
-            if ! [[ ${PHP_VERSION} =~ ^(8.1)$ ]]; then
+            if ! [[ ${PHP_VERSION} =~ ^(8.1|8.2)$ ]]; then
                 INVALID_OPTIONS+=("${OPTARG}")
             fi
             ;;
@@ -558,6 +561,22 @@ case ${TEST_SUITE} in
         SUITE_EXIT_CODE=$?
         docker-compose down
         ;;
+    cglHeader)
+        # Active dry-run for cgl needs not "-n" but specific options
+        if [ -n "${CGLCHECK_DRY_RUN}" ]; then
+            CGLCHECK_DRY_RUN="--dry-run --diff"
+        fi
+        setUpDockerComposeDotEnv
+        docker-compose run cgl_header_all
+        SUITE_EXIT_CODE=$?
+        docker-compose down
+        ;;
+    cglHeaderGit)
+        setUpDockerComposeDotEnv
+        docker-compose run cgl_header_git
+        SUITE_EXIT_CODE=$?
+        docker-compose down
+        ;;
     checkAnnotations)
         setUpDockerComposeDotEnv
         docker-compose run check_annotations
@@ -612,6 +631,12 @@ case ${TEST_SUITE} in
         SUITE_EXIT_CODE=$?
         docker-compose down
         ;;
+    checkNamespaceIntegrity)
+        setUpDockerComposeDotEnv
+        docker-compose run check_namespace_integrity
+        SUITE_EXIT_CODE=$?
+        docker-compose down
+        ;;
     checkPermissions)
         setUpDockerComposeDotEnv
         docker-compose run check_permissions
@@ -627,6 +652,7 @@ case ${TEST_SUITE} in
     clean)
         cleanBuildFiles
         cleanCacheFiles
+        cleanRenderedDocumentationFiles
         cleanTestFiles
         ;;
     cleanBuild)
@@ -634,6 +660,9 @@ case ${TEST_SUITE} in
         ;;
     cleanCache)
         cleanCacheFiles
+        ;;
+    cleanRenderedDocumentation)
+        cleanRenderedDocumentationFiles
         ;;
     cleanTests)
         cleanTestFiles

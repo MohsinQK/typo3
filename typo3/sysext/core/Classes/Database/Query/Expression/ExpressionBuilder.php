@@ -17,6 +17,7 @@ declare(strict_types=1);
 
 namespace TYPO3\CMS\Core\Database\Query\Expression;
 
+use Doctrine\DBAL\Platforms\PostgreSQLPlatform;
 use Doctrine\DBAL\Platforms\TrimMode;
 use TYPO3\CMS\Core\Database\Connection;
 
@@ -33,16 +34,16 @@ use TYPO3\CMS\Core\Database\Connection;
  */
 class ExpressionBuilder
 {
-    const EQ = '=';
-    const NEQ = '<>';
-    const LT = '<';
-    const LTE = '<=';
-    const GT = '>';
-    const GTE = '>=';
+    public const EQ = '=';
+    public const NEQ = '<>';
+    public const LT = '<';
+    public const LTE = '<=';
+    public const GT = '>';
+    public const GTE = '>=';
 
-    const QUOTE_NOTHING = 0;
-    const QUOTE_IDENTIFIER = 1;
-    const QUOTE_PARAMETER = 2;
+    public const QUOTE_NOTHING = 0;
+    public const QUOTE_IDENTIFIER = 1;
+    public const QUOTE_PARAMETER = 2;
 
     /**
      * The DBAL Connection.
@@ -238,11 +239,17 @@ class ExpressionBuilder
      *
      * @param string $fieldName The fieldname. Will be quoted according to database platform automatically.
      * @param mixed $value Argument to be used in LIKE() comparison. No automatic quoting/escaping is done.
-     *
-     * @return string
      */
     public function like(string $fieldName, $value): string
     {
+        $platform = $this->connection->getDatabasePlatform();
+        if ($platform instanceof PostgreSQLPlatform) {
+            // Use ILIKE to mimic case-insensitive search like most people are trained from MySQL/MariaDB.
+            return $this->comparison($this->connection->quoteIdentifier($fieldName), 'ILIKE', $value);
+        }
+        // Note: SQLite does not properly work with non-ascii letters as search word for case-insensitive
+        //       matching, UPPER() and LOWER() have the same issue, it only works with ascii letters.
+        //       See: https://www.sqlite.org/src/doc/trunk/ext/icu/README.txt
         return $this->comparison($this->connection->quoteIdentifier($fieldName), 'LIKE', $value);
     }
 
@@ -251,11 +258,17 @@ class ExpressionBuilder
      *
      * @param string $fieldName The fieldname. Will be quoted according to database platform automatically.
      * @param mixed $value Argument to be used in NOT LIKE() comparison. No automatic quoting/escaping is done.
-     *
-     * @return string
      */
     public function notLike(string $fieldName, $value): string
     {
+        $platform = $this->connection->getDatabasePlatform();
+        if ($platform instanceof PostgreSQLPlatform) {
+            // Use ILIKE to mimic case-insensitive search like most people are trained from MySQL/MariaDB.
+            return $this->comparison($this->connection->quoteIdentifier($fieldName), 'NOT ILIKE', $value);
+        }
+        // Note: SQLite does not properly work with non-ascii letters as search word for case-insensitive
+        //       matching, UPPER() and LOWER() have the same issue, it only works with ascii letters.
+        //       See: https://www.sqlite.org/src/doc/trunk/ext/icu/README.txt
         return $this->comparison($this->connection->quoteIdentifier($fieldName), 'NOT LIKE', $value);
     }
 
@@ -613,14 +626,11 @@ class ExpressionBuilder
      * Quotes a given input parameter.
      *
      * @param mixed $input The parameter to be quoted.
-     * @param string|int|null $type The type of the parameter.
+     * @param Connection::PARAM_* $type The type of the parameter.
      * @return mixed Often string, but also int or float or similar depending on $input and platform
-     * @todo: Change signature to literal($input, int $type = \PDO::PARAM_STR) as breaking change in v12.
      */
-    public function literal($input, $type = \PDO::PARAM_STR)
+    public function literal($input, int $type = Connection::PARAM_STR)
     {
-        // @todo: drop this line together with signature change in v12
-        $type = $type ?? \PDO::PARAM_STR;
         return $this->connection->quote($input, $type);
     }
 

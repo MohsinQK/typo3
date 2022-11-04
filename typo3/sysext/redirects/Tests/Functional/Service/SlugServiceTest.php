@@ -32,9 +32,6 @@ use TYPO3\CMS\Redirects\Service\RedirectCacheService;
 use TYPO3\CMS\Redirects\Service\SlugService;
 use TYPO3\TestingFramework\Core\Functional\FunctionalTestCase;
 
-/**
- * Test case
- */
 class SlugServiceTest extends FunctionalTestCase
 {
     /**
@@ -95,7 +92,8 @@ class SlugServiceTest extends FunctionalTestCase
     {
         parent::setUp();
         $this->correlationId = CorrelationId::forScope(StringUtility::getUniqueId('test'));
-        $this->setUpBackendUserFromFixture(1);
+        $this->importCSVDataSet(__DIR__ . '/Fixtures/be_users.csv');
+        $this->setUpBackendUser(1);
         Bootstrap::initializeLanguageObject();
     }
 

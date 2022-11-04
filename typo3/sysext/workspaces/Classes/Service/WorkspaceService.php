@@ -16,6 +16,7 @@
 namespace TYPO3\CMS\Workspaces\Service;
 
 use TYPO3\CMS\Backend\Utility\BackendUtility;
+use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
 use TYPO3\CMS\Core\Database\Connection;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Database\Query\QueryHelper;
@@ -43,8 +44,8 @@ class WorkspaceService implements SingletonInterface
      */
     protected $pagesWithVersionsInTable = [];
 
-    const TABLE_WORKSPACE = 'sys_workspace';
-    const LIVE_WORKSPACE_ID = 0;
+    public const TABLE_WORKSPACE = 'sys_workspace';
+    public const LIVE_WORKSPACE_ID = 0;
 
     /**
      * retrieves the available workspaces from the database and checks whether
@@ -54,10 +55,11 @@ class WorkspaceService implements SingletonInterface
      */
     public function getAvailableWorkspaces()
     {
+        $backendUser = $this->getBackendUser();
         $availableWorkspaces = [];
         // add default workspaces
-        if ($GLOBALS['BE_USER']->checkWorkspace(self::LIVE_WORKSPACE_ID)) {
-            $availableWorkspaces[self::LIVE_WORKSPACE_ID] = self::getWorkspaceTitle(self::LIVE_WORKSPACE_ID);
+        if ($backendUser->checkWorkspace(self::LIVE_WORKSPACE_ID)) {
+            $availableWorkspaces[self::LIVE_WORKSPACE_ID] = $this->getWorkspaceTitle(self::LIVE_WORKSPACE_ID);
         }
         // add custom workspaces (selecting all, filtering by BE_USER check):
         $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable('sys_workspace');
@@ -71,7 +73,7 @@ class WorkspaceService implements SingletonInterface
             ->executeQuery();
 
         while ($workspace = $result->fetchAssociative()) {
-            if ($GLOBALS['BE_USER']->checkWorkspace($workspace)) {
+            if ($backendUser->checkWorkspace($workspace)) {
                 $availableWorkspaces[$workspace['uid']] = $workspace['title'];
             }
         }
@@ -80,12 +82,10 @@ class WorkspaceService implements SingletonInterface
 
     /**
      * Gets the current workspace ID.
-     *
-     * @return int The current workspace ID
      */
-    public function getCurrentWorkspace()
+    public function getCurrentWorkspace(): int
     {
-        return $GLOBALS['BE_USER']->workspace;
+        return $this->getBackendUser()->workspace;
     }
 
     /**
@@ -100,36 +100,34 @@ class WorkspaceService implements SingletonInterface
      */
     public function getPreviewLinkLifetime(): int
     {
-        $workspaceId = $GLOBALS['BE_USER']->workspace;
+        $workspaceId = $this->getCurrentWorkspace();
         if ($workspaceId > 0) {
             $wsRecord = BackendUtility::getRecord('sys_workspace', $workspaceId, '*');
             if (($wsRecord['previewlink_lifetime'] ?? 0) > 0) {
                 return (int)$wsRecord['previewlink_lifetime'];
             }
         }
-        $ttlHours = (int)($GLOBALS['BE_USER']->getTSConfig()['options.']['workspaces.']['previewLinkTTLHours'] ?? 0);
+        $ttlHours = (int)($this->getBackendUser()->getTSConfig()['options.']['workspaces.']['previewLinkTTLHours'] ?? 0);
         return $ttlHours ?: 24 * 2;
     }
 
     /**
      * Find the title for the requested workspace.
      *
-     * @param int $wsId
-     * @return string
      * @throws \InvalidArgumentException
      */
-    public static function getWorkspaceTitle($wsId)
+    public function getWorkspaceTitle(int $wsId): string
     {
         $title = false;
         switch ($wsId) {
             case self::LIVE_WORKSPACE_ID:
-                $title = static::getLanguageService()->sL('LLL:EXT:core/Resources/Private/Language/locallang_misc.xlf:shortcut_onlineWS');
+                $title = $this->getLanguageService()->sL('LLL:EXT:core/Resources/Private/Language/locallang_misc.xlf:shortcut_onlineWS');
                 break;
             default:
                 $labelField = $GLOBALS['TCA']['sys_workspace']['ctrl']['label'];
                 $wsRecord = BackendUtility::getRecord('sys_workspace', $wsId, 'uid,' . $labelField);
                 if (is_array($wsRecord)) {
-                    $title = $wsRecord[$labelField];
+                    $title = (string)$wsRecord[$labelField];
                 }
         }
         if ($title === false) {
@@ -230,6 +228,7 @@ class WorkspaceService implements SingletonInterface
      */
     public function selectVersionsInWorkspace($wsid, $stage = -99, $pageId = -1, $recursionLevel = 0, $selectionType = 'tables_select', $language = null)
     {
+        $backendUser = $this->getBackendUser();
         $wsid = (int)$wsid;
         $output = [];
         // Contains either nothing or a list with live-uids
@@ -240,7 +239,7 @@ class WorkspaceService implements SingletonInterface
         } else {
             $pageList = '';
             // check if person may only see a "virtual" page-root
-            $mountPoints = array_map('intval', $GLOBALS['BE_USER']->returnWebmounts());
+            $mountPoints = array_map('intval', $backendUser->returnWebmounts());
             $mountPoints = array_unique($mountPoints);
             if (!in_array(0, $mountPoints)) {
                 $tempPageIds = [];
@@ -254,7 +253,7 @@ class WorkspaceService implements SingletonInterface
         // Traversing all tables supporting versioning:
         foreach ($GLOBALS['TCA'] as $table => $cfg) {
             // we do not collect records from tables without permissions on them.
-            if (!$GLOBALS['BE_USER']->check($selectionType, $table)) {
+            if (!$backendUser->check($selectionType, $table)) {
                 continue;
             }
             if (BackendUtility::isTableWorkspaceEnabled($table)) {
@@ -320,17 +319,17 @@ class WorkspaceService implements SingletonInterface
         $constraints = [
             $queryBuilder->expr()->gt(
                 'A.t3ver_oid',
-                $queryBuilder->createNamedParameter(0, \PDO::PARAM_INT)
+                $queryBuilder->createNamedParameter(0, Connection::PARAM_INT)
             ),
             $queryBuilder->expr()->eq(
                 'B.t3ver_oid',
-                $queryBuilder->createNamedParameter(0, \PDO::PARAM_INT)
+                $queryBuilder->createNamedParameter(0, Connection::PARAM_INT)
             ),
             $queryBuilder->expr()->neq(
                 'A.t3ver_state',
                 $queryBuilder->createNamedParameter(
                     (string)new VersionState(VersionState::MOVE_POINTER),
-                    \PDO::PARAM_INT
+                    Connection::PARAM_INT
                 )
             ),
         ];
@@ -368,21 +367,21 @@ class WorkspaceService implements SingletonInterface
         if ($isTableLocalizable && MathUtility::canBeInterpretedAsInteger($language)) {
             $constraints[] = $queryBuilder->expr()->eq(
                 'A.' . $GLOBALS['TCA'][$table]['ctrl']['languageField'],
-                $queryBuilder->createNamedParameter($language, \PDO::PARAM_INT)
+                $queryBuilder->createNamedParameter($language, Connection::PARAM_INT)
             );
         }
 
         if ($wsid >= 0) {
             $constraints[] = $queryBuilder->expr()->eq(
                 'A.t3ver_wsid',
-                $queryBuilder->createNamedParameter($wsid, \PDO::PARAM_INT)
+                $queryBuilder->createNamedParameter($wsid, Connection::PARAM_INT)
             );
         }
 
         if ((int)$stage !== -99) {
             $constraints[] = $queryBuilder->expr()->eq(
                 'A.t3ver_stage',
-                $queryBuilder->createNamedParameter($stage, \PDO::PARAM_INT)
+                $queryBuilder->createNamedParameter($stage, Connection::PARAM_INT)
             );
         }
 
@@ -455,7 +454,7 @@ class WorkspaceService implements SingletonInterface
                 't3ver_state',
                 $queryBuilder->createNamedParameter(
                     VersionState::NEW_PLACEHOLDER,
-                    \PDO::PARAM_INT
+                    Connection::PARAM_INT
                 )
             ),
         ];
@@ -493,21 +492,21 @@ class WorkspaceService implements SingletonInterface
         if ($isTableLocalizable && MathUtility::canBeInterpretedAsInteger($language)) {
             $constraints[] = $queryBuilder->expr()->eq(
                 $languageField,
-                $queryBuilder->createNamedParameter((int)$language, \PDO::PARAM_INT)
+                $queryBuilder->createNamedParameter((int)$language, Connection::PARAM_INT)
             );
         }
 
         if ($wsid >= 0) {
             $constraints[] = $queryBuilder->expr()->eq(
                 't3ver_wsid',
-                $queryBuilder->createNamedParameter($wsid, \PDO::PARAM_INT)
+                $queryBuilder->createNamedParameter($wsid, Connection::PARAM_INT)
             );
         }
 
         if ($stage !== -99) {
             $constraints[] = $queryBuilder->expr()->eq(
                 't3ver_stage',
-                $queryBuilder->createNamedParameter($stage, \PDO::PARAM_INT)
+                $queryBuilder->createNamedParameter($stage, Connection::PARAM_INT)
             );
         }
 
@@ -546,18 +545,18 @@ class WorkspaceService implements SingletonInterface
                 'B.t3ver_state',
                 $queryBuilder->createNamedParameter(
                     (string)new VersionState(VersionState::DEFAULT_STATE),
-                    \PDO::PARAM_INT
+                    Connection::PARAM_INT
                 )
             ),
             $queryBuilder->expr()->eq(
                 'B.t3ver_wsid',
-                $queryBuilder->createNamedParameter(0, \PDO::PARAM_INT)
+                $queryBuilder->createNamedParameter(0, Connection::PARAM_INT)
             ),
             $queryBuilder->expr()->eq(
                 'C.t3ver_state',
                 $queryBuilder->createNamedParameter(
                     (string)new VersionState(VersionState::MOVE_POINTER),
-                    \PDO::PARAM_INT
+                    Connection::PARAM_INT
                 )
             ),
             $queryBuilder->expr()->eq('B.uid', $queryBuilder->quoteIdentifier('C.t3ver_oid')),
@@ -566,14 +565,14 @@ class WorkspaceService implements SingletonInterface
         if ($wsid >= 0) {
             $constraints[] = $queryBuilder->expr()->eq(
                 'C.t3ver_wsid',
-                $queryBuilder->createNamedParameter($wsid, \PDO::PARAM_INT)
+                $queryBuilder->createNamedParameter($wsid, Connection::PARAM_INT)
             );
         }
 
         if ((int)$stage !== -99) {
             $constraints[] = $queryBuilder->expr()->eq(
                 'C.t3ver_stage',
-                $queryBuilder->createNamedParameter($stage, \PDO::PARAM_INT)
+                $queryBuilder->createNamedParameter($stage, Connection::PARAM_INT)
             );
         }
 
@@ -636,10 +635,11 @@ class WorkspaceService implements SingletonInterface
      */
     protected function getTreeUids($pageId, $wsid, $recursionLevel)
     {
+        $backendUser = $this->getBackendUser();
         // Reusing existing functionality with the drawback that
         // mount points are not covered yet
         $permsClause = QueryHelper::stripLogicalOperatorPrefix(
-            $GLOBALS['BE_USER']->getPagePermsClause(Permission::PAGE_SHOW)
+            $backendUser->getPagePermsClause(Permission::PAGE_SHOW)
         );
         if ($pageId > 0) {
             $pageList = array_merge(
@@ -647,9 +647,9 @@ class WorkspaceService implements SingletonInterface
                 $this->getPageChildrenRecursive((int)$pageId, (int)$recursionLevel, 0, $permsClause)
             );
         } else {
-            $mountPoints = $GLOBALS['BE_USER']->uc['pageTree_temporaryMountPoint'];
+            $mountPoints = $backendUser->uc['pageTree_temporaryMountPoint'];
             if (!is_array($mountPoints) || empty($mountPoints)) {
-                $mountPoints = array_map('intval', $GLOBALS['BE_USER']->returnWebmounts());
+                $mountPoints = array_map('intval', $backendUser->returnWebmounts());
                 $mountPoints = array_unique($mountPoints);
             }
             $pageList = [];
@@ -680,11 +680,11 @@ class WorkspaceService implements SingletonInterface
                     ),
                     $queryBuilder->expr()->eq(
                         't3ver_wsid',
-                        $queryBuilder->createNamedParameter($wsid, \PDO::PARAM_INT)
+                        $queryBuilder->createNamedParameter($wsid, Connection::PARAM_INT)
                     ),
                     $queryBuilder->expr()->eq(
                         't3ver_state',
-                        $queryBuilder->createNamedParameter(VersionState::MOVE_POINTER, \PDO::PARAM_INT)
+                        $queryBuilder->createNamedParameter(VersionState::MOVE_POINTER, Connection::PARAM_INT)
                     )
                 )
                 ->orderBy('uid')
@@ -768,7 +768,7 @@ class WorkspaceService implements SingletonInterface
             $statement = $queryBuilder->select('uid')
                 ->from('pages')
                 ->where(
-                    $queryBuilder->expr()->eq('pid', $queryBuilder->createNamedParameter($pid, \PDO::PARAM_INT)),
+                    $queryBuilder->expr()->eq('pid', $queryBuilder->createNamedParameter($pid, Connection::PARAM_INT)),
                     $queryBuilder->expr()->eq('sys_language_uid', 0),
                     $permsClause
                 )
@@ -825,7 +825,7 @@ class WorkspaceService implements SingletonInterface
         }
         $page = BackendUtility::getRecord('pages', $pageId, 'uid,pid,perms_userid,perms_user,perms_groupid,perms_group,perms_everybody');
 
-        return $GLOBALS['BE_USER']->doesUserHaveAccess($page, Permission::PAGE_SHOW);
+        return $this->getBackendUser()->doesUserHaveAccess($page, Permission::PAGE_SHOW);
     }
 
     /**
@@ -842,7 +842,7 @@ class WorkspaceService implements SingletonInterface
         } else {
             return true;
         }
-        return $GLOBALS['BE_USER']->checkLanguageAccess($languageUid);
+        return $this->getBackendUser()->checkLanguageAccess($languageUid);
     }
 
     /**
@@ -850,9 +850,8 @@ class WorkspaceService implements SingletonInterface
      *
      * @param int $id Primary key of the page to check
      * @param int $language Language for which to check the page
-     * @return bool
      */
-    public static function isNewPage($id, $language = 0)
+    public function isNewPage($id, $language = 0): bool
     {
         $isNewPage = false;
         // If the language is not default, check state of overlay
@@ -867,15 +866,15 @@ class WorkspaceService implements SingletonInterface
                 ->where(
                     $queryBuilder->expr()->eq(
                         $GLOBALS['TCA']['pages']['ctrl']['transOrigPointerField'],
-                        $queryBuilder->createNamedParameter($id, \PDO::PARAM_INT)
+                        $queryBuilder->createNamedParameter($id, Connection::PARAM_INT)
                     ),
                     $queryBuilder->expr()->eq(
                         $GLOBALS['TCA']['pages']['ctrl']['languageField'],
-                        $queryBuilder->createNamedParameter($language, \PDO::PARAM_INT)
+                        $queryBuilder->createNamedParameter($language, Connection::PARAM_INT)
                     ),
                     $queryBuilder->expr()->eq(
                         't3ver_wsid',
-                        $queryBuilder->createNamedParameter($GLOBALS['BE_USER']->workspace, \PDO::PARAM_INT)
+                        $queryBuilder->createNamedParameter($this->getCurrentWorkspace(), Connection::PARAM_INT)
                     )
                 )
                 ->setMaxResults(1)
@@ -924,15 +923,6 @@ class WorkspaceService implements SingletonInterface
                 $this->versionsOnPageCache[$workspaceId][$pageId] = true;
                 break;
             }
-        }
-
-        $parameters = [
-            'workspaceId' => $workspaceId,
-            'pageId' => $pageId,
-            'versionsOnPageCache' => &$this->versionsOnPageCache,
-        ];
-        foreach ($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS'][\TYPO3\CMS\Workspaces\Service\WorkspaceService::class]['hasPageRecordVersions'] ?? [] as $hookFunction) {
-            GeneralUtility::callUserFunction($hookFunction, $parameters, $this);
         }
 
         return $this->versionsOnPageCache[$workspaceId][$pageId];
@@ -1015,18 +1005,18 @@ class WorkspaceService implements SingletonInterface
                     $queryBuilder->expr()->or(
                         $queryBuilder->expr()->eq(
                             't3ver_state',
-                            $queryBuilder->createNamedParameter(VersionState::NEW_PLACEHOLDER, \PDO::PARAM_INT)
+                            $queryBuilder->createNamedParameter(VersionState::NEW_PLACEHOLDER, Connection::PARAM_INT)
                         ),
                         $queryBuilder->expr()->gt(
                             't3ver_oid',
-                            $queryBuilder->createNamedParameter(0, \PDO::PARAM_INT)
+                            $queryBuilder->createNamedParameter(0, Connection::PARAM_INT)
                         ),
                     ),
                     $queryBuilder->expr()->eq(
                         't3ver_wsid',
                         $queryBuilder->createNamedParameter(
                             $workspaceId,
-                            \PDO::PARAM_INT
+                            Connection::PARAM_INT
                         )
                     )
                 )
@@ -1039,22 +1029,18 @@ class WorkspaceService implements SingletonInterface
             }
 
             $this->pagesWithVersionsInTable[$workspaceId][$tableName] = $pageIds;
-
-            $parameters = [
-                'workspaceId' => $workspaceId,
-                'tableName' => $tableName,
-                'pagesWithVersionsInTable' => &$this->pagesWithVersionsInTable,
-            ];
-            foreach ($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS'][\TYPO3\CMS\Workspaces\Service\WorkspaceService::class]['fetchPagesWithVersionsInTable'] ?? [] as $hookFunction) {
-                GeneralUtility::callUserFunction($hookFunction, $parameters, $this);
-            }
         }
 
         return $this->pagesWithVersionsInTable[$workspaceId][$tableName];
     }
 
-    protected static function getLanguageService(): ?LanguageService
+    protected function getLanguageService(): LanguageService
     {
-        return $GLOBALS['LANG'] ?? null;
+        return $GLOBALS['LANG'];
+    }
+
+    protected function getBackendUser(): BackendUserAuthentication
+    {
+        return $GLOBALS['BE_USER'];
     }
 }

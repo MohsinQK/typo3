@@ -21,6 +21,7 @@ use Psr\Http\Message\ServerRequestInterface;
 use TYPO3\CMS\Backend\Routing\UriBuilder;
 use TYPO3\CMS\Backend\Utility\BackendUtility;
 use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
+use TYPO3\CMS\Core\Database\Connection;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Database\Query\Restriction\DeletedRestriction;
 use TYPO3\CMS\Core\Database\Query\Restriction\WorkspaceRestriction;
@@ -108,11 +109,11 @@ class Clipboard
 
         $userTsConfig = $this->getBackendUser()->getTSConfig();
         // Get data
-        $clipData = $this->getBackendUser()->getModuleData('clipboard', !empty($userTsConfig['options.']['saveClipboard'])  ? '' : 'ses') ?: [];
+        $clipData = $this->getBackendUser()->getModuleData('clipboard', !empty($userTsConfig['options.']['saveClipboard']) ? '' : 'ses') ?: [];
         $clipData += ['normal' => []];
         $this->numberOfPads = MathUtility::forceIntegerInRange((int)($userTsConfig['options.']['clipboardNumberPads'] ?? 3), 0, 20);
         // Resets/reinstates the clipboard pads
-        $this->clipData['normal'] = is_array($clipData['normal']) ? $clipData['normal']: [];
+        $this->clipData['normal'] = is_array($clipData['normal']) ? $clipData['normal'] : [];
         for ($a = 1; $a <= $this->numberOfPads; $a++) {
             $index = 'tab_' . $a;
             $this->clipData[$index] = is_iterable($clipData[$index] ?? null) ? $clipData[$index] : [];
@@ -317,7 +318,7 @@ class Clipboard
                         )->render() . '</span>',
                         'title' => $this->linkItemText(htmlspecialchars(GeneralUtility::fixed_lgd_cs(
                             $fileObject->getName(),
-                            $this->getBackendUser()->uc['titleLen']
+                            (int)$this->getBackendUser()->uc['titleLen']
                         )), $fileObject->getParentFolder()->getCombinedIdentifier(), $currentTable === '_FILE'),
                         'thumb' => $thumb,
                         'infoDataDispatch' => [
@@ -341,7 +342,7 @@ class Clipboard
                         'title' => $this->linkItemText(htmlspecialchars(GeneralUtility::fixed_lgd_cs(BackendUtility::getRecordTitle(
                             $table,
                             $record
-                        ), $this->getBackendUser()->uc['titleLen'])), $record, $isRequestedTable),
+                        ), (int)$this->getBackendUser()->uc['titleLen'])), $record, $isRequestedTable),
                         'infoDataDispatch' => [
                             'action' => 'TYPO3.InfoWindow.showItem',
                             'args' => GeneralUtility::jsonEncodeForHtmlAttribute([$table, (int)$uid], false),
@@ -404,15 +405,15 @@ class Clipboard
             ->where(
                 $queryBuilder->expr()->eq(
                     $tcaCtrl['transOrigPointerField'],
-                    $queryBuilder->createNamedParameter((int)$parentRecord['uid'], \PDO::PARAM_INT)
+                    $queryBuilder->createNamedParameter((int)$parentRecord['uid'], Connection::PARAM_INT)
                 ),
                 $queryBuilder->expr()->neq(
                     $tcaCtrl['languageField'],
-                    $queryBuilder->createNamedParameter(0, \PDO::PARAM_INT)
+                    $queryBuilder->createNamedParameter(0, Connection::PARAM_INT)
                 ),
                 $queryBuilder->expr()->gt(
                     'pid',
-                    $queryBuilder->createNamedParameter(-1, \PDO::PARAM_INT)
+                    $queryBuilder->createNamedParameter(-1, Connection::PARAM_INT)
                 )
             )
             ->orderBy($tcaCtrl['languageField']);
@@ -424,7 +425,7 @@ class Clipboard
         }
 
         foreach ($queryBuilder->executeQuery()->fetchAllAssociative() as $record) {
-            $title = htmlspecialchars(GeneralUtility::fixed_lgd_cs(BackendUtility::getRecordTitle($table, $record), $this->getBackendUser()->uc['titleLen']));
+            $title = htmlspecialchars(GeneralUtility::fixed_lgd_cs(BackendUtility::getRecordTitle($table, $record), (int)$this->getBackendUser()->uc['titleLen']));
             if (!$isRequestedTable) {
                 // In case the current table is not the requested table, e.g. "_FILE", wrap title in "muted" style
                 $title = '<span class="text-muted">' . $title . '</span>';
@@ -589,7 +590,7 @@ class Clipboard
                 $selectedItem = reset($selectedElements);
                 $selectedRecordTitle = PathUtility::basename($selectedItem);
             } else {
-                $selectedRecordTitle = count($selectedElements);
+                $selectedRecordTitle = (string)count($selectedElements);
             }
         } else {
             $recordTitle = $table !== 'pages' && is_array($reference)
@@ -599,7 +600,7 @@ class Clipboard
                 $selectedItem = $this->getSelectedRecord();
                 $selectedRecordTitle = $selectedItem['_RECORD_TITLE'];
             } else {
-                $selectedRecordTitle = count($selectedElements);
+                $selectedRecordTitle = (string)count($selectedElements);
             }
         }
         // @TODO

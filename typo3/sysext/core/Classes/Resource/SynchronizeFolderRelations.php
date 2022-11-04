@@ -25,6 +25,7 @@ use TYPO3\CMS\Core\Localization\LanguageService;
 use TYPO3\CMS\Core\Messaging\FlashMessage;
 use TYPO3\CMS\Core\Messaging\FlashMessageService;
 use TYPO3\CMS\Core\Resource\Event\AfterFolderRenamedEvent;
+use TYPO3\CMS\Core\Type\ContextualFeedbackSeverity;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 
 /**
@@ -102,21 +103,21 @@ class SynchronizeFolderRelations
         $synchronized = 0;
         $queryBuilder = $this->getPreparedQueryBuilder('sys_filemounts');
         $statement = $queryBuilder
-            ->select('uid', 'path')
+            ->select('uid', 'identifier')
             ->from('sys_filemounts')
             ->where(
-                $queryBuilder->expr()->like('path', $queryBuilder->quote($sourceIdentifier . '%')),
-                $queryBuilder->expr()->eq('base', $queryBuilder->createNamedParameter((string)$storageId))
+                $queryBuilder->expr()->like('identifier', $queryBuilder->quote($storageId . ':' . $sourceIdentifier . '%'))
             )
             ->executeQuery();
 
         while ($row = $statement->fetchAssociative()) {
-            $path = preg_replace(sprintf('/^%s/', preg_quote($sourceIdentifier, '/')), $targetIdentifier, $row['path']) ?? '';
+            [$base, $path] = GeneralUtility::trimExplode(':', $row['identifier'], false, 2);
+            $path = preg_replace(sprintf('/^%s/', preg_quote($sourceIdentifier, '/')), $targetIdentifier, $path) ?? '';
             if ($path !== '') {
                 $queryBuilder = $this->getPreparedQueryBuilder('sys_filemounts');
                 $synchronized += (int)$queryBuilder
                     ->update('sys_filemounts')
-                    ->set('path', $path)
+                    ->set('identifier', $base . ':' . $path)
                     ->where($queryBuilder->expr()->eq('uid', $queryBuilder->createNamedParameter((int)$row['uid'], Connection::PARAM_INT)))
                     ->executeStatement();
             }
@@ -147,7 +148,7 @@ class SynchronizeFolderRelations
 
         $this->flashMessageService
             ->getMessageQueueByIdentifier()
-            ->enqueue(GeneralUtility::makeInstance(FlashMessage::class, $message, '', FlashMessage::OK, true));
+            ->enqueue(GeneralUtility::makeInstance(FlashMessage::class, $message, '', ContextualFeedbackSeverity::OK, true));
     }
 
     protected function getPreparedQueryBuilder(string $table): QueryBuilder

@@ -25,8 +25,6 @@ use TYPO3\TestingFramework\Core\AccessibleObjectInterface;
 use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
- * Test case for the APCu cache backend.
- *
  * NOTE: If you want to execute these tests you need to enable apc in
  * cli context (apc.enable_cli = 1) and disable slam defense (apc.slam_defense = 0)
  */
@@ -39,6 +37,7 @@ class ApcuBackendTest extends UnitTestCase
      */
     protected function setUp(): void
     {
+        parent::setUp();
         // APCu module is called apcu, but options are prefixed with apc
         if (!extension_loaded('apcu') || !(bool)ini_get('apc.enabled') || !(bool)ini_get('apc.enable_cli')) {
             self::markTestSkipped('APCu extension was not available, or it was disabled for CLI.');
@@ -216,13 +215,11 @@ class ApcuBackendTest extends UnitTestCase
      */
     public function flushRemovesOnlyOwnEntries(): void
     {
-        /** @var \PHPUnit\Framework\MockObject\MockObject|FrontendInterface $thisCache */
         $thisCache = $this->createMock(FrontendInterface::class);
         $thisCache->method('getIdentifier')->willReturn('thisCache');
         $thisBackend = new ApcuBackend('Testing');
         $thisBackend->setCache($thisCache);
 
-        /** @var \PHPUnit\Framework\MockObject\MockObject|FrontendInterface $thatCache */
         $thatCache = $this->createMock(FrontendInterface::class);
         $thatCache->method('getIdentifier')->willReturn('thatCache');
         $thatBackend = new ApcuBackend('Testing');
@@ -279,7 +276,6 @@ class ApcuBackendTest extends UnitTestCase
      */
     protected function setUpBackend(bool $accessible = false)
     {
-        /** @var \PHPUnit\Framework\MockObject\MockObject|FrontendInterface $cache */
         $cache = $this->createMock(FrontendInterface::class);
         if ($accessible) {
             $backend = $this->getAccessibleMock(ApcuBackend::class, ['dummy'], ['Testing']);

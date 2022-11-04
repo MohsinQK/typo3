@@ -12,10 +12,10 @@
  */
 
 import 'bootstrap';
-import $ from 'jquery';
 import '@typo3/backend/input/clearable';
 import AjaxRequest from '@typo3/core/ajax/ajax-request';
 import {AjaxResponse} from '@typo3/core/ajax/ajax-response';
+import RegularEvent from '@typo3/core/event/regular-event';
 
 interface PreflightResponse {
   capabilities: PreflightResponseCapabilities;
@@ -43,7 +43,6 @@ class BackendLogin {
       errorNoCookies: '.t3js-login-error-nocookies',
       errorNoReferrer: '.t3js-login-error-noreferrer',
       formFields: '.t3js-login-formfields',
-      interfaceField: '.t3js-login-interface-field',
       loginForm: '#typo3-login-form',
       loginUrlLink: 't3js-login-url',
       submitButton: '.t3js-login-submit',
@@ -53,7 +52,6 @@ class BackendLogin {
 
     this.checkLoginRefresh();
     this.checkCookieSupport();
-    this.checkForInterfaceCookie();
     this.checkDocumentReferrerSupport();
     this.initializeEvents();
 
@@ -72,16 +70,16 @@ class BackendLogin {
    */
   private showLoginProcess(): void {
     this.showLoadingIndicator();
-    $(this.options.error).addClass('hidden');
-    $(this.options.errorNoCookies).addClass('hidden');
+    document.querySelector(this.options.error)?.classList.add('hidden');
+    document.querySelector(this.options.errorNoCookies)?.classList.add('hidden');
   }
 
   /**
    * Show the loading spinner in the submit button
    */
   private showLoadingIndicator(): void {
-    const button = $(this.options.submitButton);
-    button.html(button.data('loading-text'));
+    const button = document.querySelector(this.options.submitButton) as HTMLButtonElement;
+    button.innerHTML = button.dataset.loadingText;
   }
 
   /**
@@ -94,32 +92,6 @@ class BackendLogin {
 
     if (typeof this.options.submitHandler === 'function') {
       this.options.submitHandler(event);
-    }
-  }
-
-  /**
-   * Store the new selected Interface in a cookie to save it for future visits
-   */
-  private interfaceSelectorChanged(): void {
-    const now = new Date();
-    // cookie expires in one year
-    const expires = new Date(now.getTime() + 1000 * 60 * 60 * 24 * 365);
-    document.cookie = 'typo3-login-interface='
-      + $(this.options.interfaceField).val()
-      + '; expires=' + expires.toUTCString() + ';';
-  }
-
-  /**
-   * Check if an interface was stored in a cookie and preselect it in the select box
-   */
-  private checkForInterfaceCookie(): void {
-    if ($(this.options.interfaceField).length) {
-      const posStart = document.cookie.indexOf('typo3-login-interface=');
-      if (posStart !== -1) {
-        let selectedInterface = document.cookie.substr(posStart + 22);
-        selectedInterface = selectedInterface.substr(0, selectedInterface.indexOf(';'));
-        $(this.options.interfaceField).val(selectedInterface);
-      }
     }
   }
 
@@ -149,16 +121,16 @@ class BackendLogin {
    * Hides input fields and shows cookie warning
    */
   private showCookieWarning(): void {
-    $(this.options.formFields).addClass('hidden');
-    $(this.options.errorNoCookies).removeClass('hidden');
+    document.querySelector(this.options.formFields)?.classList.add('hidden');
+    document.querySelector(this.options.errorNoCookies)?.classList.remove('hidden');
   }
 
   /**
    * Hides cookie warning and shows input fields
    */
   private hideCookieWarning(): void {
-    $(this.options.formFields).removeClass('hidden');
-    $(this.options.errorNoCookies).addClass('hidden');
+    document.querySelector(this.options.formFields)?.classList.remove('hidden');
+    document.querySelector(this.options.errorNoCookies)?.classList.add('hidden');
   }
 
   private checkLoginRefresh(): void {
@@ -202,24 +174,11 @@ class BackendLogin {
    * Registers listeners for the Login Interface
    */
   private initializeEvents(): void {
-    $(document).ajaxStart(this.showLoadingIndicator.bind(this));
-    $(this.options.loginForm).on('submit', this.handleSubmit.bind(this));
-
-    // the Interface selector is not always present, so this check is needed
-    if ($(this.options.interfaceField).length > 0) {
-      $(document).on('change blur', this.options.interfaceField, this.interfaceSelectorChanged.bind(this));
-    }
+    new RegularEvent('submit', this.handleSubmit.bind(this)).bindTo(document.querySelector(this.options.loginForm));
 
     (<NodeListOf<HTMLInputElement>>document.querySelectorAll('.t3js-clearable')).forEach(
       (clearableField: HTMLInputElement) => clearableField.clearable(),
     );
-
-    // carousel news height transition
-    $('.t3js-login-news-carousel').on('slide.bs.carousel', (e: any) => {
-      const nextH = $(e.relatedTarget).height();
-      const $element: JQuery = $(e.target);
-      $element.find('div.active').parent().animate({ height: nextH }, 500);
-    });
   }
 }
 

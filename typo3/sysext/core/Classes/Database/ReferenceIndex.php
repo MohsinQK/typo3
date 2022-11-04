@@ -189,11 +189,11 @@ class ReferenceIndex implements LoggerAwareInterface
         $queryBuilder = $connection->createQueryBuilder();
         $queryBuilder->getRestrictions()->removeAll();
         $queryResult = $queryBuilder->select('hash')->from('sys_refindex')->where(
-            $queryBuilder->expr()->eq('tablename', $queryBuilder->createNamedParameter($tableName, \PDO::PARAM_STR)),
-            $queryBuilder->expr()->eq('recuid', $queryBuilder->createNamedParameter($uid, \PDO::PARAM_INT)),
+            $queryBuilder->expr()->eq('tablename', $queryBuilder->createNamedParameter($tableName)),
+            $queryBuilder->expr()->eq('recuid', $queryBuilder->createNamedParameter($uid, Connection::PARAM_INT)),
             $queryBuilder->expr()->eq(
                 'workspace',
-                $queryBuilder->createNamedParameter($this->getWorkspaceId(), \PDO::PARAM_INT)
+                $queryBuilder->createNamedParameter($this->getWorkspaceId(), Connection::PARAM_INT)
             )
         )->executeQuery();
         $currentRelationHashes = [];
@@ -284,11 +284,11 @@ class ReferenceIndex implements LoggerAwareInterface
             ->where(
                 $queryBuilder->expr()->eq(
                     'ref_table',
-                    $queryBuilder->createNamedParameter($tableName, \PDO::PARAM_STR)
+                    $queryBuilder->createNamedParameter($tableName)
                 ),
                 $queryBuilder->expr()->eq(
                     'ref_uid',
-                    $queryBuilder->createNamedParameter($uid, \PDO::PARAM_INT)
+                    $queryBuilder->createNamedParameter($uid, Connection::PARAM_INT)
                 )
             )->executeQuery()->fetchOne();
     }
@@ -526,7 +526,7 @@ class ReferenceIndex implements LoggerAwareInterface
     {
         // Removing "data/" in the beginning of path (which points to location in data array)
         $structurePath = substr($structurePath, 5) . '/';
-        $dsConf = $dsArr['TCEforms']['config'];
+        $dsConf = $dsArr['config'];
         // Implode parameter values:
         [$table, $uid, $field] = [
             $PA['table'],
@@ -581,7 +581,7 @@ class ReferenceIndex implements LoggerAwareInterface
         if (empty($conf)) {
             return false;
         }
-        if ($conf['type'] === 'inline' && !empty($conf['foreign_table']) && empty($conf['MM'])) {
+        if (($conf['type'] === 'inline' || $conf['type'] === 'file') && !empty($conf['foreign_table']) && empty($conf['MM'])) {
             $dbAnalysis = GeneralUtility::makeInstance(RelationHandler::class);
             $dbAnalysis->setUseLiveReferenceIds(false);
             $dbAnalysis->setWorkspaceId($this->getWorkspaceId());
@@ -663,7 +663,7 @@ class ReferenceIndex implements LoggerAwareInterface
                 ->select('*')
                 ->from('sys_refindex')
                 ->where(
-                    $queryBuilder->expr()->eq('hash', $queryBuilder->createNamedParameter($hash, \PDO::PARAM_STR))
+                    $queryBuilder->expr()->eq('hash', $queryBuilder->createNamedParameter($hash))
                 )
                 ->setMaxResults(1)
                 ->executeQuery()
@@ -688,7 +688,7 @@ class ReferenceIndex implements LoggerAwareInterface
                 ->where(
                     $queryBuilder->expr()->eq(
                         'uid',
-                        $queryBuilder->createNamedParameter($referenceRecord['recuid'], \PDO::PARAM_INT)
+                        $queryBuilder->createNamedParameter($referenceRecord['recuid'], Connection::PARAM_INT)
                     )
                 )
                 ->setMaxResults(1)
@@ -860,7 +860,7 @@ class ReferenceIndex implements LoggerAwareInterface
         return
             $configuration['type'] === 'group'
             || (
-                in_array($configuration['type'], ['select', 'category', 'inline'], true)
+                in_array($configuration['type'], ['select', 'category', 'inline', 'file'], true)
                 && !empty($configuration['foreign_table'])
             );
     }
@@ -879,7 +879,7 @@ class ReferenceIndex implements LoggerAwareInterface
             || $configuration['type'] === 'email'
             || $configuration['type'] === 'flex'
             || isset($configuration['softref'])
-            ;
+        ;
     }
 
     /**
@@ -1075,7 +1075,7 @@ class ReferenceIndex implements LoggerAwareInterface
                 ->where(
                     $queryBuilder->expr()->eq(
                         'tablename',
-                        $queryBuilder->createNamedParameter($tableName, \PDO::PARAM_STR)
+                        $queryBuilder->createNamedParameter($tableName)
                     ),
                     'NOT EXISTS (' . $subQueryBuilder->getSQL() . ')'
                 )
@@ -1094,7 +1094,7 @@ class ReferenceIndex implements LoggerAwareInterface
                         ->where(
                             $queryBuilder->expr()->eq(
                                 'tablename',
-                                $queryBuilder->createNamedParameter($tableName, \PDO::PARAM_STR)
+                                $queryBuilder->createNamedParameter($tableName)
                             ),
                             'NOT EXISTS (' . $subQueryBuilder->getSQL() . ')'
                         )
@@ -1121,9 +1121,9 @@ class ReferenceIndex implements LoggerAwareInterface
         $recordsCheckedString = $recCount . ' records from ' . count($tableNames) . ' tables were checked/updated.';
         if ($progressListener) {
             if ($errorCount) {
-                $progressListener->log($recordsCheckedString . 'Updates: ' . $errorCount, LogLevel::WARNING);
+                $progressListener->log($recordsCheckedString . ' Updates: ' . $errorCount, LogLevel::WARNING);
             } else {
-                $progressListener->log($recordsCheckedString . 'Index Integrity was perfect!', LogLevel::INFO);
+                $progressListener->log($recordsCheckedString . ' Index Integrity was perfect!', LogLevel::INFO);
             }
         }
         if (!$testOnly) {
@@ -1260,7 +1260,7 @@ class ReferenceIndex implements LoggerAwareInterface
             ->where(
                 $queryBuilder->expr()->eq(
                     'uid',
-                    $queryBuilder->createNamedParameter($uid, \PDO::PARAM_INT)
+                    $queryBuilder->createNamedParameter($uid, Connection::PARAM_INT)
                 )
             );
         // Do not fetch soft deleted records
@@ -1269,7 +1269,7 @@ class ReferenceIndex implements LoggerAwareInterface
             $queryBuilder->andWhere(
                 $queryBuilder->expr()->eq(
                     $deleteField,
-                    $queryBuilder->createNamedParameter(0, \PDO::PARAM_INT)
+                    $queryBuilder->createNamedParameter(0, Connection::PARAM_INT)
                 )
             );
         }

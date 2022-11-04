@@ -27,9 +27,6 @@ use Doctrine\DBAL\Types\Type;
 use TYPO3\CMS\Core\Database\Schema\DefaultTcaSchema;
 use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
-/**
- * Test case
- */
 class DefaultTcaSchemaTest extends UnitTestCase
 {
     protected ?DefaultTcaSchema $subject;
@@ -164,27 +161,6 @@ class DefaultTcaSchemaTest extends UnitTestCase
     /**
      * @test
      */
-    public function enrichAddsSignedPidWithEnabledWorkspace(): void
-    {
-        $GLOBALS['TCA']['aTable']['ctrl'] = [
-            'versioningWS' => true,
-        ];
-        $result = $this->subject->enrich([$this->defaultTable]);
-        $expectedPidColumn = new Column(
-            '`pid`',
-            Type::getType('integer'),
-            [
-                'default' => 0,
-                'notnull' => true,
-                'unsigned' => false,
-            ]
-        );
-        self::assertEquals($expectedPidColumn, $result[0]->getColumn('pid'));
-    }
-
-    /**
-     * @test
-     */
     public function enrichAddsTstamp(): void
     {
         $GLOBALS['TCA']['aTable']['ctrl'] = [
@@ -222,27 +198,6 @@ class DefaultTcaSchemaTest extends UnitTestCase
             ]
         );
         self::assertEquals($expectedColumn, $result[0]->getColumn('createdon'));
-    }
-
-    /**
-     * @test
-     */
-    public function enrichAddsCruserid(): void
-    {
-        $GLOBALS['TCA']['aTable']['ctrl'] = [
-            'cruser_id' => 'createdby',
-        ];
-        $result = $this->subject->enrich([$this->defaultTable]);
-        $expectedColumn = new Column(
-            '`createdby`',
-            Type::getType('integer'),
-            [
-                'default' => 0,
-                'notnull' => true,
-                'unsigned' => true,
-            ]
-        );
-        self::assertEquals($expectedColumn, $result[0]->getColumn('createdby'));
     }
 
     /**
@@ -966,5 +921,29 @@ class DefaultTcaSchemaTest extends UnitTestCase
             ]
         );
         self::assertEquals($expectedMmTable, $result[1]);
+    }
+
+    /**
+     * @test
+     */
+    public function enrichAddsSlug(): void
+    {
+        $GLOBALS['TCA']['aTable']['columns']['slug'] = [
+            'label' => 'aLabel',
+            'config' => [
+                'type' => 'slug',
+            ],
+        ];
+        $result = $this->subject->enrich([$this->defaultTable]);
+        $expectedColumn = new Column(
+            '`slug`',
+            Type::getType('string'),
+            [
+                'default' => 0,
+                'notnull' => false,
+                'length' => 2048,
+            ]
+        );
+        self::assertEquals($expectedColumn, $result[0]->getColumn('slug'));
     }
 }

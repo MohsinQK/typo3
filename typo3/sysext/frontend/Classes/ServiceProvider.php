@@ -28,6 +28,8 @@ use TYPO3\CMS\Core\Exception as CoreException;
 use TYPO3\CMS\Core\Http\MiddlewareDispatcher;
 use TYPO3\CMS\Core\Http\MiddlewareStackResolver;
 use TYPO3\CMS\Core\Package\AbstractServiceProvider;
+use TYPO3\CMS\Core\Routing\BackendEntryPointResolver;
+use TYPO3\CMS\Core\TimeTracker\TimeTracker;
 
 /**
  * @internal
@@ -63,7 +65,8 @@ class ServiceProvider extends AbstractServiceProvider
         return new Http\Application(
             $requestHandler,
             $container->get(ConfigurationManager::class),
-            $container->get(Context::class)
+            $container->get(Context::class),
+            $container->get(BackendEntryPointResolver::class)
         );
     }
 
@@ -71,7 +74,8 @@ class ServiceProvider extends AbstractServiceProvider
     {
         return new Http\RequestHandler(
             $container->get(EventDispatcherInterface::class),
-            $container->get(ListenerProvider::class)
+            $container->get(ListenerProvider::class),
+            $container->get(TimeTracker::class),
         );
     }
 

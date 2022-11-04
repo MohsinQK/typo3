@@ -61,7 +61,7 @@ $login-container-padding-horizontal: 2.5em;
 .typo3-login-footnote {
     margin-left: auto;
     margin-right: auto;
-    font-size: 0.95em;
+    font-size: .95em;
     text-align: center;
     padding: 1em 1.5em;
     display: block;
@@ -174,7 +174,7 @@ $login-container-padding-horizontal: 2.5em;
     &.card-mfa {
         .card-heading {
             h2 {
-                margin: 0.75rem 0;
+                margin: .75rem 0;
             }
         }
     }
@@ -200,8 +200,7 @@ $login-container-padding-horizontal: 2.5em;
 
 .btn-login {
     @include button-size($login-input-padding-vertical, $login-input-padding-horizontal, $login-input-font-size, $login-input-border-radius);
-    @include button-variant($login-btn-bg, rgba(0, 0, 0, 0.1), $white, darken($login-btn-bg, 7.5%), rgba(0, 0, 0, 0.1), $white);
-
+    @include button-variant($login-btn-bg, rgba(0, 0, 0, .1), $white, darken($login-btn-bg, 7.5%), rgba(0, 0, 0, .1), $white);
     line-height: 1.3em;
     white-space: normal;
 }
@@ -223,9 +222,10 @@ $login-container-padding-horizontal: 2.5em;
     background-color: #fff;
     text-align: center;
     position: absolute;
-    opacity: 0.75;
+    opacity: .75;
+    padding: 0;
 
-    @include transition(opacity 0.2s ease-in-out);
+    @include transition(opacity .2s ease-in-out);
 
     &:hover {
         opacity: 1;
@@ -261,13 +261,9 @@ $login-container-padding-horizontal: 2.5em;
 }
 
 .typo3-login-copyright-text {
-    font-size: 0.95em;
+    font-size: .95em;
     padding-top: 1em;
     color: $login-copyright-text;
-
-    .fa {
-        font-size: 13px;
-    }
 
     > *:first-child {
         margin-top: 0;

@@ -36,9 +36,6 @@ use TYPO3\CMS\Extbase\Validation\Exception\InvalidTypeHintException;
 use TYPO3\CMS\Extbase\Validation\Exception\InvalidValidationConfigurationException;
 use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
-/**
- * Test case
- */
 class ClassSchemaTest extends UnitTestCase
 {
     /**
@@ -273,7 +270,7 @@ class ClassSchemaTest extends UnitTestCase
      */
     public function classSchemaDetectsMethodParameterTypeViaReflection(): void
     {
-        $class = new class() {
+        $class = new class () {
             public function foo(string $foo): void
             {
             }
@@ -293,7 +290,7 @@ class ClassSchemaTest extends UnitTestCase
      */
     public function classSchemaPrefersMethodParameterTypeDetectionViaReflection(): void
     {
-        $class = new class() {
+        $class = new class () {
             /**
              * @param ClassSchema $foo
              */
@@ -311,7 +308,7 @@ class ClassSchemaTest extends UnitTestCase
      */
     public function classSchemaCanHandleSelfMethodReturnTypes(): void
     {
-        $class = new class() {
+        $class = new class () {
             public function __construct(self $copy = null)
             {
             }

@@ -20,12 +20,8 @@ namespace TYPO3\CMS\Form\Tests\Unit\Controller;
 use TYPO3\CMS\Form\Controller\AbstractBackendController;
 use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
-/**
- * Test case
- */
 class AbstractBackendControllerTest extends UnitTestCase
 {
-
     /**
      * @test
      */

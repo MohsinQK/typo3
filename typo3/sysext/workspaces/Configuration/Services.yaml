@@ -15,6 +15,9 @@ services:
   TYPO3\CMS\Workspaces\Controller\Remote\RemoteServer:
     public: true
 
+  TYPO3\CMS\Workspaces\Notification\StageChangeNotification:
+    public: true
+
   TYPO3\CMS\Workspaces\Preview\PreviewUriBuilder:
     public: true
 
@@ -24,6 +27,9 @@ services:
   TYPO3\CMS\Workspaces\Service\WorkspaceService:
     public: true
     shared: true
+
+  TYPO3\CMS\Workspaces\Controller\AjaxController:
+    tags: ['backend.controller']
 
   TYPO3\CMS\Workspaces\Controller\PreviewController:
     tags: ['backend.controller']
@@ -39,6 +45,14 @@ services:
       - name: event.listener
         identifier: 'typo3-workspaces/link-modifier'
         method: 'createPageUriForWorkspaceVersion'
+      - name: event.listener
+        identifier: 'typo3-workspaces/display-editing-staged-element-information'
+        method: 'displayEditingStagedElementInformation'
+
+  TYPO3\CMS\Workspaces\EventListener\PageTreeItemsHighlighter:
+    tags:
+      - name: event.listener
+        identifier: 'typo3-workspaces/page-tree-items-highlighter'
 
   TYPO3\CMS\Workspaces\Command\WorkspaceVersionRecordsCommand:
     tags:

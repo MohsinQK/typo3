@@ -28,9 +28,6 @@ use TYPO3\CMS\Core\Localization\LanguageService;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
-/**
- * Test case
- */
 class FieldControlTest extends UnitTestCase
 {
     use ProphecyTrait;
@@ -72,7 +69,7 @@ class FieldControlTest extends UnitTestCase
                 'title' => 'aTitle',
                 'linkAttributes' => [ 'href' => '' ],
                 'additionalJavaScriptPost' => [ 'someJavaScript' ],
-                'requireJsModules' => [
+                'javaScriptModules' => [
                     'aModule',
                 ],
             ]
@@ -88,7 +85,7 @@ class FieldControlTest extends UnitTestCase
                 'iconIdentifier' => 'actions-close',
                 'title' => 'aTitle',
                 'linkAttributes' => [ 'href' => '' ],
-                'requireJsModules' => [
+                'javaScriptModules' => [
                     'anotherModule',
                 ],
             ]
@@ -105,10 +102,12 @@ class FieldControlTest extends UnitTestCase
             'additionalHiddenFields' => [],
             'additionalInlineLanguageLabelFiles' => [],
             'stylesheetFiles' => [],
-            'requireJsModules' => [
+            'javaScriptModules' => [
                 'aModule',
                 'anotherModule',
             ],
+            /** @deprecated will be removed in TYPO3 v13.0 */
+            'requireJsModules' => [],
             'inlineData' => [],
             'html' => '\n<a class="btn btn-default">\n...>\n</a>',
         ];

@@ -31,9 +31,6 @@ use TYPO3\CMS\Backend\Tests\Unit\Form\Fixtures\NodeFactory\NodeResolvers\Invalid
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
-/**
- * Test case
- */
 class NodeFactoryTest extends UnitTestCase
 {
     use ProphecyTrait;
@@ -283,7 +280,6 @@ class NodeFactoryTest extends UnitTestCase
         $this->expectException(Exception::class);
         $this->expectExceptionCode(1431872546);
         $mockNode = new \stdClass();
-        /** @var NodeFactory|\PHPUnit\Framework\MockObject\MockObject $mockSubject */
         $mockSubject = $this->getMockBuilder(NodeFactory::class)
             ->onlyMethods(['instantiate'])
             ->disableOriginalConstructor()

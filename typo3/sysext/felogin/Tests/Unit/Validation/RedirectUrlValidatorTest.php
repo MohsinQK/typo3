@@ -24,12 +24,10 @@ use TYPO3\CMS\Core\Http\NormalizedParams;
 use TYPO3\CMS\Core\Http\ServerRequestFactory;
 use TYPO3\CMS\Core\Site\Entity\Site;
 use TYPO3\CMS\Core\Site\SiteFinder;
+use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\FrontendLogin\Validation\RedirectUrlValidator;
 use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
-/**
- * Test case
- */
 class RedirectUrlValidatorTest extends UnitTestCase
 {
     protected bool $backupEnvironment = true;
@@ -75,7 +73,7 @@ class RedirectUrlValidatorTest extends UnitTestCase
      */
     protected function setUpFakeSitePathAndHost(): void
     {
-        $_SERVER['ORIG_PATH_INFO'] = $_SERVER['PATH_INFO'] = $_SERVER['ORIG_SCRIPT_NAME'] = $_SERVER['SCRIPT_NAME'] = $this->testSitePath . TYPO3_mainDir;
+        $_SERVER['ORIG_PATH_INFO'] = $_SERVER['PATH_INFO'] = $_SERVER['ORIG_SCRIPT_NAME'] = $_SERVER['SCRIPT_NAME'] = $this->testSitePath . 'index.php';
         $_SERVER['HTTP_HOST'] = $this->testHostName;
 
         $request = ServerRequestFactory::fromGlobals();
@@ -87,8 +85,6 @@ class RedirectUrlValidatorTest extends UnitTestCase
 
     /**
      * Data provider for validateRedirectUrlClearsUrl
-     *
-     * @return array
      */
     public function validateRedirectUrlClearsUrlDataProvider(): array
     {
@@ -113,9 +109,8 @@ class RedirectUrlValidatorTest extends UnitTestCase
     /**
      * @test
      * @dataProvider validateRedirectUrlClearsUrlDataProvider
-     * @param string $url Invalid Url
      */
-    public function validateRedirectUrlClearsUrl($url): void
+    public function validateRedirectUrlClearsUrl(string $url): void
     {
         Environment::initialize(
             Environment::getContext(),
@@ -125,7 +120,7 @@ class RedirectUrlValidatorTest extends UnitTestCase
             Environment::getPublicPath(),
             Environment::getVarPath(),
             Environment::getConfigPath(),
-            Environment::getBackendPath() . '/index.php',
+            Environment::getPublicPath() . '/index.php',
             Environment::isWindows() ? 'WINDOWS' : 'UNIX'
         );
         self::assertFalse($this->accessibleFixture->isValid($url));
@@ -133,8 +128,6 @@ class RedirectUrlValidatorTest extends UnitTestCase
 
     /**
      * Data provider for validateRedirectUrlKeepsCleanUrl
-     *
-     * @return array
      */
     public function validateRedirectUrlKeepsCleanUrlDataProvider(): array
     {
@@ -154,9 +147,8 @@ class RedirectUrlValidatorTest extends UnitTestCase
     /**
      * @test
      * @dataProvider validateRedirectUrlKeepsCleanUrlDataProvider
-     * @param string $url Clean URL to test
      */
-    public function validateRedirectUrlKeepsCleanUrl($url): void
+    public function validateRedirectUrlKeepsCleanUrl(string $url): void
     {
         Environment::initialize(
             Environment::getContext(),
@@ -166,7 +158,7 @@ class RedirectUrlValidatorTest extends UnitTestCase
             Environment::getPublicPath(),
             Environment::getVarPath(),
             Environment::getConfigPath(),
-            Environment::getBackendPath() . '/index.php',
+            Environment::getPublicPath() . '/index.php',
             Environment::isWindows() ? 'WINDOWS' : 'UNIX'
         );
         self::assertTrue($this->accessibleFixture->isValid($url));
@@ -174,8 +166,6 @@ class RedirectUrlValidatorTest extends UnitTestCase
 
     /**
      * Data provider for validateRedirectUrlClearsInvalidUrlInSubdirectory
-     *
-     * @return array
      */
     public function validateRedirectUrlClearsInvalidUrlInSubdirectoryDataProvider(): array
     {
@@ -192,10 +182,10 @@ class RedirectUrlValidatorTest extends UnitTestCase
     /**
      * @test
      * @dataProvider validateRedirectUrlClearsInvalidUrlInSubdirectoryDataProvider
-     * @param string $url Invalid Url
      */
-    public function validateRedirectUrlClearsInvalidUrlInSubdirectory($url): void
+    public function validateRedirectUrlClearsInvalidUrlInSubdirectory(string $url): void
     {
+        GeneralUtility::flushInternalRuntimeCaches();
         $this->testSitePath = '/subdir/';
         $this->setUpFakeSitePathAndHost();
         self::assertFalse($this->accessibleFixture->isValid($url));
@@ -203,8 +193,6 @@ class RedirectUrlValidatorTest extends UnitTestCase
 
     /**
      * Data provider for validateRedirectUrlKeepsCleanUrlInSubdirectory
-     *
-     * @return array
      */
     public function validateRedirectUrlKeepsCleanUrlInSubdirectoryDataProvider(): array
     {
@@ -222,9 +210,8 @@ class RedirectUrlValidatorTest extends UnitTestCase
     /**
      * @test
      * @dataProvider validateRedirectUrlKeepsCleanUrlInSubdirectoryDataProvider
-     * @param string $url Invalid Url
      */
-    public function validateRedirectUrlKeepsCleanUrlInSubdirectory($url): void
+    public function validateRedirectUrlKeepsCleanUrlInSubdirectory(string $url): void
     {
         Environment::initialize(
             Environment::getContext(),
@@ -234,7 +221,7 @@ class RedirectUrlValidatorTest extends UnitTestCase
             Environment::getPublicPath(),
             Environment::getVarPath(),
             Environment::getConfigPath(),
-            Environment::getBackendPath() . '/index.php',
+            Environment::getPublicPath() . '/index.php',
             Environment::isWindows() ? 'WINDOWS' : 'UNIX'
         );
         $this->testSitePath = '/subdir/';
@@ -248,8 +235,6 @@ class RedirectUrlValidatorTest extends UnitTestCase
 
     /**
      * Dataprovider for isInCurrentDomainIgnoresScheme
-     *
-     * @return array
      */
     public function isInCurrentDomainIgnoresSchemeDataProvider(): array
     {
@@ -284,7 +269,7 @@ class RedirectUrlValidatorTest extends UnitTestCase
      * @param string $https $_SERVER['HTTPS']
      * @param string $url The url to test
      */
-    public function isInCurrentDomainIgnoresScheme($host, $https, $url): void
+    public function isInCurrentDomainIgnoresScheme(string $host, string $https, string $url): void
     {
         Environment::initialize(
             Environment::getContext(),
@@ -294,7 +279,7 @@ class RedirectUrlValidatorTest extends UnitTestCase
             Environment::getPublicPath(),
             Environment::getVarPath(),
             Environment::getConfigPath(),
-            Environment::getBackendPath() . '/index.php',
+            Environment::getPublicPath() . '/index.php',
             Environment::isWindows() ? 'WINDOWS' : 'UNIX'
         );
         $_SERVER['HTTP_HOST'] = $host;
@@ -309,9 +294,6 @@ class RedirectUrlValidatorTest extends UnitTestCase
         self::assertTrue($this->accessibleFixture->_call('isInCurrentDomain', $url));
     }
 
-    /**
-     * @return array
-     */
     public function isInCurrentDomainReturnsFalseIfDomainsAreDifferentDataProvider(): array
     {
         return [
@@ -332,7 +314,7 @@ class RedirectUrlValidatorTest extends UnitTestCase
      * @param string $host $_SERVER['HTTP_HOST']
      * @param string $url The url to test
      */
-    public function isInCurrentDomainReturnsFalseIfDomainsAreDifferent($host, $url): void
+    public function isInCurrentDomainReturnsFalseIfDomainsAreDifferent(string $host, string $url): void
     {
         $_SERVER['HTTP_HOST'] = $host;
         self::assertFalse($this->accessibleFixture->_call('isInCurrentDomain', $url));

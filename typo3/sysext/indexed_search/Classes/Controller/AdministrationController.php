@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 /*
  * This file is part of the TYPO3 CMS project.
  *
@@ -22,6 +24,7 @@ use TYPO3\CMS\Backend\Template\ModuleTemplateFactory;
 use TYPO3\CMS\Backend\Utility\BackendUtility;
 use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
 use TYPO3\CMS\Core\Configuration\ExtensionConfiguration;
+use TYPO3\CMS\Core\Database\Connection;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Imaging\Icon;
 use TYPO3\CMS\Core\Imaging\IconFactory;
@@ -29,7 +32,6 @@ use TYPO3\CMS\Core\Localization\LanguageService;
 use TYPO3\CMS\Core\Type\Bitmask\Permission;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Extbase\Mvc\Controller\ActionController;
-use TYPO3\CMS\Extbase\Mvc\Request;
 use TYPO3\CMS\Extbase\Mvc\RequestInterface;
 use TYPO3\CMS\IndexedSearch\Domain\Repository\AdministrationRepository;
 use TYPO3\CMS\IndexedSearch\FileContentParser;
@@ -149,11 +151,9 @@ class AdministrationController extends ActionController
             $beUser->uc['indexed_search']['arguments'] = $arguments;
             $beUser->writeUC();
         } elseif (isset($beUser->uc['indexed_search']['action'])) {
-            if ($request instanceof Request) {
-                $request->setControllerActionName($beUser->uc['indexed_search']['action']);
-            }
+            $request = $request->withControllerActionName((string)$beUser->uc['indexed_search']['action']);
             if (isset($beUser->uc['indexed_search']['arguments'])) {
-                $request->setArguments($beUser->uc['indexed_search']['arguments']);
+                $request = $request->withArguments($beUser->uc['indexed_search']['arguments']);
             }
         }
 
@@ -237,7 +237,7 @@ class AdministrationController extends ActionController
             ->where(
                 $queryBuilder->expr()->eq(
                     'phash',
-                    $queryBuilder->createNamedParameter($pageHash, \PDO::PARAM_INT)
+                    $queryBuilder->createNamedParameter($pageHash, Connection::PARAM_INT)
                 )
             )
             ->executeQuery()
@@ -254,7 +254,7 @@ class AdministrationController extends ActionController
             ->where(
                 $queryBuilder->expr()->eq(
                     'phash',
-                    $queryBuilder->createNamedParameter($pageHash, \PDO::PARAM_INT)
+                    $queryBuilder->createNamedParameter($pageHash, Connection::PARAM_INT)
                 )
             )
             ->executeQuery()
@@ -277,7 +277,7 @@ class AdministrationController extends ActionController
             ->where(
                 $queryBuilder->expr()->eq(
                     'index_rel.phash',
-                    $queryBuilder->createNamedParameter($pageHash, \PDO::PARAM_INT)
+                    $queryBuilder->createNamedParameter($pageHash, Connection::PARAM_INT)
                 ),
                 $queryBuilder->expr()->eq(
                     'index_words.wid',
@@ -319,7 +319,7 @@ class AdministrationController extends ActionController
             ->where(
                 $queryBuilder->expr()->eq(
                     'phash',
-                    $queryBuilder->createNamedParameter($pageHash, \PDO::PARAM_INT)
+                    $queryBuilder->createNamedParameter($pageHash, Connection::PARAM_INT)
                 )
             )
             ->executeQuery()
@@ -335,11 +335,11 @@ class AdministrationController extends ActionController
             ->where(
                 $queryBuilder->expr()->eq(
                     'index_rel.phash',
-                    $queryBuilder->createNamedParameter($pageHash, \PDO::PARAM_INT)
+                    $queryBuilder->createNamedParameter($pageHash, Connection::PARAM_INT)
                 ),
                 $queryBuilder->expr()->eq(
                     'index_words.is_stopword',
-                    $queryBuilder->createNamedParameter(0, \PDO::PARAM_INT)
+                    $queryBuilder->createNamedParameter(0, Connection::PARAM_INT)
                 ),
                 $queryBuilder->expr()->eq(
                     'index_words.wid',
@@ -360,11 +360,11 @@ class AdministrationController extends ActionController
             ->where(
                 $queryBuilder->expr()->eq(
                     'index_rel.phash',
-                    $queryBuilder->createNamedParameter($pageHash, \PDO::PARAM_INT)
+                    $queryBuilder->createNamedParameter($pageHash, Connection::PARAM_INT)
                 ),
                 $queryBuilder->expr()->eq(
                     'index_words.is_stopword',
-                    $queryBuilder->createNamedParameter(0, \PDO::PARAM_INT)
+                    $queryBuilder->createNamedParameter(0, Connection::PARAM_INT)
                 ),
                 $queryBuilder->expr()->eq(
                     'index_words.wid',
@@ -431,7 +431,7 @@ class AdministrationController extends ActionController
             ->where(
                 $queryBuilder->expr()->eq(
                     'index_rel.wid',
-                    $queryBuilder->createNamedParameter($id, \PDO::PARAM_INT)
+                    $queryBuilder->createNamedParameter($id, Connection::PARAM_INT)
                 ),
                 $queryBuilder->expr()->eq(
                     'index_rel.phash',
@@ -488,13 +488,13 @@ class AdministrationController extends ActionController
     /**
      * Remove item from index
      *
-     * @param string $id
+     * @param string $itemId
      * @param int $depth
      * @param string $mode
      */
-    protected function deleteIndexedItemAction($id, $depth = 1, $mode = 'overview'): ResponseInterface
+    protected function deleteIndexedItemAction($itemId, $depth = 1, $mode = 'overview'): ResponseInterface
     {
-        $this->administrationRepository->removeIndexedPhashRow($id, $this->pageUid, $depth);
+        $this->administrationRepository->removeIndexedPhashRow($itemId, $this->pageUid, $depth);
         return $this->redirect('statistic', null, null, ['depth' => $depth, 'mode' => $mode]);
     }
 

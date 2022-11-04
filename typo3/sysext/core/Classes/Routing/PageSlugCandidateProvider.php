@@ -17,11 +17,11 @@ declare(strict_types=1);
 
 namespace TYPO3\CMS\Core\Routing;
 
-use Doctrine\DBAL\Connection;
 use TYPO3\CMS\Core\Context\Context;
+use TYPO3\CMS\Core\Context\LanguageAspect;
+use TYPO3\CMS\Core\Database\Connection;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Database\Query\Restriction\DeletedRestriction;
-use TYPO3\CMS\Core\Database\Query\Restriction\FrontendWorkspaceRestriction;
 use TYPO3\CMS\Core\Database\Query\Restriction\WorkspaceRestriction;
 use TYPO3\CMS\Core\Domain\Repository\PageRepository;
 use TYPO3\CMS\Core\Exception\SiteNotFoundException;
@@ -114,13 +114,14 @@ class PageSlugCandidateProvider
      */
     public function getRealPageIdForPageIdAsPossibleCandidate(int $pageId): ?int
     {
+        $workspaceId = (int)$this->context->getPropertyFromAspect('workspace', 'id');
         $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)
             ->getQueryBuilderForTable('pages');
         $queryBuilder
             ->getRestrictions()
             ->removeAll()
             ->add(GeneralUtility::makeInstance(DeletedRestriction::class))
-            ->add(GeneralUtility::makeInstance(FrontendWorkspaceRestriction::class));
+            ->add(GeneralUtility::makeInstance(WorkspaceRestriction::class, $workspaceId));
 
         $statement = $queryBuilder
             ->select('uid', 'l10n_parent')
@@ -128,7 +129,7 @@ class PageSlugCandidateProvider
             ->where(
                 $queryBuilder->expr()->eq(
                     'uid',
-                    $queryBuilder->createNamedParameter($pageId, \PDO::PARAM_INT)
+                    $queryBuilder->createNamedParameter($pageId, Connection::PARAM_INT)
                 )
             )
             ->executeQuery();
@@ -200,15 +201,15 @@ class PageSlugCandidateProvider
             ->getRestrictions()
             ->removeAll()
             ->add(GeneralUtility::makeInstance(DeletedRestriction::class))
-            ->add(GeneralUtility::makeInstance(WorkspaceRestriction::class, $workspaceId));
+            ->add(GeneralUtility::makeInstance(WorkspaceRestriction::class, $workspaceId, true));
 
         $statement = $queryBuilder
-            ->select('uid', 'l10n_parent', 'pid', 'slug', 'mount_pid', 'mount_pid_ol', 't3ver_state', 'doktype', 't3ver_wsid', 't3ver_oid')
+            ->select('uid', 'sys_language_uid', 'l10n_parent', 'l18n_cfg', 'pid', 'slug', 'mount_pid', 'mount_pid_ol', 't3ver_state', 'doktype', 't3ver_wsid', 't3ver_oid')
             ->from('pages')
             ->where(
                 $queryBuilder->expr()->eq(
                     'sys_language_uid',
-                    $queryBuilder->createNamedParameter($languageId, \PDO::PARAM_INT)
+                    $queryBuilder->createNamedParameter($languageId, Connection::PARAM_INT)
                 ),
                 $queryBuilder->expr()->in(
                     'slug',
@@ -220,6 +221,8 @@ class PageSlugCandidateProvider
             )
             // Exact match will be first, that's important
             ->orderBy('slug', 'desc')
+            // versioned records should be rendered before the live records
+            ->addOrderBy('t3ver_wsid', 'desc')
             // Sort pages that are not MountPoint pages before mount points
             ->addOrderBy('mount_pid_ol', 'asc')
             ->addOrderBy('mount_pid', 'asc')
@@ -232,7 +235,7 @@ class PageSlugCandidateProvider
 
         while ($row = $statement->fetchAssociative()) {
             $mountPageInformation = null;
-            $pageIdInDefaultLanguage = (int)($languageId > 0 ? $row['l10n_parent'] : $row['uid']);
+            $pageIdInDefaultLanguage = (int)($languageId > 0 ? $row['l10n_parent'] : ($row['t3ver_oid'] ?: $row['uid']));
             // When this page was added before via recursion, this page should be skipped
             if (in_array($pageIdInDefaultLanguage, $excludeUids, true)) {
                 continue;
@@ -265,7 +268,7 @@ class PageSlugCandidateProvider
                 $row['MPvar'] = $mountPageInformation['MPvar'];
                 $mountedPage = $pageRepository->getPage_noCheck($mountPageInformation['mount_pid_rec']['uid']);
                 // Ensure to fetch the slug in the translated page
-                $mountedPage = $pageRepository->getPageOverlay($mountedPage, $languageId);
+                $mountedPage = $pageRepository->getLanguageOverlay('pages', $mountedPage, new LanguageAspect($languageId, $languageId));
                 // Mount wasn't connected properly, so it is skipped
                 if (!$mountedPage) {
                     continue;
@@ -274,7 +277,7 @@ class PageSlugCandidateProvider
                 // it must never be accessible directly, but only in the MountPoint context. Therefore we change
                 // the current ID and slug.
                 // This needs to happen before the regular case, as the $pageToAdd contains the MPvar information
-                if (PageRepository::DOKTYPE_MOUNTPOINT === (int)$row['doktype'] && $row['mount_pid_ol']) {
+                if ((int)$row['doktype'] === PageRepository::DOKTYPE_MOUNTPOINT && $row['mount_pid_ol']) {
                     // If the mounted page was already added from above, this should not be added again (to include
                     // the mount point parameter).
                     if (in_array((int)$mountedPage['uid'], $excludeUids, true)) {

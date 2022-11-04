@@ -2,8 +2,6 @@
 
 declare(strict_types=1);
 
-namespace TYPO3\CMS\Extbase\DependencyInjection;
-
 /*
  * This file is part of the TYPO3 CMS project.
  *
@@ -16,6 +14,8 @@ namespace TYPO3\CMS\Extbase\DependencyInjection;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Extbase\DependencyInjection;
 
 use Symfony\Component\DependencyInjection\Compiler\CompilerPassInterface;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
@@ -63,7 +63,7 @@ final class TypeConverterPass implements CompilerPassInterface
                     );
                 }
 
-                $sources = GeneralUtility::trimExplode(',', $attributes['sources'], true);
+                $sources = GeneralUtility::trimExplode(',', (string)$attributes['sources'], true);
 
                 if ($sources === []) {
                     throw new InvalidTypeConverterConfigurationException(

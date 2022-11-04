@@ -1,5 +1,7 @@
 .. include:: /Includes.rst.txt
 
+.. _breaking-96998:
+
 ======================================================
 Breaking: #96998 - Extbase validator interface changed
 ======================================================
@@ -18,8 +20,8 @@ have been hardened.
 Furthermore, all default validators delivered by EXT:extbase and EXT:form are declared final.
 
 Following this, the framework no longer hands over :php:`options` array as constructor
-argument, and no abstract implements :php:`__costruct()` anymore. Classes that implement
-:php:`ValidatorInterface` are automatically set "public" ond "not-shared" by the framework,
+argument, and no abstract implements :php:`__construct()` anymore. Classes that implement
+:php:`ValidatorInterface` are automatically set "public" and "not-shared" by the framework,
 they do not need to set this themselves. See the
 :doc:`preparation in TYPO3 v11 <../11.5.x/Important-96332-ExtbaseValidatorsCanUseDependencyInjection>`
 for more details on this. As a result, Extbase validators can now use dependency injection.
@@ -28,7 +30,7 @@ Impact
 ======
 
 This has impact on custom Extbase validators which *may* need to adapt their method signatures.
-Extensions that don't follow this in v12 may trigger fatal PHP errors.
+Extensions that don't follow this in TYPO3 v12 may trigger fatal PHP errors.
 
 Affected Installations
 ======================
@@ -46,28 +48,28 @@ Those just have to adjust their :php:`isValid()` method signature to :php:`isVal
 keep TYPO3 v11 & v12 compatibility. Read on for rare cases where this is not sufficient.
 
 First, it is no longer allowed to extend specific validators of EXT:extbase and EXT:form.
-Those are "leaf" classes, and extensions should not extend them, giving the core more
+Those are "leaf" classes, and extensions should not extend them, giving the Core more
 freedom to change those classes if needed. Extensions should instead extend the provided
 abstract classes like :php:`AbstractValidator` to implement own validators.
 
 Since most custom validators inherit :php:`AbstractValidator`, the most important change
 for these validator is a return type change of :php:`isValid()`:
 
-.. code-block:: php
+..  code-block:: php
 
     public function isValid(mixed $value): void
 
 Extensions that need to stay compatible with v11 (PHP 7.4) and v12, will thus typically
 use a signature like below: Set the return type constraint, but omit the 'mixed' argument type:
 
-.. code-block:: php
+..  code-block:: php
 
     public function isValid($value): void
 
 With a closer look at the :php:`ValidatorInterface`, the v11 version
 effectively looks like this:
 
-.. code-block:: php
+..  code-block:: php
 
     interface ValidatorInterface
     {
@@ -77,7 +79,7 @@ effectively looks like this:
 
 This has been changed in v12 to this:
 
-.. code-block:: php
+..  code-block:: php
 
     interface ValidatorInterface
     {
@@ -99,7 +101,7 @@ younger interfaces.
 A v11 & v12 compatible method signature looks like this (avoiding the :php:`mixed` keyword
 on :php:`validate`):
 
-.. code-block:: php
+..  code-block:: php
 
     class MyValidator implements ValidatorInterface
     {

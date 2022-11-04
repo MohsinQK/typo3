@@ -19,6 +19,7 @@ namespace TYPO3\CMS\Extbase\Service;
 
 use TYPO3\CMS\Backend\Utility\BackendUtility;
 use TYPO3\CMS\Core\Cache\CacheManager;
+use TYPO3\CMS\Core\Database\Connection;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\SingletonInterface;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
@@ -154,7 +155,7 @@ class CacheService implements SingletonInterface
                 ->where(
                     $queryBuilder->expr()->eq(
                         'uid',
-                        $queryBuilder->createNamedParameter($uid, \PDO::PARAM_INT)
+                        $queryBuilder->createNamedParameter($uid, Connection::PARAM_INT)
                     )
                 )
                 ->executeQuery();
@@ -173,7 +174,7 @@ class CacheService implements SingletonInterface
 
         $pageTS = BackendUtility::getPagesTSconfig($storagePage);
         if (isset($pageTS['TCEMAIN.']['clearCacheCmd'])) {
-            $clearCacheCommands = GeneralUtility::trimExplode(',', strtolower($pageTS['TCEMAIN.']['clearCacheCmd']), true);
+            $clearCacheCommands = GeneralUtility::trimExplode(',', strtolower((string)$pageTS['TCEMAIN.']['clearCacheCmd']), true);
             $clearCacheCommands = array_unique($clearCacheCommands);
             foreach ($clearCacheCommands as $clearCacheCommand) {
                 if (MathUtility::canBeInterpretedAsInteger($clearCacheCommand)) {

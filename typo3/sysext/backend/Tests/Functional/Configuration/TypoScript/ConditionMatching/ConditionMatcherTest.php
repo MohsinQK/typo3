@@ -17,33 +17,24 @@ declare(strict_types=1);
 
 namespace TYPO3\CMS\Backend\Tests\Functional\Configuration\TypoScript\ConditionMatching;
 
-use Prophecy\PhpUnit\ProphecyTrait;
+use Psr\Log\NullLogger;
 use TYPO3\CMS\Backend\Configuration\TypoScript\ConditionMatching\ConditionMatcher;
 use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
 use TYPO3\CMS\Core\Context\Context;
 use TYPO3\CMS\Core\Context\UserAspect;
 use TYPO3\CMS\Core\Context\WorkspaceAspect;
 use TYPO3\CMS\Core\Information\Typo3Version;
-use TYPO3\CMS\Core\Log\Logger;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Core\Utility\StringUtility;
 use TYPO3\TestingFramework\Core\Functional\FunctionalTestCase;
 
-/**
- * Functional test for the ConditionMatcher of EXT:backend
- */
 class ConditionMatcherTest extends FunctionalTestCase
 {
-    use ProphecyTrait;
-
-    /**
-     * Sets up this test case.
-     */
     protected function setUp(): void
     {
         parent::setUp();
 
-        $this->importDataSet('PACKAGE:typo3/testing-framework/Resources/Core/Functional/Fixtures/pages.xml');
+        $this->importCSVDataSet(__DIR__ . '/../../../Fixtures/pages.csv');
 
         $backendUser = new BackendUserAuthentication();
         $backendUser->user['uid'] = 13;
@@ -438,7 +429,7 @@ class ConditionMatcherTest extends FunctionalTestCase
     protected function getConditionMatcher(int $pageId = null): ConditionMatcher
     {
         $conditionMatcher = new ConditionMatcher(null, $pageId);
-        $conditionMatcher->setLogger($this->prophesize(Logger::class)->reveal());
+        $conditionMatcher->setLogger(new NullLogger());
 
         return $conditionMatcher;
     }

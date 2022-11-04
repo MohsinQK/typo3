@@ -25,48 +25,33 @@ use TYPO3\TestingFramework\Core\Functional\Framework\Frontend\InternalRequest;
 use TYPO3\TestingFramework\Core\Functional\Framework\Frontend\InternalRequestContext;
 use TYPO3\TestingFramework\Core\Functional\Framework\Frontend\ResponseContent;
 
-/**
- * Test case for frontend requests having site handling configured
- */
 class SiteRequestTest extends AbstractTestCase
 {
     protected function setUp(): void
     {
         parent::setUp();
-
         $this->withDatabaseSnapshot(function () {
-            $this->setUpDatabase();
+            $this->importCSVDataSet(__DIR__ . '/../Fixtures/be_users.csv');
+            $backendUser = $this->setUpBackendUser(1);
+            Bootstrap::initializeLanguageObject();
+            $scenarioFile = __DIR__ . '/Fixtures/PlainScenario.yaml';
+            $factory = DataHandlerFactory::fromYamlFile($scenarioFile);
+            $writer = DataHandlerWriter::withBackendUser($backendUser);
+            $writer->invokeFactory($factory);
+            static::failIfArrayIsNotEmpty($writer->getErrors());
+            $this->setUpFrontendRootPage(
+                1000,
+                [
+                    'typo3/sysext/core/Tests/Functional/Fixtures/Frontend/JsonRenderer.typoscript',
+                    'typo3/sysext/frontend/Tests/Functional/SiteHandling/Fixtures/JsonRenderer.typoscript',
+                ],
+                [
+                    'title' => 'ACME Root',
+                ]
+            );
         });
     }
 
-    protected function setUpDatabase(): void
-    {
-        $backendUser = $this->setUpBackendUserFromFixture(1);
-        Bootstrap::initializeLanguageObject();
-
-        $scenarioFile = __DIR__ . '/Fixtures/PlainScenario.yaml';
-        $factory = DataHandlerFactory::fromYamlFile($scenarioFile);
-        $writer = DataHandlerWriter::withBackendUser($backendUser);
-        $writer->invokeFactory($factory);
-        static::failIfArrayIsNotEmpty(
-            $writer->getErrors()
-        );
-
-        $this->setUpFrontendRootPage(
-            1000,
-            [
-                'typo3/sysext/core/Tests/Functional/Fixtures/Frontend/JsonRenderer.typoscript',
-                'typo3/sysext/frontend/Tests/Functional/SiteHandling/Fixtures/JsonRenderer.typoscript',
-            ],
-            [
-                'title' => 'ACME Root',
-            ]
-        );
-    }
-
-    /**
-     * @return array
-     */
     public function shortcutsAreRedirectedDataProvider(): array
     {
         $domainPaths = [
@@ -88,8 +73,6 @@ class SiteRequestTest extends AbstractTestCase
     }
 
     /**
-     * @param string $uri
-     *
      * @test
      * @dataProvider shortcutsAreRedirectedDataProvider
      */
@@ -112,8 +95,6 @@ class SiteRequestTest extends AbstractTestCase
     }
 
     /**
-     * @param string $uri
-     *
      * @test
      * @dataProvider shortcutsAreRedirectedDataProvider
      */
@@ -149,9 +130,6 @@ class SiteRequestTest extends AbstractTestCase
         );
     }
 
-    /**
-     * @return array
-     */
     public function pageIsRenderedWithPathsDataProvider(): array
     {
         $domainPaths = [
@@ -191,9 +169,6 @@ class SiteRequestTest extends AbstractTestCase
     }
 
     /**
-     * @param string $uri
-     * @param string $expectedPageTitle
-     *
      * @test
      * @dataProvider pageIsRenderedWithPathsDataProvider
      */
@@ -327,9 +302,6 @@ class SiteRequestTest extends AbstractTestCase
         );
     }
 
-    /**
-     * @return array
-     */
     public function pageIsRenderedWithDomainsDataProvider(): array
     {
         $domainPaths = [
@@ -369,9 +341,6 @@ class SiteRequestTest extends AbstractTestCase
     }
 
     /**
-     * @param string $uri
-     * @param string $expectedPageTitle
-     *
      * @test
      * @dataProvider pageIsRenderedWithDomainsDataProvider
      */
@@ -403,9 +372,6 @@ class SiteRequestTest extends AbstractTestCase
         );
     }
 
-    /**
-     * @return array
-     */
     public function restrictedPageIsRenderedDataProvider(): array
     {
         $instructions = [
@@ -449,10 +415,6 @@ class SiteRequestTest extends AbstractTestCase
     }
 
     /**
-     * @param string $uri
-     * @param int $frontendUserId
-     * @param string $expectedPageTitle
-     *
      * @test
      * @dataProvider restrictedPageIsRenderedDataProvider
      */
@@ -481,9 +443,6 @@ class SiteRequestTest extends AbstractTestCase
         );
     }
 
-    /**
-     * @return array
-     */
     public function restrictedPageSendsForbiddenResponseWithUnauthorizedVisitorDataProvider(): array
     {
         $instructions = [
@@ -509,9 +468,6 @@ class SiteRequestTest extends AbstractTestCase
     }
 
     /**
-     * @param string $uri
-     * @param int $frontendUserId
-     *
      * @test
      * @dataProvider restrictedPageSendsForbiddenResponseWithUnauthorizedVisitorDataProvider
      */
@@ -541,9 +497,6 @@ class SiteRequestTest extends AbstractTestCase
     }
 
     /**
-     * @param string $uri
-     * @param int $frontendUserId
-     *
      * @test
      * @dataProvider restrictedPageSendsForbiddenResponseWithUnauthorizedVisitorDataProvider
      * @todo Response body cannot be asserted since PageContentErrorHandler::handlePageError executes request via HTTP (not internally)
@@ -571,9 +524,6 @@ class SiteRequestTest extends AbstractTestCase
     }
 
     /**
-     * @param string $uri
-     * @param int $frontendUserId
-     *
      * @test
      * @dataProvider restrictedPageSendsForbiddenResponseWithUnauthorizedVisitorDataProvider
      */
@@ -605,9 +555,6 @@ class SiteRequestTest extends AbstractTestCase
         );
     }
 
-    /**
-     * @return array
-     */
     public function restrictedPageWithParentSysFolderIsRenderedDataProvider(): array
     {
         $instructions = [
@@ -619,10 +566,6 @@ class SiteRequestTest extends AbstractTestCase
     }
 
     /**
-     * @param string $uri
-     * @param int $frontendUserId
-     * @param string $expectedPageTitle
-     *
      * @test
      * @dataProvider restrictedPageWithParentSysFolderIsRenderedDataProvider
      */
@@ -651,9 +594,6 @@ class SiteRequestTest extends AbstractTestCase
         );
     }
 
-    /**
-     * @return array
-     */
     public function restrictedPageWithParentSysFolderSendsForbiddenResponseWithUnauthorizedVisitorDataProvider(): array
     {
         $instructions = [
@@ -671,9 +611,6 @@ class SiteRequestTest extends AbstractTestCase
     }
 
     /**
-     * @param string $uri
-     * @param int $frontendUserId
-     *
      * @test
      * @dataProvider restrictedPageWithParentSysFolderSendsForbiddenResponseWithUnauthorizedVisitorDataProvider
      */
@@ -709,9 +646,6 @@ class SiteRequestTest extends AbstractTestCase
     }
 
     /**
-     * @param string $uri
-     * @param int $frontendUserId
-     *
      * @test
      * @dataProvider restrictedPageWithParentSysFolderSendsForbiddenResponseWithUnauthorizedVisitorDataProvider
      * @todo Response body cannot be asserted since PageContentErrorHandler::handlePageError executes request via HTTP (not internally)
@@ -739,9 +673,6 @@ class SiteRequestTest extends AbstractTestCase
     }
 
     /**
-     * @param string $uri
-     * @param int $frontendUserId
-     *
      * @test
      * @dataProvider restrictedPageWithParentSysFolderSendsForbiddenResponseWithUnauthorizedVisitorDataProvider
      */
@@ -773,9 +704,6 @@ class SiteRequestTest extends AbstractTestCase
         );
     }
 
-    /**
-     * @return array
-     */
     public function hiddenPageSends404ResponseRegardlessOfVisitorGroupDataProvider(): array
     {
         $instructions = [
@@ -818,9 +746,6 @@ class SiteRequestTest extends AbstractTestCase
         );
     }
 
-    /**
-     * @return array
-     */
     public function pageRenderingStopsWithInvalidCacheHashDataProvider(): array
     {
         $domainPaths = [
@@ -847,8 +772,6 @@ class SiteRequestTest extends AbstractTestCase
     }
 
     /**
-     * @param string $uri
-     *
      * @test
      * @dataProvider pageRenderingStopsWithInvalidCacheHashDataProvider
      */
@@ -877,8 +800,6 @@ class SiteRequestTest extends AbstractTestCase
     }
 
     /**
-     * @param string $uri
-     *
      * @test
      * @dataProvider pageRenderingStopsWithInvalidCacheHashDataProvider
      * @todo Response body cannot be asserted since PageContentErrorHandler::handlePageError executes request via HTTP (not internally)
@@ -903,8 +824,6 @@ class SiteRequestTest extends AbstractTestCase
     }
 
     /**
-     * @param string $uri
-     *
      * @test
      * @dataProvider pageRenderingStopsWithInvalidCacheHashDataProvider
      */
@@ -933,9 +852,6 @@ class SiteRequestTest extends AbstractTestCase
         );
     }
 
-    /**
-     * @return array
-     */
     public function pageIsRenderedWithValidCacheHashDataProvider(): array
     {
         $domainPaths = [
@@ -965,8 +881,6 @@ class SiteRequestTest extends AbstractTestCase
     }
 
     /**
-     * @param string $uri
-     *
      * @test
      * @dataProvider pageIsRenderedWithValidCacheHashDataProvider
      */
@@ -987,9 +901,6 @@ class SiteRequestTest extends AbstractTestCase
         );
     }
 
-    /**
-     * @return array
-     */
     public function checkIfIndexPhpReturnsShortcutRedirectWithPageIdAndTypeNumProvidedDataProvider(): array
     {
         $domainPaths = [
@@ -1012,8 +923,6 @@ class SiteRequestTest extends AbstractTestCase
     }
 
     /**
-     * @param string $uri
-     *
      * @test
      * @dataProvider checkIfIndexPhpReturnsShortcutRedirectWithPageIdAndTypeNumProvidedDataProvider
      */

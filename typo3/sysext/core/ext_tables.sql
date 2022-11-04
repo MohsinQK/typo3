@@ -70,7 +70,6 @@ CREATE TABLE pages (
 	perms_group tinyint(4) unsigned DEFAULT '0' NOT NULL,
 	perms_everybody tinyint(4) unsigned DEFAULT '0' NOT NULL,
 	title varchar(255) DEFAULT '' NOT NULL,
-	slug varchar(2048),
 	doktype int(11) unsigned DEFAULT '0' NOT NULL,
 	TSconfig text,
 	is_siteroot tinyint(4) DEFAULT '0' NOT NULL,
@@ -150,8 +149,7 @@ CREATE TABLE sys_news (
 #
 CREATE TABLE sys_filemounts (
 	title varchar(255) DEFAULT '' NOT NULL,
-	path varchar(255) DEFAULT '' NOT NULL,
-	base int(11) unsigned DEFAULT '0' NOT NULL,
+	identifier varchar(255) DEFAULT '' NOT NULL,
 	read_only tinyint(1) unsigned DEFAULT '0' NOT NULL
 );
 
@@ -259,7 +257,6 @@ CREATE TABLE sys_file_reference (
 	tablenames varchar(64) DEFAULT '' NOT NULL,
 	fieldname varchar(64) DEFAULT '' NOT NULL,
 	sorting_foreign int(11) DEFAULT '0' NOT NULL,
-	table_local varchar(64) DEFAULT '' NOT NULL,
 
 	# Local usage overlay fields
 	title tinytext,

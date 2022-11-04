@@ -28,39 +28,18 @@ use TYPO3\CMS\FrontendLogin\Configuration\RedirectConfiguration;
  */
 class RedirectHandler
 {
-    /**
-     * @var bool
-     */
-    protected $userIsLoggedIn = false;
-
-    /**
-     * @var ServerRequestHandler
-     */
-    protected $requestHandler;
-
-    /**
-     * @var RedirectModeHandler
-     */
-    protected $redirectModeHandler;
+    protected bool $userIsLoggedIn = false;
 
     public function __construct(
-        ServerRequestHandler $requestHandler,
-        RedirectModeHandler $redirectModeHandler,
+        protected ServerRequestHandler $requestHandler,
+        protected RedirectModeHandler $redirectModeHandler,
         Context $context
     ) {
-        $this->requestHandler = $requestHandler;
-        $this->redirectModeHandler = $redirectModeHandler;
         $this->userIsLoggedIn = (bool)$context->getPropertyFromAspect('frontend.user', 'isLoggedIn');
     }
 
     /**
-     * Process redirect modes. The function searches for a redirect url using all configured modes.
-     *
-     * @param string $loginType
-     * @param RedirectConfiguration $configuration
-     * @param string $redirectModeReferrer
-     * @return string Redirect URL
-     * @throws \TYPO3\CMS\Extbase\Mvc\Exception\NoSuchArgumentException
+     * Process redirect modes. This method searches for a redirect url using all configured modes and returns it.
      */
     public function processRedirect(string $loginType, RedirectConfiguration $configuration, string $redirectModeReferrer): string
     {
@@ -88,10 +67,6 @@ class RedirectHandler
 
     /**
      * Get alternative logout form redirect url if logout and page not accessible
-     *
-     * @param array $redirectModes
-     * @param int $redirectPageLogout
-     * @return string
      */
     protected function getLogoutRedirectUrl(array $redirectModes, int $redirectPageLogout = 0): string
     {
@@ -103,9 +78,6 @@ class RedirectHandler
 
     /**
      * Is used for alternative redirect urls on redirect mode "getpost"
-     *
-     * @param array $redirectModes
-     * @return string
      */
     protected function getGetpostRedirectUrl(array $redirectModes): string
     {
@@ -116,10 +88,6 @@ class RedirectHandler
 
     /**
      * Handle redirect mode logout
-     *
-     * @param string $redirectMode
-     * @param int $redirectPageLogout
-     * @return string
      */
     protected function handleSuccessfulLogout(string $redirectMode, int $redirectPageLogout): string
     {
@@ -131,12 +99,8 @@ class RedirectHandler
 
     /**
      * Base on setting redirectFirstMethod get first or last entry from redirect url list.
-     *
-     * @param array $redirectUrlList
-     * @param string $redirectFirstMethod
-     * @return string
      */
-    protected function fetchReturnUrlFromList(array $redirectUrlList, $redirectFirstMethod): string
+    protected function fetchReturnUrlFromList(array $redirectUrlList, string $redirectFirstMethod): string
     {
         if (count($redirectUrlList) === 0) {
             return '';
@@ -154,13 +118,6 @@ class RedirectHandler
 
     /**
      * Generate redirect_url for case that the user was successfully logged in
-     *
-     * @param string $redirectMode
-     * @param int $redirectPageLogin
-     * @param string $domains
-     * @param string $redirectModeReferrer
-     * @return string
-     * @throws \TYPO3\CMS\Extbase\Mvc\Exception\NoSuchArgumentException
      */
     protected function handleSuccessfulLogin(string $redirectMode, int $redirectPageLogin = 0, string $domains = '', string $redirectModeReferrer = ''): string
     {
@@ -202,13 +159,6 @@ class RedirectHandler
             && $this->isRedirectModeActive($redirectModes, RedirectMode::LOGIN_ERROR);
     }
 
-    /**
-     * Checks if the give mode is active or not
-     *
-     * @param string $mode
-     * @param array $redirectModes
-     * @return bool
-     */
     protected function isRedirectModeActive(array $redirectModes, string $mode): bool
     {
         return in_array($mode, $redirectModes, true);
@@ -216,10 +166,6 @@ class RedirectHandler
 
     /**
      * Returns the redirect Url that should be used in login form template for GET/POST redirect mode
-     *
-     * @param RedirectConfiguration $configuration
-     * @param bool $redirectDisabled
-     * @return string
      */
     public function getLoginFormRedirectUrl(RedirectConfiguration $configuration, bool $redirectDisabled): string
     {
@@ -231,11 +177,6 @@ class RedirectHandler
 
     /**
      * Returns the redirect Url that should be used in logout form
-     *
-     * @param RedirectConfiguration $configuration
-     * @param int $redirectPageLogout
-     * @param bool $redirectDisabled
-     * @return string
      */
     public function getLogoutFormRedirectUrl(RedirectConfiguration $configuration, int $redirectPageLogout, bool $redirectDisabled): string
     {

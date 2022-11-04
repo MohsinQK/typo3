@@ -37,9 +37,6 @@ use TYPO3\CMS\Core\Tests\Unit\Database\Mocks\MockPlatform;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
-/**
- * Test case
- */
 class QueryBuilderTest extends UnitTestCase
 {
     use ProphecyTrait;
@@ -1375,15 +1372,15 @@ class QueryBuilderTest extends UnitTestCase
         return [
             'string input and output' => [
                 'aValue',
-                \PDO::PARAM_STR,
+                Connection::PARAM_STR,
             ],
             'int input and string output' => [
                 17,
-                \PDO::PARAM_STR,
+                Connection::PARAM_STR,
             ],
             'int input and int output' => [
                 17,
-                \PDO::PARAM_INT,
+                Connection::PARAM_INT,
             ],
             'string input and array output' => [
                 'aValue',

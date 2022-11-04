@@ -16,6 +16,7 @@
 namespace TYPO3\CMS\Core\Resource\Utility;
 
 use TYPO3\CMS\Core\Localization\LanguageService;
+use TYPO3\CMS\Core\Resource\Folder;
 use TYPO3\CMS\Core\Resource\FolderInterface;
 
 /**
@@ -26,8 +27,8 @@ class ListUtility
     /**
      * Resolve special folders (by their role) into localised string
      *
-     * @param array $folders Array of \TYPO3\CMS\Core\Resource\Folder
-     * @return array Array of \TYPO3\CMS\Core\Resource\Folder; folder name or role with folder name as keys
+     * @param Folder[] $folders
+     * @return array<string|int, Folder> Folders using the Folder name (with or without role) as key
      */
     public static function resolveSpecialFolderNames(array $folders)
     {
@@ -35,7 +36,6 @@ class ListUtility
         $lang = $GLOBALS['LANG'];
         $resolvedFolders = [];
 
-        /** @var \TYPO3\CMS\Core\Resource\Folder $folder */
         foreach ($folders as $folder) {
             $name = $folder->getName();
             $role = $folder->getRole();

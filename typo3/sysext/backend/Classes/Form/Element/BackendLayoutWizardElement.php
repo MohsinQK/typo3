@@ -15,6 +15,7 @@
 
 namespace TYPO3\CMS\Backend\Form\Element;
 
+use TYPO3\CMS\Core\Imaging\Icon;
 use TYPO3\CMS\Core\Page\JavaScriptModuleInstruction;
 use TYPO3\CMS\Core\TypoScript\Parser\TypoScriptParser;
 use TYPO3\CMS\Core\Utility\ExtensionManagementUtility;
@@ -86,20 +87,16 @@ class BackendLayoutWizardElement extends AbstractFormElement
             $codeMirrorConfig = [
                 'label' => $lang->getLL('buttons.pageTsConfig'),
                 'panel' => 'top',
-                'mode' => 'TYPO3/CMS/T3editor/Mode/typoscript/typoscript',
+                'mode' => GeneralUtility::jsonEncodeForHtmlAttribute(JavaScriptModuleInstruction::create('@typo3/t3editor/language/typoscript.js', 'typoscript')->invoke(), false),
                 'nolazyload' => 'true',
-                'options' => GeneralUtility::jsonEncodeForHtmlAttribute([
-                    'readOnly' => 'true',
-                ], false),
+                'readonly' => 'true',
             ];
             $editor = '
                 <typo3-t3editor-codemirror class="t3js-grideditor-preview-config grideditor-preview" ' . GeneralUtility::implodeAttributes($codeMirrorConfig, true) . '>
-                    <textarea class="t3js-tsconfig-preview-area"></textarea>
+                    <textarea class="t3js-tsconfig-preview-area form-control"></textarea>
                 </typo3-t3editor-codemirror>';
 
-            $resultArray['stylesheetFiles'][] = 'EXT:t3editor/Resources/Public/JavaScript/Contrib/codemirror/lib/codemirror.css';
-            $resultArray['stylesheetFiles'][] = 'EXT:t3editor/Resources/Public/Css/t3editor.css';
-            $resultArray['requireJsModules'][] = JavaScriptModuleInstruction::forRequireJS('TYPO3/CMS/T3editor/Element/CodeMirrorElement');
+            $resultArray['javaScriptModules'][] = JavaScriptModuleInstruction::create('@typo3/t3editor/element/code-mirror-element.js');
         } else {
             $editor = '
                 <label>' . htmlspecialchars($lang->getLL('buttons.pageTsConfig')) . '</label>
@@ -120,84 +117,71 @@ class BackendLayoutWizardElement extends AbstractFormElement
         $html[] =                   ' name="' . htmlspecialchars($this->data['parameterArray']['itemFormElName']) . '"';
         $html[] =                   ' value="' . htmlspecialchars($this->data['parameterArray']['itemFormElValue']) . '"';
         $html[] =                   '/>';
-        $html[] =               '<table class="grideditor table table-bordered">';
+        $html[] =               '<div class="grideditor' . ($readOnly ? ' grideditor-readonly' : '') . '">';
         if (!$readOnly) {
-            $html[] =                   '<tr>';
-            $html[] =                       '<td colspan="2" align="center">';
-            $html[] =                           '<div class="btn-group">';
-            $html[] =                               '<a class="btn btn-default btn-sm t3js-grideditor-removerow-top" href="#"';
-            $html[] =                                   ' title="' . htmlspecialchars($lang->getLL('grid_removeRow')) . '">';
-            $html[] =                                   '<i class="fa fa-fw fa-minus"></i>';
-            $html[] =                               '</a>';
-            $html[] =                               '<a class="btn btn-default btn-sm t3js-grideditor-addrow-top" href="#"';
-            $html[] =                                   ' title="' . htmlspecialchars($lang->getLL('grid_addRow')) . '">';
-            $html[] =                                   '<i class="fa fa-fw fa-plus"></i>';
-            $html[] =                               '</a>';
-            $html[] =                           '</div>';
-            $html[] =                       '</td>';
-            $html[] =                   '</tr>';
+            $html[] =               '<div class="grideditor-control grideditor-control-top">';
+            $html[] =                   '<div class="btn-group">';
+            $html[] =                       '<a class="btn btn-default btn-sm t3js-grideditor-addrow-top" href="#"';
+            $html[] =                           ' title="' . htmlspecialchars($lang->getLL('grid_addRow')) . '">';
+            $html[] =                           $this->iconFactory->getIcon('actions-plus', Icon::SIZE_SMALL)->render();
+            $html[] =                       '</a>';
+            $html[] =                       '<a class="btn btn-default btn-sm t3js-grideditor-removerow-top" href="#"';
+            $html[] =                           ' title="' . htmlspecialchars($lang->getLL('grid_removeRow')) . '">';
+            $html[] =                           $this->iconFactory->getIcon('actions-minus', Icon::SIZE_SMALL)->render();
+            $html[] =                       '</a>';
+            $html[] =                   '</div>';
+            $html[] =               '</div>';
         }
-        $html[] =                   '<tr>';
-        $html[] =                       '<td class="editor_cell">';
-        $html[] =                           '<div';
-        $html[] =                               ' id="editor"';
-        $html[] =                               ' class="t3js-grideditor"';
-        $html[] =                               ' data-data="' . htmlspecialchars($json) . '"';
-        $html[] =                               ' data-rowcount="' . (int)$this->rowCount . '"';
-        $html[] =                               ' data-colcount="' . (int)$this->colCount . '"';
-        $html[] =                               ' data-readonly="' . ($readOnly ? '1' : '0') . '"';
-        $html[] =                               ' data-field="' . htmlspecialchars($this->data['parameterArray']['itemFormElName']) . '"';
-        $html[] =                           '>';
-        $html[] =                           '</div>';
-        $html[] =                       '</td>';
+        $html[] =                   '<div class="grideditor-editor">';
+        $html[] =                       '<div';
+        $html[] =                           ' id="editor"';
+        $html[] =                           ' class="t3js-grideditor"';
+        $html[] =                           ' data-data="' . htmlspecialchars($json) . '"';
+        $html[] =                           ' data-rowcount="' . (int)$this->rowCount . '"';
+        $html[] =                           ' data-colcount="' . (int)$this->colCount . '"';
+        $html[] =                           ' data-readonly="' . ($readOnly ? '1' : '0') . '"';
+        $html[] =                           ' data-field="' . htmlspecialchars($this->data['parameterArray']['itemFormElName']) . '"';
+        $html[] =                       '></div>';
+        $html[] =                   '</div>';
         if (!$readOnly) {
-            $html[] =                       '<td>';
-            $html[] =                           '<div class="btn-group-vertical">';
-            $html[] =                               '<a class="btn btn-default btn-sm t3js-grideditor-addcolumn" href="#"';
-            $html[] =                                   ' title="' . htmlspecialchars($lang->getLL('grid_addColumn')) . '">';
-            $html[] =                                   '<i class="fa fa-fw fa-plus"></i>';
-            $html[] =                               '</a>';
-            $html[] =                               '<a class="btn btn-default btn-sm t3js-grideditor-removecolumn" href="#"';
-            $html[] =                                   ' title="' . htmlspecialchars($lang->getLL('grid_removeColumn')) . '">';
-            $html[] =                                   '<i class="fa fa-fw fa-minus"></i>';
-            $html[] =                               '</a>';
-            $html[] =                           '</div>';
-            $html[] =                       '</td>';
-            $html[] =                   '</tr>';
-            $html[] =                   '<tr>';
-            $html[] =                       '<td colspan="2" align="center">';
-            $html[] =                           '<div class="btn-group">';
-            $html[] =                               '<a class="btn btn-default btn-sm t3js-grideditor-addrow-bottom" href="#"';
-            $html[] =                                   ' title="' . htmlspecialchars($lang->getLL('grid_addRow')) . '">';
-            $html[] =                                   '<i class="fa fa-fw fa-plus"></i>';
-            $html[] =                               '</a>';
-            $html[] =                               '<a class="btn btn-default btn-sm t3js-grideditor-removerow-bottom" href="#"';
-            $html[] =                                   ' title="' . htmlspecialchars($lang->getLL('grid_removeRow')) . '">';
-            $html[] =                                   '<i class="fa fa-fw fa-minus"></i>';
-            $html[] =                               '</a>';
-            $html[] =                           '</div>';
-            $html[] =                       '</td>';
+            $html[] =               '<div class="grideditor-control grideditor-control-right">';
+            $html[] =                   '<div class="btn-group-vertical">';
+            $html[] =                       '<a class="btn btn-default btn-sm t3js-grideditor-addcolumn" href="#"';
+            $html[] =                           ' title="' . htmlspecialchars($lang->getLL('grid_addColumn')) . '">';
+            $html[] =                           $this->iconFactory->getIcon('actions-plus', Icon::SIZE_SMALL)->render();
+            $html[] =                       '</a>';
+            $html[] =                       '<a class="btn btn-default btn-sm t3js-grideditor-removecolumn" href="#"';
+            $html[] =                           ' title="' . htmlspecialchars($lang->getLL('grid_removeColumn')) . '">';
+            $html[] =                           $this->iconFactory->getIcon('actions-minus', Icon::SIZE_SMALL)->render();
+            $html[] =                       '</a>';
+            $html[] =                   '</div>';
+            $html[] =               '</div>';
+            $html[] =               '<div class="grideditor-control grideditor-control-bottom">';
+            $html[] =                   '<div class="btn-group">';
+            $html[] =                       '<a class="btn btn-default btn-sm t3js-grideditor-addrow-bottom" href="#"';
+            $html[] =                           ' title="' . htmlspecialchars($lang->getLL('grid_addRow')) . '">';
+            $html[] =                           $this->iconFactory->getIcon('actions-plus', Icon::SIZE_SMALL)->render();
+            $html[] =                       '</a>';
+            $html[] =                       '<a class="btn btn-default btn-sm t3js-grideditor-removerow-bottom" href="#"';
+            $html[] =                           ' title="' . htmlspecialchars($lang->getLL('grid_removeRow')) . '">';
+            $html[] =                           $this->iconFactory->getIcon('actions-minus', Icon::SIZE_SMALL)->render();
+            $html[] =                       '</a>';
+            $html[] =                   '</div>';
+            $html[] =               '</div>';
         }
-        $html[] =                   '</tr>';
-        $html[] =                   '<tr>';
-        $html[] =                       '<td colspan="2">';
-        $html[] =                           $editor;
-        $html[] =                       '</td>';
-        $html[] =                   '</tr>';
-        $html[] =               '</table>';
-        $html[] =           '</div>';
+        $html[] =                   '<div class="grideditor-preview">' . $editor . '</div>';
+        $html[] =                '</div>';
         if (!$readOnly && !empty($fieldWizardHtml)) {
-            $html[] = '<div class="form-wizards-items-bottom">';
-            $html[] = $fieldWizardHtml;
-            $html[] = '</div>';
+            $html[] =           '<div class="form-wizards-items-bottom">' . $fieldWizardHtml . '</div>';
         }
+        $html[] =           '</div>';
         $html[] =       '</div>';
         $html[] =   '</div>';
         $html[] = '</div>';
 
         $html = implode(LF, $html);
         $resultArray['html'] = $html;
-        $resultArray['requireJsModules'][] = JavaScriptModuleInstruction::create(
+        $resultArray['javaScriptModules'][] = JavaScriptModuleInstruction::create(
             '@typo3/backend/grid-editor.js',
             'GridEditor'
         )->instance();

@@ -48,7 +48,7 @@ class BookmarkCest
         $I->cantSeeElement(self::$topBarModuleSelector . ' .shortcut');
     }
 
-    public function checkThatAddingABookmarkAddsItemToTheBookmarkList(ApplicationTester $I, ModalDialog $dialog, Scenario $scenario): ApplicationTester
+    public function checkThatAddingABookmarkAddsItemToTheBookmarkList(ApplicationTester $I, Scenario $scenario): ApplicationTester
     {
         // open the scheduler module as we would like to put it into the bookmark list
         $I->click('Scheduler', '.scaffold-modulemenu');
@@ -58,24 +58,8 @@ class BookmarkCest
         $I->click(self::$docHeaderBookmarkButtonSelector);
         $I->waitForElementVisible('.module-docheader .dropdown-menu');
         $I->click('.module-docheader .dropdown-menu button:nth-of-type(1)');
-        // cancel the action to test the functionality
-        // don't use $modalDialog->clickButtonInDialog due to too low timeout
-        $dialog->canSeeDialog();
-        $I->click('Cancel', ModalDialog::$openedModalButtonContainerSelector);
-        $I->waitForElementNotVisible(ModalDialog::$openedModalSelector, 30);
 
-        // check if the list is still empty
-        $this->clickBookmarkDropdownToggleInTopbar($I);
-        $I->cantSeeElement(self::$topBarModuleSelector . ' .shortcut');
-
-        $I->switchToContentFrame();
-        $I->click(self::$docHeaderBookmarkButtonSelector);
-        $I->waitForElementVisible('.module-docheader .dropdown-menu');
-        $I->click('.module-docheader .dropdown-menu button:nth-of-type(1)');
-
-        $dialog->canSeeDialog();
-        $dialog->clickButtonInDialog('OK');
-
+        $I->switchToMainFrame();
         $this->clickBookmarkDropdownToggleInTopbar($I);
         $I->waitForText('Scheduled tasks', 15, self::$topBarModuleSelector . ' ' . Topbar::$dropdownListSelector);
 
@@ -107,9 +91,9 @@ class BookmarkCest
         $this->clickBookmarkDropdownToggleInTopbar($I);
         $firstShortcutSelector = self::$topBarModuleSelector . ' .t3js-topbar-shortcut';
         $I->click('.t3js-shortcut-edit', $firstShortcutSelector);
-        $secondShortcutSelector = self::$topBarModuleSelector . ' form.shortcut-form';
+        $secondShortcutSelector = self::$topBarModuleSelector . ' form.t3js-shortcut-form';
         $I->fillField($secondShortcutSelector . ' input[name="shortcut-title"]', 'Scheduled tasks renamed');
-        $I->click('.shortcut-form-save', $secondShortcutSelector);
+        $I->click('.t3js-shortcut-form-save', $secondShortcutSelector);
 
         // searching in a specific context fails with an "Stale Element Reference Exception"
         // see http://docs.seleniumhq.org/exceptions/stale_element_reference.jsp

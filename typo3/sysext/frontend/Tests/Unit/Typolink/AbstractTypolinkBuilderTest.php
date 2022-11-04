@@ -18,9 +18,10 @@ declare(strict_types=1);
 namespace TYPO3\CMS\Frontend\Tests\Unit\Typolink;
 
 use PHPUnit\Framework\MockObject\MockObject;
-use Prophecy\PhpUnit\ProphecyTrait;
 use Psr\Log\LoggerInterface;
+use Symfony\Component\DependencyInjection\Container;
 use TYPO3\CMS\Core\Core\Environment;
+use TYPO3\CMS\Core\Http\ServerRequest;
 use TYPO3\CMS\Core\Log\LogManager;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Core\Utility\StringUtility;
@@ -30,13 +31,8 @@ use TYPO3\CMS\Frontend\Typolink\AbstractTypolinkBuilder;
 use TYPO3\TestingFramework\Core\AccessibleObjectInterface;
 use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
-/**
- * Test case
- */
 class AbstractTypolinkBuilderTest extends UnitTestCase
 {
-    use ProphecyTrait;
-
     protected bool $resetSingletonInstances = true;
 
     protected bool $backupEnvironment = true;
@@ -189,19 +185,26 @@ class AbstractTypolinkBuilderTest extends UnitTestCase
             Environment::getPublicPath(),
             Environment::getVarPath(),
             Environment::getConfigPath(),
-            Environment::getBackendPath() . '/index.php',
+            Environment::getPublicPath() . '/index.php',
             Environment::isWindows() ? 'WINDOWS' : 'UNIX'
         );
         $this->frontendControllerMock->absRefPrefix = '';
-        $contentObjectRendererProphecy = $this->prophesize(ContentObjectRenderer::class);
+        $cObj = new ContentObjectRenderer($this->frontendControllerMock, new Container());
+        // Force hostname
+        $serverRequest = new ServerRequest(
+            'http://localhost/index.php',
+            'GET',
+            null,
+            [],
+            ['HTTP_HOST' => 'localhost', 'SCRIPT_NAME' => '/index.php']
+        );
+        $cObj->setRequest($serverRequest);
         $subject = $this->getAccessibleMock(
             AbstractTypolinkBuilder::class,
             ['build'],
-            [$contentObjectRendererProphecy->reveal(), $this->frontendControllerMock]
+            [$cObj, $this->frontendControllerMock]
         );
-        // Force hostname
-        $_SERVER['HTTP_HOST'] = 'localhost';
-        $_SERVER['SCRIPT_NAME'] = '/typo3/index.php';
+
         self::assertEquals($expected, $subject->_call('forceAbsoluteUrl', $url, $configuration));
     }
 
@@ -218,18 +221,25 @@ class AbstractTypolinkBuilderTest extends UnitTestCase
             Environment::getPublicPath(),
             Environment::getVarPath(),
             Environment::getConfigPath(),
-            Environment::getBackendPath() . '/index.php',
+            Environment::getPublicPath() . '/index.php',
             Environment::isWindows() ? 'WINDOWS' : 'UNIX'
         );
-        $contentObjectRendererProphecy = $this->prophesize(ContentObjectRenderer::class);
+        $cObj = new ContentObjectRenderer($this->frontendControllerMock, new Container());
+
+        // Force hostname
+        $serverRequest = new ServerRequest(
+            'http://localhost/subfolder/index.php',
+            'GET',
+            null,
+            [],
+            ['HTTP_HOST' => 'localhost', 'SCRIPT_NAME' => '/subfolder/index.php']
+        );
+        $cObj->setRequest($serverRequest);
         $subject = $this->getAccessibleMock(
             AbstractTypolinkBuilder::class,
             ['build'],
-            [$contentObjectRendererProphecy->reveal(), $this->frontendControllerMock]
+            [$cObj, $this->frontendControllerMock]
         );
-        // Force hostname
-        $_SERVER['HTTP_HOST'] = 'localhost';
-        $_SERVER['SCRIPT_NAME'] = '/subfolder/typo3/index.php';
 
         $expected = 'http://localhost/subfolder/fileadmin/my.pdf';
         $url = 'fileadmin/my.pdf';
@@ -346,10 +356,17 @@ class AbstractTypolinkBuilderTest extends UnitTestCase
         string $fallbackTarget,
         ?string $doctype
     ): void {
-        $this->frontendControllerMock->config =
-            ['config' => [ 'doctype' => $doctype]];
-        $renderer = GeneralUtility::makeInstance(ContentObjectRenderer::class);
-        $subject = $this->getAccessibleMockForAbstractClass(AbstractTypolinkBuilder::class, [$renderer, $this->frontendControllerMock]);
+        $this->frontendControllerMock->config = ['config' => ['doctype' => $doctype]];
+        $cObj = new ContentObjectRenderer($this->frontendControllerMock, new Container());
+        $serverRequest = new ServerRequest(
+            'http://localhost/subfolder/index.php',
+            'GET',
+            null,
+            [],
+            ['HTTP_HOST' => 'localhost', 'SCRIPT_NAME' => '/subfolder/index.php']
+        );
+        $cObj->setRequest($serverRequest);
+        $subject = $this->getAccessibleMockForAbstractClass(AbstractTypolinkBuilder::class, [$cObj, $this->frontendControllerMock]);
         $actual = $subject->_call(
             'resolveTargetAttribute',
             $conf,

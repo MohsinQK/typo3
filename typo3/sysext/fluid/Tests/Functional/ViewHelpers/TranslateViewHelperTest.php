@@ -17,6 +17,7 @@ declare(strict_types=1);
 
 namespace TYPO3\CMS\Fluid\Tests\Functional\ViewHelpers;
 
+use TYPO3\CMS\Core\Http\ServerRequest;
 use TYPO3\CMS\Core\Localization\LanguageServiceFactory;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Extbase\Mvc\ExtbaseRequestParameters;
@@ -97,6 +98,14 @@ class TranslateViewHelperTest extends FunctionalTestCase
                 '<f:translate key="LLL:EXT:indexed_search/Resources/Private/Language/locallang.xlf:form.legend" />',
                 'Search form',
             ],
+            'full LLL syntax for existing label with arguments without given arguments' => [
+                '<f:translate key="LLL:EXT:backend/Resources/Private/Language/locallang.xlf:shortcut.title" />',
+                '%s%s on page &quot;%s&quot; [%d]',
+            ],
+            'full LLL syntax for existing label with arguments with given arguments' => [
+                '<f:translate key="LLL:EXT:backend/Resources/Private/Language/locallang.xlf:shortcut.title" arguments="{0: \"a\", 1: \"b\", 2: \"c\", 3: 13}"/>',
+                'ab on page &quot;c&quot; [13]',
+            ],
             'empty string on invalid extension' => [
                 '<f:translate key="LLL:EXT:i_am_invalid/Resources/Private/Language/locallang.xlf:dummy" />',
                 '',
@@ -110,7 +119,8 @@ class TranslateViewHelperTest extends FunctionalTestCase
      */
     public function renderReturnsStringInNonExtbaseContext(string $template, string $expected): void
     {
-        $this->setUpBackendUserFromFixture(1);
+        $this->importCSVDataSet(__DIR__ . '/../Fixtures/be_users.csv');
+        $this->setUpBackendUser(1);
         $GLOBALS['LANG'] = GeneralUtility::makeInstance(LanguageServiceFactory::class)->create('default');
         $context = $this->get(RenderingContextFactory::class)->create();
         $context->getTemplatePaths()->setTemplateSource($template);
@@ -139,6 +149,14 @@ class TranslateViewHelperTest extends FunctionalTestCase
             'key given with existing label' => [
                 '<f:translate key="login.header" />',
                 'Login',
+            ],
+            'key given with existing label and arguments without given arguments' => [
+                '<f:translate key="shortcut.title" />',
+                '%s%s on page &quot;%s&quot; [%d]',
+            ],
+            'key given with existing label and arguments with given arguments' => [
+                '<f:translate key="shortcut.title" arguments="{0: \"a\", 1: \"b\", 2: \"c\", 3: 13}" />',
+                'ab on page &quot;c&quot; [13]',
             ],
             'id and extensionName given' => [
                 '<f:translate key="validator.string.notvalid" extensionName="extbase" />',
@@ -169,10 +187,12 @@ class TranslateViewHelperTest extends FunctionalTestCase
      */
     public function renderReturnsStringInExtbaseContext(string $template, string $expected): void
     {
-        $this->setUpBackendUserFromFixture(1);
+        $this->importCSVDataSet(__DIR__ . '/../Fixtures/be_users.csv');
+        $this->setUpBackendUser(1);
         $extbaseRequestParameters = new ExtbaseRequestParameters();
         $extbaseRequestParameters->setControllerExtensionName('backend');
-        $extbaseRequest = (new Request())->withAttribute('extbase', $extbaseRequestParameters);
+        $serverRequest = (new ServerRequest())->withAttribute('extbase', $extbaseRequestParameters);
+        $extbaseRequest = (new Request($serverRequest));
         $context = $this->get(RenderingContextFactory::class)->create();
         $context->getTemplatePaths()->setTemplateSource($template);
         $context->setRequest($extbaseRequest);

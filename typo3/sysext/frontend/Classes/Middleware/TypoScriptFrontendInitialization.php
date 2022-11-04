@@ -38,18 +38,13 @@ use TYPO3\CMS\Frontend\Page\PageAccessFailureReasons;
  * In addition, determineId builds up the rootline based on a valid frontend-user authentication and
  * Backend permissions if previewing.
  *
- * @internal this middleware might get removed in TYPO3 v11.0.
+ * @internal this middleware might get removed later.
  */
-class TypoScriptFrontendInitialization implements MiddlewareInterface
+final class TypoScriptFrontendInitialization implements MiddlewareInterface
 {
-    /**
-     * @var Context
-     */
-    protected $context;
-
-    public function __construct(Context $context)
-    {
-        $this->context = $context;
+    public function __construct(
+        private readonly Context $context
+    ) {
     }
 
     /**
@@ -98,7 +93,10 @@ class TypoScriptFrontendInitialization implements MiddlewareInterface
         if ($this->context->getPropertyFromAspect('frontend.preview', 'isPreview', false)) {
             $controller->set_no_cache('Preview active', true);
         }
-        $controller->determineId($request);
+        $directResponse = $controller->determineId($request);
+        if ($directResponse) {
+            return $directResponse;
+        }
         // Check if backend user has read access to this page.
         if ($this->context->getPropertyFromAspect('backend.user', 'isLoggedIn', false)
             && $this->context->getPropertyFromAspect('frontend.preview', 'isPreview', false)

@@ -11,35 +11,31 @@
  * The TYPO3 project - inspiring people to share!
  */
 
-import $ from 'jquery';
-import Viewport from '../viewport';
-import Icons from '../icons';
-import 'jquery/autocomplete';
-import '../input/clearable';
-import {html, render, TemplateResult} from 'lit';
-import {unsafeHTML} from 'lit/directives/unsafe-html';
-import {renderHTML} from '@typo3/core/lit-helper';
+import {lll} from '@typo3/core/lit-helper';
+import Modal from '../modal';
+import '@typo3/backend/element/icon-element';
+import '@typo3/backend/input/clearable';
+import '../live-search/element/search-option-item';
+import '../live-search/element/show-all';
+import '../live-search/live-search-shortcut';
+import DocumentService from '@typo3/core/document-service';
+import RegularEvent from '@typo3/core/event/regular-event';
+import DebounceEvent from '@typo3/core/event/debounce-event';
+import {SeverityEnum} from '@typo3/backend/enum/severity';
+import AjaxRequest from '@typo3/core/ajax/ajax-request';
+import {SearchOptionItem} from '@typo3/backend/live-search/element/search-option-item';
+import BrowserSession from '@typo3/backend/storage/browser-session';
+import {ResultContainer, componentName as resultContainerComponentName} from '@typo3/backend/live-search/element/result-container';
+import {ResultItemInterface} from '@typo3/backend/live-search/element/result-item';
 
 enum Identifiers {
-  containerSelector = '#typo3-cms-backend-backend-toolbaritems-livesearchtoolbaritem',
-  toolbarItem = '.t3js-toolbar-item-search',
-  dropdownToggle = '.t3js-toolbar-search-dropdowntoggle',
-  searchFieldSelector = '.t3js-topbar-navigation-search-field',
-  formSelector = '.t3js-topbar-navigation-search',
-  dropdownClass = 'toolbar-item-search-field-dropdown',
+  toolbarItem = '.t3js-topbar-button-search',
+  searchOptionDropdown = '.t3js-search-provider-dropdown',
+  searchOptionDropdownToggle = '.t3js-search-provider-dropdown-toggle',
 }
 
-interface ResultItem {
-  editLink: string;
-  iconHTML: string;
-  id: string;
-  pageId: number;
-  title: string;
-  typeLabel: string;
-}
-
-interface Suggestion {
-  data: ResultItem;
+interface SearchOption {
+  key: string;
   value: string;
 }
 
@@ -49,172 +45,145 @@ interface Suggestion {
  * @exports @typo3/backend/toolbar/live-search
  */
 class LiveSearch {
-  private url: string = TYPO3.settings.ajaxUrls.livesearch;
+  private renderers: { [key: string]: Function } = {};
+  private searchTerm: string = '';
+  private searchOptions: { [key: string]: string[] } = {};
 
   constructor() {
-    Viewport.Topbar.Toolbar.registerEvent((): void => {
-      this.registerAutocomplete();
+    DocumentService.ready().then((): void => {
       this.registerEvents();
-
-      // Unset height, width and z-index
-      $(Identifiers.toolbarItem).removeAttr('style');
-      let searchField: HTMLInputElement;
-      if ((searchField = document.querySelector(Identifiers.searchFieldSelector)) !== null) {
-        searchField.clearable();
-      }
     });
   }
 
-  private registerAutocomplete(): void {
-    const $searchField = $(Identifiers.searchFieldSelector);
-    $(Identifiers.searchFieldSelector).autocomplete({
-      // ajax options
-      serviceUrl: this.url,
-      paramName: 'q',
-      dataType: 'json',
-      minChars: 2,
-      width: '100%',
-      groupBy: 'typeLabel',
-      tabDisabled: true,
-      noCache: true,
-      containerClass: Identifiers.toolbarItem.substr(1, Identifiers.toolbarItem.length) + ' dropdown-menu ' + Identifiers.dropdownClass,
-      forceFixPosition: false,
-      preserveInput: true,
-      showNoSuggestionNotice: true,
-      triggerSelectOnValidInput: false,
-      preventBadQueries: false,
-      noSuggestionNotice: '<h3 class="dropdown-headline">' + TYPO3.lang.liveSearch_listEmptyText + '</h3>'
-      + '<p>' + TYPO3.lang.liveSearch_helpTitle + '</p>'
-      + '<hr>'
-      + '<p>' + TYPO3.lang.liveSearch_helpDescription + '<br>' + TYPO3.lang.liveSearch_helpDescriptionPages + '</p>',
-      // put the AJAX results in the right format
-      transformResult: (response: Array<ResultItem>): { [key: string]: Array<Suggestion> } => {
-        let allSuggestions = $.map(response, (dataItem: ResultItem): Suggestion => {
-          return {value: dataItem.title, data: dataItem};
-        });
-
-        // If there are search results, append a "Show all"-link to suggestions
-        // to allow the user to reach "Show all" using up/down key
-        if(allSuggestions.length > 0) {
-          let showAll: Suggestion = {
-            value: 'search_all',
-            data: {
-              typeLabel: '',
-              title: TYPO3.lang.liveSearch_showAllResults,
-              editLink: '#',
-              iconHTML: '',
-              id: '',
-              pageId: 0
-            }
-          }
-          allSuggestions.push(showAll);
-        }
-
-        return {
-          suggestions: allSuggestions,
-        };
-      },
-      formatGroup: (suggestion: Suggestion, category: string, i: number): string => {
-        // Do not return headline div if category empty
-        if(category.length < 1) {
-          return '';
-        }
-
-        return renderHTML(html`
-          ${i > 0 ? html`<hr>` : ''}
-          <h3 class="dropdown-headline">${category}</h3>
-        `);
-      },
-      // Rendering of each item
-      formatResult: (suggestion: Suggestion): string => {
-        return renderHTML(html`
-          <div class="dropdown-table">
-            <div class="dropdown-table-row">
-              ${this.linkItem(suggestion)}
-            </div>
-          </div>
-        `);
-      },
-      onSearchStart: (): void => {
-        const $toolbarItem = $(Identifiers.toolbarItem);
-        if (!$toolbarItem.hasClass('loading')) {
-          $toolbarItem.addClass('loading');
-          Icons.getIcon(
-            'spinner-circle-light',
-            Icons.sizes.small,
-            '',
-            Icons.states.default,
-            Icons.markupIdentifiers.inline,
-          ).then((markup: string): void => {
-            $toolbarItem.find('.icon-apps-toolbar-menu-search').replaceWith(markup);
-          });
-        }
-      },
-      onSearchComplete: (): void => {
-        const $toolbarItem = $(Identifiers.toolbarItem);
-        if ($toolbarItem.hasClass('loading')) {
-          $toolbarItem.removeClass('loading');
-          Icons.getIcon(
-            'apps-toolbar-menu-search',
-            Icons.sizes.small,
-            '',
-            Icons.states.default,
-            Icons.markupIdentifiers.inline,
-          ).then((markup: string): void => {
-            $toolbarItem.find('.icon-spinner-circle-light').replaceWith(markup);
-          });
-        }
-      },
-      onSelect: (item: Suggestion): void => {
-        $searchField.focus();
-        $(Identifiers.searchFieldSelector).autocomplete('hide');
-
-        if(item.value === 'search_all') {
-          TYPO3.ModuleMenu.App.showModule('web_list', 'id=0&search_levels=-1&search_field=' + encodeURIComponent($searchField.val()));
-        } else {
-          TYPO3.Backend.ContentContainer.setUrl(item.data.editLink);
-        }
-
-        // Hide mobile menu scaffold coz it does not make sense to keep the layer
-        if (document.body.classList.contains('scaffold-search-expanded')) {
-          document.body.classList.remove('scaffold-search-expanded')
-        }
-
-        // Make sure the dropdown is hidden after selection when using the keyboard
-        document.getElementById('typo3-contentIframe').onload = function() {
-          $(Identifiers.searchFieldSelector).autocomplete('hide');
-        };
-      }
-    });
+  public addRenderer(type: string, callback: Function): void {
+    this.renderers[type] = callback;
   }
 
   private registerEvents(): void {
-    // Prevent submitting the search form
-    $(Identifiers.formSelector).on('submit', (evt: JQueryEventObject): void => {
-      evt.preventDefault();
+    new RegularEvent('click', (): void => {
+      this.openSearchModal();
+    }).delegateTo(document, Identifiers.toolbarItem);
+
+    new RegularEvent('live-search:item-chosen', (): void => {
+      Modal.dismiss();
+    }).bindTo(document);
+
+    new RegularEvent('typo3:live-search:trigger-open', (): void => {
+      if (Modal.currentModal) {
+        return;
+      }
+
+      this.openSearchModal();
+    }).bindTo(document);
+  }
+
+  private openSearchModal(): void {
+    const modal = Modal.advanced({
+      type: Modal.types.ajax,
+      content: TYPO3.settings.ajaxUrls.livesearch_form + '&q=' + (BrowserSession.get('livesearch-term') ?? ''),
+      title: lll('labels.search'),
+      severity: SeverityEnum.notice,
+      size: Modal.sizes.medium
+    });
+
+    modal.addEventListener('typo3-modal-shown', () => {
+      this.searchTerm = BrowserSession.get('livesearch-term') ?? '';
+
+      const searchOptions = Object.entries(BrowserSession.getByPrefix('livesearch-option-'))
+        .filter((item: [string, string]) => item[1] === '1')
+        .map((item: [string, string]): SearchOption => {
+          const trimmedKey = item[0].replace('livesearch-option-', '');
+          const [key, value] = trimmedKey.split('-', 2);
+          return {key, value}
+        });
+      this.composeSearchOptions(searchOptions);
+
+      const searchField = modal.querySelector('input[type="search"]') as HTMLInputElement;
+
+      searchField.clearable({
+        onClear: (): void => {
+          this.searchTerm = '';
+          this.search();
+        },
+      });
+      searchField.focus();
+      searchField.select();
+
+      new RegularEvent('hide.bs.dropdown', (): void => {
+        const activeSearchOptions = Array.from(modal.querySelectorAll(Identifiers.searchOptionDropdown + ' typo3-backend-live-search-option-item'))
+          .filter((searchOptionItem: SearchOptionItem) => searchOptionItem.active)
+          .map((searchOptionItem: SearchOptionItem): SearchOption => ({
+            key: searchOptionItem.optionName,
+            value: searchOptionItem.optionId
+          }));
+        this.composeSearchOptions(activeSearchOptions);
+
+        this.search();
+      }).bindTo(modal.querySelector(Identifiers.searchOptionDropdownToggle));
+
+      new DebounceEvent('input', (e: InputEvent): void => {
+        this.searchTerm = (e.target as HTMLInputElement).value;
+        this.search();
+      }).bindTo(searchField);
+
+      new RegularEvent('keydown', this.handleKeyDown).bindTo(searchField);
+
+      this.search();
     });
   }
 
-  private linkItem(suggestion: Suggestion): TemplateResult {
-    if(suggestion.value === 'search_all') {
-      return html`
-        <a class="dropdown-list-link btn btn-primary pull-right t3js-live-search-show-all" data-pageid="0">${suggestion.data.title}</a>
-      `
+  private composeSearchOptions(searchOptions: SearchOption[]): void {
+    this.searchOptions = {};
+
+    searchOptions.forEach((searchOption: SearchOption): void => {
+      if (this.searchOptions[searchOption.key] === undefined) {
+        this.searchOptions[searchOption.key] = [];
+      }
+      this.searchOptions[searchOption.key].push(searchOption.value);
+    });
+  }
+
+  private search = async (): Promise<void> => {
+    BrowserSession.set('livesearch-term', this.searchTerm);
+
+    let resultSet: ResultItemInterface[]|null = null;
+    if (this.searchTerm !== '') {
+      const searchResultContainer = document.querySelector(resultContainerComponentName) as ResultContainer;
+      searchResultContainer.loading = true;
+
+      const response = await new AjaxRequest(TYPO3.settings.ajaxUrls.livesearch).post({
+        q: this.searchTerm,
+        options: this.searchOptions,
+      });
+
+      resultSet = await response.raw().json();
     }
 
-    return suggestion.data.editLink
-      ? html`
-        <a class="dropdown-list-link"
-           data-pageid="${suggestion.data.pageId}" href="#">
-          <div class="dropdown-table-column dropdown-table-icon">
-            ${unsafeHTML(suggestion.data.iconHTML)}
-          </div>
-          <div class="dropdown-table-column">
-            ${suggestion.data.title}
-          </div>
-        </a>`
-      : html`<span class="dropdown-list-title">${suggestion.data.title}</span>`;
+    this.updateSearchResults(resultSet);
+  }
+
+  private handleKeyDown(e: KeyboardEvent): void {
+    if (e.key !== 'ArrowDown') {
+      return;
+    }
+
+    e.preventDefault();
+
+    // Select first available result item
+    const firstSearchResultItem = document.getElementById('backend-live-search').querySelector('typo3-backend-live-search-result-item') as HTMLElement|null;
+    firstSearchResultItem?.focus();
+  }
+
+  private updateSearchResults(searchResults: ResultItemInterface[]|null): void {
+    const searchAllButton = document.querySelector('typo3-backend-live-search-show-all') as HTMLButtonElement;
+    searchAllButton.parentElement.hidden = searchResults === null || searchResults.length === 0;
+
+    const searchResultContainer: ResultContainer = document.querySelector('typo3-backend-live-search-result-container') as ResultContainer;
+    searchResultContainer.renderers = this.renderers;
+
+    searchResultContainer.results = searchResults;
+    searchResultContainer.loading = false;
   }
 }
 
-export default new LiveSearch();
+export default top.TYPO3.LiveSearch ?? new LiveSearch();

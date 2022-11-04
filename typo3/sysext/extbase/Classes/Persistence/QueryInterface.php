@@ -30,73 +30,73 @@ interface QueryInterface
     /**
      * The '=' comparison operator.
      */
-    const OPERATOR_EQUAL_TO = 1;
+    public const OPERATOR_EQUAL_TO = 1;
 
     /**
      * For NULL we have to use 'IS' instead of '='
      */
-    const OPERATOR_EQUAL_TO_NULL = 101;
+    public const OPERATOR_EQUAL_TO_NULL = 101;
 
     /**
      * The '!=' comparison operator.
      */
-    const OPERATOR_NOT_EQUAL_TO = 2;
+    public const OPERATOR_NOT_EQUAL_TO = 2;
 
     /**
      * For NULL we have to use 'IS NOT' instead of '!='
      */
-    const OPERATOR_NOT_EQUAL_TO_NULL = 202;
+    public const OPERATOR_NOT_EQUAL_TO_NULL = 202;
 
     /**
      * The '<' comparison operator.
      */
-    const OPERATOR_LESS_THAN = 3;
+    public const OPERATOR_LESS_THAN = 3;
 
     /**
      * The '<=' comparison operator.
      */
-    const OPERATOR_LESS_THAN_OR_EQUAL_TO = 4;
+    public const OPERATOR_LESS_THAN_OR_EQUAL_TO = 4;
 
     /**
      * The '>' comparison operator.
      */
-    const OPERATOR_GREATER_THAN = 5;
+    public const OPERATOR_GREATER_THAN = 5;
 
     /**
      * The '>=' comparison operator.
      */
-    const OPERATOR_GREATER_THAN_OR_EQUAL_TO = 6;
+    public const OPERATOR_GREATER_THAN_OR_EQUAL_TO = 6;
 
     /**
      * The 'like' comparison operator.
      */
-    const OPERATOR_LIKE = 7;
+    public const OPERATOR_LIKE = 7;
 
     /**
      * The 'contains' comparison operator for collections.
      */
-    const OPERATOR_CONTAINS = 8;
+    public const OPERATOR_CONTAINS = 8;
 
     /**
      * The 'in' comparison operator.
      */
-    const OPERATOR_IN = 9;
+    public const OPERATOR_IN = 9;
 
     /**
      * The 'is NULL' comparison operator.
      */
-    const OPERATOR_IS_NULL = 10;
+    public const OPERATOR_IS_NULL = 10;
 
     /**
      * The 'is empty' comparison operator for collections.
      */
-    const OPERATOR_IS_EMPTY = 11;
+    public const OPERATOR_IS_EMPTY = 11;
 
     /**
      * Constants representing the direction when ordering result sets.
      */
-    const ORDER_ASCENDING = 'ASC';
-    const ORDER_DESCENDING = 'DESC';
+    public const ORDER_ASCENDING = 'ASC';
+    public const ORDER_DESCENDING = 'DESC';
 
     /**
      * Gets the node-tuple source for this query.
@@ -154,19 +154,19 @@ interface QueryInterface
 
     /**
      * Performs a logical conjunction of the two given constraints. The method
-     * takes two or more constraints and concatenates them with a boolean AND.
+     * takes an arbitrary number of constraints and concatenates them with a boolean AND.
      *
-     * @param ConstraintInterface ...$furtherConstraints
+     * @param ConstraintInterface ...$constraints
      */
-    public function logicalAnd(ConstraintInterface $constraint1, ConstraintInterface $constraint2, ConstraintInterface ...$furtherConstraints): AndInterface;
+    public function logicalAnd(ConstraintInterface ...$constraints): AndInterface;
 
     /**
      * Performs a logical disjunction of the two given constraints. The method
-     * takes two or more constraints and concatenates them with a boolean OR.
+     * takes an arbitrary number of constraints and concatenates them with a boolean OR.
      *
-     * @param ConstraintInterface ...$furtherConstraints
+     * @param ConstraintInterface ...$constraints
      */
-    public function logicalOr(ConstraintInterface $constraint1, ConstraintInterface $constraint2, ConstraintInterface ...$furtherConstraints): OrInterface;
+    public function logicalOr(ConstraintInterface ...$constraints): OrInterface;
 
     /**
      * Performs a logical negation of the given constraint

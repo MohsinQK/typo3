@@ -17,8 +17,6 @@ declare(strict_types=1);
 
 namespace TYPO3\CMS\Backend\Tests\Unit\Form\Container;
 
-use Prophecy\Argument;
-use Prophecy\PhpUnit\ProphecyTrait;
 use TYPO3\CMS\Backend\Form\Container\PaletteAndSingleContainer;
 use TYPO3\CMS\Backend\Form\Container\SingleFieldContainer;
 use TYPO3\CMS\Backend\Form\NodeFactory;
@@ -26,30 +24,25 @@ use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
 use TYPO3\CMS\Core\Localization\LanguageService;
 use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
-/**
- * Test case
- */
 class PaletteAndSingleContainerTest extends UnitTestCase
 {
-    use ProphecyTrait;
-
     /**
      * @test
      */
     public function renderUsesPaletteLabelFromFieldArray(): void
     {
-        $nodeFactoryProphecy = $this->prophesize(NodeFactory::class);
-        $singleFieldContainerProphecy = $this->prophesize(SingleFieldContainer::class);
+        $nodeFactoryMock = $this->createMock(NodeFactory::class);
+        $singleFieldContainerMock = $this->createMock(SingleFieldContainer::class);
         $singleFieldContainerReturn = [
             'additionalJavaScriptPost' => [],
             'additionalHiddenFields' => [],
             'additionalInlineLanguageLabelFiles' => [],
             'stylesheetFiles' => [],
-            'requireJsModules' => [],
+            'javaScriptModules' => [],
             'inlineData' => [],
             'html' => 'aFieldRenderedHtml',
         ];
-        $singleFieldContainerProphecy->render(Argument::cetera())->shouldBeCalled()->willReturn($singleFieldContainerReturn);
+        $singleFieldContainerMock->expects(self::atLeastOnce())->method('render')->withAnyParameters()->willReturn($singleFieldContainerReturn);
 
         $labelReference = 'LLL:EXT:Resources/Private/Language/locallang.xlf:aLabel';
         $input = [
@@ -70,21 +63,21 @@ class PaletteAndSingleContainerTest extends UnitTestCase
             ],
         ];
 
-        $languageService = $this->prophesize(LanguageService::class);
-        $GLOBALS['LANG'] = $languageService->reveal();
-        $backendUserAuthentication = $this->prophesize(BackendUserAuthentication::class);
-        $GLOBALS['BE_USER'] = $backendUserAuthentication->reveal();
+        $languageService = $this->createMock(LanguageService::class);
+        $GLOBALS['LANG'] = $languageService;
+        $backendUserAuthentication = $this->createMock(BackendUserAuthentication::class);
+        $backendUserAuthentication->method('shallDisplayDebugInformation')->willReturn(true);
+        $GLOBALS['BE_USER'] = $backendUserAuthentication;
 
         // Expect translation call to the label reference and empty description
-        $languageService->sL($labelReference)->willReturnArgument(0);
-        $languageService->sL('')->willReturnArgument(0);
+        $languageService->method('sL')->withConsecutive([$labelReference], [''])->willReturnArgument(0);
 
         $expectedChildDataArray = $input;
         $expectedChildDataArray['renderType'] = 'singleFieldContainer';
         $expectedChildDataArray['fieldName'] = 'aField';
 
-        $nodeFactoryProphecy->create($expectedChildDataArray)->willReturn($singleFieldContainerProphecy->reveal());
-        $containerResult = (new PaletteAndSingleContainer($nodeFactoryProphecy->reveal(), $input))->render();
+        $nodeFactoryMock->method('create')->with($expectedChildDataArray)->willReturn($singleFieldContainerMock);
+        $containerResult = (new PaletteAndSingleContainer($nodeFactoryMock, $input))->render();
         // Expect label is in answer HTML
         self::assertStringContainsString($labelReference, $containerResult['html']);
     }
@@ -94,18 +87,18 @@ class PaletteAndSingleContainerTest extends UnitTestCase
      */
     public function renderUsesPaletteValuesFromPaletteArray(): void
     {
-        $nodeFactoryProphecy = $this->prophesize(NodeFactory::class);
-        $singleFieldContainerProphecy = $this->prophesize(SingleFieldContainer::class);
+        $nodeFactoryMock = $this->createMock(NodeFactory::class);
+        $singleFieldContainerMock = $this->createMock(SingleFieldContainer::class);
         $singleFieldContainerReturn = [
             'additionalJavaScriptPost' => [],
             'additionalHiddenFields' => [],
             'additionalInlineLanguageLabelFiles' => [],
             'stylesheetFiles' => [],
-            'requireJsModules' => [],
+            'javaScriptModules' => [],
             'inlineData' => [],
             'html' => 'aFieldRenderedHtml',
         ];
-        $singleFieldContainerProphecy->render(Argument::cetera())->shouldBeCalled()->willReturn($singleFieldContainerReturn);
+        $singleFieldContainerMock->expects(self::atLeastOnce())->method('render')->withAnyParameters()->willReturn($singleFieldContainerReturn);
 
         $labelReference = 'LLL:EXT:Resources/Private/Language/locallang.xlf:aLabel';
         $descriptionReference = 'LLL:EXT:Resources/Private/Language/locallang.xlf:aDescription';
@@ -129,21 +122,21 @@ class PaletteAndSingleContainerTest extends UnitTestCase
             ],
         ];
 
-        $languageService = $this->prophesize(LanguageService::class);
-        $GLOBALS['LANG'] = $languageService->reveal();
-        $backendUserAuthentication = $this->prophesize(BackendUserAuthentication::class);
-        $GLOBALS['BE_USER'] = $backendUserAuthentication->reveal();
+        $languageService = $this->createMock(LanguageService::class);
+        $GLOBALS['LANG'] = $languageService;
+        $backendUserAuthentication = $this->createMock(BackendUserAuthentication::class);
+        $backendUserAuthentication->method('shallDisplayDebugInformation')->willReturn(true);
+        $GLOBALS['BE_USER'] = $backendUserAuthentication;
 
         // Expect translation call to the label and description references
-        $languageService->sL($labelReference)->willReturnArgument(0);
-        $languageService->sL($descriptionReference)->willReturnArgument(0);
+        $languageService->method('sL')->withConsecutive([$labelReference], [$descriptionReference])->willReturnArgument(0);
 
         $expectedChildDataArray = $input;
         $expectedChildDataArray['renderType'] = 'singleFieldContainer';
         $expectedChildDataArray['fieldName'] = 'aField';
 
-        $nodeFactoryProphecy->create($expectedChildDataArray)->willReturn($singleFieldContainerProphecy->reveal());
-        $containerResult = (new PaletteAndSingleContainer($nodeFactoryProphecy->reveal(), $input))->render();
+        $nodeFactoryMock->method('create')->with($expectedChildDataArray)->willReturn($singleFieldContainerMock);
+        $containerResult = (new PaletteAndSingleContainer($nodeFactoryMock, $input))->render();
         // Expect label and description are in answer HTML
         self::assertStringContainsString($labelReference, $containerResult['html']);
         self::assertStringContainsString($descriptionReference, $containerResult['html']);
@@ -154,18 +147,18 @@ class PaletteAndSingleContainerTest extends UnitTestCase
      */
     public function renderPrefersFieldArrayPaletteValuesOverPaletteValues(): void
     {
-        $nodeFactoryProphecy = $this->prophesize(NodeFactory::class);
-        $singleFieldContainerProphecy = $this->prophesize(SingleFieldContainer::class);
+        $nodeFactoryMock = $this->createMock(NodeFactory::class);
+        $singleFieldContainerMock = $this->createMock(SingleFieldContainer::class);
         $singleFieldContainerReturn = [
             'additionalJavaScriptPost' => [],
             'additionalHiddenFields' => [],
             'additionalInlineLanguageLabelFiles' => [],
             'stylesheetFiles' => [],
-            'requireJsModules' => [],
+            'javaScriptModules' => [],
             'inlineData' => [],
             'html' => 'aFieldRenderedHtml',
         ];
-        $singleFieldContainerProphecy->render(Argument::cetera())->shouldBeCalled()->willReturn($singleFieldContainerReturn);
+        $singleFieldContainerMock->expects(self::atLeastOnce())->method('render')->withAnyParameters()->willReturn($singleFieldContainerReturn);
 
         $labelReferenceFieldArray = 'LLL:EXT:Resources/Private/Language/locallang.xlf:aLabel';
         $labelReferencePaletteArray = 'LLL:EXT:Resources/Private/Language/locallang.xlf:aLabelPalette';
@@ -190,21 +183,24 @@ class PaletteAndSingleContainerTest extends UnitTestCase
             ],
         ];
 
-        $languageService = $this->prophesize(LanguageService::class);
-        $GLOBALS['LANG'] = $languageService->reveal();
-        $backendUserAuthentication = $this->prophesize(BackendUserAuthentication::class);
-        $GLOBALS['BE_USER'] = $backendUserAuthentication->reveal();
+        $languageService = $this->createMock(LanguageService::class);
+        $GLOBALS['LANG'] = $languageService;
+        $backendUserAuthentication = $this->createMock(BackendUserAuthentication::class);
+        $backendUserAuthentication->method('shallDisplayDebugInformation')->willReturn(true);
+        $GLOBALS['BE_USER'] = $backendUserAuthentication;
 
         // Expect translation call to the label and description references
-        $languageService->sL($labelReferenceFieldArray)->willReturnArgument(0);
-        $languageService->sL($descriptionReferencePaletteArray)->willReturnArgument(0);
+        $languageService->method('sL')->withConsecutive(
+            [$labelReferenceFieldArray],
+            [$descriptionReferencePaletteArray]
+        )->willReturnArgument(0);
 
         $expectedChildDataArray = $input;
         $expectedChildDataArray['renderType'] = 'singleFieldContainer';
         $expectedChildDataArray['fieldName'] = 'aField';
 
-        $nodeFactoryProphecy->create($expectedChildDataArray)->willReturn($singleFieldContainerProphecy->reveal());
-        $containerResult = (new PaletteAndSingleContainer($nodeFactoryProphecy->reveal(), $input))->render();
+        $nodeFactoryMock->method('create')->with($expectedChildDataArray)->willReturn($singleFieldContainerMock);
+        $containerResult = (new PaletteAndSingleContainer($nodeFactoryMock, $input))->render();
         // Expect label and description are in answer HTML
         self::assertStringContainsString($labelReferenceFieldArray, $containerResult['html']);
         self::assertStringContainsString($descriptionReferencePaletteArray, $containerResult['html']);

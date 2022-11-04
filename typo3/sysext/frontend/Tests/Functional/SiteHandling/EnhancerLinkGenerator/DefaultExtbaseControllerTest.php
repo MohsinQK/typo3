@@ -19,9 +19,6 @@ namespace TYPO3\CMS\Frontend\Tests\Functional\SiteHandling\EnhancerLinkGenerator
 
 use TYPO3\TestingFramework\Core\Functional\Framework\Frontend\InternalRequest;
 
-/**
- * Test case
- */
 class DefaultExtbaseControllerTest extends AbstractEnhancerLinkGeneratorTestCase
 {
     /**
@@ -72,7 +69,7 @@ class DefaultExtbaseControllerTest extends AbstractEnhancerLinkGeneratorTestCase
                     'type' => 'Extbase',
                     'routes' => [
                         ['routePath' => '/link/index/{value}', '_controller' => 'Link::index'],
-                        ['routePath' => '/link/list/{value}',  '_controller' => 'Link::list'],
+                        ['routePath' => '/link/list/{value}', '_controller' => 'Link::list'],
                         ['routePath' => '/page/show/{value}', '_controller' => 'Page::show'],
                     ],
                     'defaultController' => 'Link::index',
@@ -154,7 +151,7 @@ class DefaultExtbaseControllerTest extends AbstractEnhancerLinkGeneratorTestCase
                     'type' => 'Extbase',
                     'routes' => [
                         ['routePath' => '/link/index/{value}', '_controller' => 'Link::index'],
-                        ['routePath' => '/link/list/{value}',  '_controller' => 'Link::list'],
+                        ['routePath' => '/link/list/{value}', '_controller' => 'Link::list'],
                         ['routePath' => '/page/show/{value}', '_controller' => 'Page::show'],
                     ],
                     'defaultController' => 'Link::index',

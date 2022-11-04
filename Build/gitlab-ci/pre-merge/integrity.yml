@@ -17,6 +17,7 @@ cgl pre-merge:
   script:
     - Build/Scripts/runTests.sh -s composerInstall -p 8.1
     - Build/Scripts/runTests.sh -s cglGit -n -p 8.1
+    - Build/Scripts/runTests.sh -s cglHeaderGit -n -p 8.1
 
 grunt clean pre-merge:
   stage: main
@@ -54,6 +55,7 @@ integration various pre-merge:
     - Build/Scripts/runTests.sh -s checkBom -p 8.1
     - Build/Scripts/runTests.sh -s checkComposer -p 8.1
     - Build/Scripts/runTests.sh -s checkTestMethodsPrefix -p 8.1
+    - Build/Scripts/runTests.sh -s checkNamespaceIntegrity -p 8.1
 
 lint scss ts html pre-merge:
   stage: main
@@ -76,10 +78,6 @@ phpstan php 8.1 pre-merge:
     refs:
       - schedules
       - main
-  cache:
-    key: main-composer-phpstan-81
-    paths:
-      - .cache
   script:
     - Build/Scripts/runTests.sh -s composerInstall -p 8.1
     - Build/Scripts/runTests.sh -s phpstan -p 8.1

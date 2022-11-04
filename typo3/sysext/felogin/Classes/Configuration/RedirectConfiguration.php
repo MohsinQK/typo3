@@ -26,44 +26,17 @@ use TYPO3\CMS\Core\Utility\GeneralUtility;
  */
 class RedirectConfiguration
 {
-    /**
-     * @var array
-     */
-    protected $modes;
+    protected array $modes;
 
-    /**
-     * @var string
-     */
-    protected $firstMode;
-
-    /**
-     * @var int
-     */
-    protected $pageOnLogin;
-
-    /**
-     * @var string
-     */
-    protected $domains;
-
-    /**
-     * @var int
-     */
-    protected $pageOnLoginError;
-
-    /**
-     * @var int
-     */
-    protected $pageOnLogout;
-
-    public function __construct($mode, string $firstMode, int $pageOnLogin, string $domains, int $pageOnLoginError, int $pageOnLogout)
-    {
+    public function __construct(
+        array|string|null $mode,
+        protected string $firstMode,
+        protected int $pageOnLogin,
+        protected string $domains,
+        protected int $pageOnLoginError,
+        protected int $pageOnLogout
+    ) {
         $this->modes = is_array($mode) ? $mode : GeneralUtility::trimExplode(',', $mode ?? '', true);
-        $this->firstMode = $firstMode;
-        $this->pageOnLogin = $pageOnLogin;
-        $this->domains = $domains;
-        $this->pageOnLoginError = $pageOnLoginError;
-        $this->pageOnLogout = $pageOnLogout;
     }
 
     public function getModes(): array
@@ -98,9 +71,6 @@ class RedirectConfiguration
 
     /**
      * Factory when creating a configuration out of Extbase / plugin settings.
-     *
-     * @param array $settings
-     * @return static
      */
     public static function fromSettings(array $settings): self
     {

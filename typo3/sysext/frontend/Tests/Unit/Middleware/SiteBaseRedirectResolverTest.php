@@ -44,12 +44,12 @@ class SiteBaseRedirectResolverTest extends UnitTestCase
     {
         parent::setUp();
         // A request handler which expects a site to be found.
-        $this->siteFoundRequestHandler = new class() implements RequestHandlerInterface {
+        $this->siteFoundRequestHandler = new class () implements RequestHandlerInterface {
             public function handle(ServerRequestInterface $request): ResponseInterface
             {
                 /** @var Site $site */
-                /** @var SiteLanguage $language */
                 $site = $request->getAttribute('site', false);
+                /** @var SiteLanguage $language */
                 $language = $request->getAttribute('language', false);
                 if ($site && $language) {
                     return new JsonResponse(

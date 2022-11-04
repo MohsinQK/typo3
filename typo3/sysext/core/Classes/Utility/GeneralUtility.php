@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 /*
  * This file is part of the TYPO3 CMS project.
  *
@@ -24,6 +26,7 @@ use Psr\Container\ContainerInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Log\LoggerAwareInterface;
 use Psr\Log\LoggerInterface;
+use TYPO3\CMS\Core\Authentication\AbstractAuthenticationService;
 use TYPO3\CMS\Core\Cache\CacheManager;
 use TYPO3\CMS\Core\Core\ClassLoadingInformation;
 use TYPO3\CMS\Core\Core\Environment;
@@ -46,10 +49,7 @@ use TYPO3\CMS\Core\SingletonInterface;
  */
 class GeneralUtility
 {
-    /**
-     * @var ContainerInterface|null
-     */
-    protected static $container;
+    protected static ?ContainerInterface $container = null;
 
     /**
      * Singleton instances returned by makeInstance, using the class names as
@@ -57,26 +57,26 @@ class GeneralUtility
      *
      * @var array<string, SingletonInterface>
      */
-    protected static $singletonInstances = [];
+    protected static array $singletonInstances = [];
 
     /**
      * Instances returned by makeInstance, using the class names as array keys
      *
      * @var array<string, array<object>>
      */
-    protected static $nonSingletonInstances = [];
+    protected static array $nonSingletonInstances = [];
 
     /**
      * Cache for makeInstance with given class name and final class names to reduce number of self::getClassName() calls
      *
      * @var array<string, class-string> Given class name => final class name
      */
-    protected static $finalClassNameCache = [];
+    protected static array $finalClassNameCache = [];
 
     /**
      * @var array<string, string|bool|array<string, string|bool|null>|null>
      */
-    protected static $indpEnvCache = [];
+    protected static array $indpEnvCache = [];
 
     final private function __construct()
     {
@@ -184,12 +184,10 @@ class GeneralUtility
      * @param int $chars Must be an integer with an absolute value of at least 4. if negative the string is cropped from the right end.
      * @param string $appendString Appendix to the truncated string
      * @return string Cropped string
-     * @todo Add strict types and return types as breaking change in v12.
      */
-    public static function fixed_lgd_cs($string, $chars, $appendString = '...')
+    public static function fixed_lgd_cs(string $string, int $chars, string $appendString = '...'): string
     {
-        $string = (string)$string;
-        if ((int)$chars === 0 || mb_strlen($string, 'utf-8') <= abs($chars)) {
+        if ($chars === 0 || mb_strlen($string, 'utf-8') <= abs($chars)) {
             return $string;
         }
         if ($chars > 0) {
@@ -991,8 +989,8 @@ class GeneralUtility
         $p = explode('&', $string);
         foreach ($p as $v) {
             if ($v !== '') {
-                [$pK, $pV] = explode('=', $v, 2);
-                $output[rawurldecode($pK)] = rawurldecode($pV);
+                $nameAndValue = explode('=', $v, 2);
+                $output[rawurldecode($nameAndValue[0])] = isset($nameAndValue[1]) ? rawurldecode($nameAndValue[1]) : '';
             }
         }
         return $output;
@@ -1102,24 +1100,25 @@ class GeneralUtility
      *
      * @param array<string, string> $arr Array with attribute key/value pairs, eg. "bgcolor" => "red", "border" => "0"
      * @param bool $xhtmlSafe If set the resulting attribute list will have a) all attributes in lowercase (and duplicates weeded out, first entry taking precedence) and b) all values htmlspecialchar()'ed. It is recommended to use this switch!
-     * @param bool $dontOmitBlankAttribs If TRUE, don't check if values are blank. Default is to omit attributes with blank values.
+     * @param bool $keepBlankAttributes If TRUE, don't check if values are blank. Default is to omit attributes with blank values.
      * @return string Imploded attributes, eg. 'bgcolor="red" border="0"'
      */
-    public static function implodeAttributes(array $arr, $xhtmlSafe = false, $dontOmitBlankAttribs = false)
+    public static function implodeAttributes(array $arr, $xhtmlSafe = false, $keepBlankAttributes = false)
     {
         if ($xhtmlSafe) {
             $newArr = [];
-            foreach ($arr as $p => $v) {
-                if (!isset($newArr[strtolower($p)])) {
-                    $newArr[strtolower($p)] = htmlspecialchars((string)$v);
+            foreach ($arr as $attributeName => $attributeValue) {
+                $attributeName = strtolower($attributeName);
+                if (!isset($newArr[$attributeName])) {
+                    $newArr[$attributeName] = htmlspecialchars((string)$attributeValue);
                 }
             }
             $arr = $newArr;
         }
         $list = [];
-        foreach ($arr as $p => $v) {
-            if ((string)$v !== '' || $dontOmitBlankAttribs) {
-                $list[] = $p . '="' . $v . '"';
+        foreach ($arr as $attributeName => $attributeValue) {
+            if ((string)$attributeValue !== '' || $keepBlankAttributes) {
+                $list[] = $attributeName . '="' . $attributeValue . '"';
             }
         }
         return implode(' ', $list);
@@ -1458,7 +1457,7 @@ class GeneralUtility
                                 $current[$tagName] = (int)$current[$tagName];
                                 break;
                             case 'double':
-                                $current[$tagName] = (double)$current[$tagName];
+                                $current[$tagName] = (float)$current[$tagName];
                                 break;
                             case 'boolean':
                                 $current[$tagName] = (bool)$current[$tagName];
@@ -1536,7 +1535,7 @@ class GeneralUtility
      * If you are having trouble with proxies when reading URLs you can configure your way out of that with settings within $GLOBALS['TYPO3_CONF_VARS']['HTTP'].
      *
      * @param string $url File/URL to read
-     * @return mixed The content from the resource given as input. FALSE if an error has occurred.
+     * @return string|false The content from the resource given as input. FALSE if an error has occurred.
      */
     public static function getUrl($url)
     {
@@ -1734,7 +1733,7 @@ class GeneralUtility
      */
     public static function mkdir($newFolder)
     {
-        $result = @mkdir($newFolder, (int)octdec($GLOBALS['TYPO3_CONF_VARS']['SYS']['folderCreateMask']));
+        $result = @mkdir($newFolder, (int)octdec((string)($GLOBALS['TYPO3_CONF_VARS']['SYS']['folderCreateMask'] ?? '0')));
         if ($result) {
             static::fixPermissions($newFolder);
         }
@@ -1779,7 +1778,7 @@ class GeneralUtility
     {
         $currentPath = $fullDirectoryPath;
         $firstCreatedPath = '';
-        $permissionMask = (int)octdec($GLOBALS['TYPO3_CONF_VARS']['SYS']['folderCreateMask'] ?? 0);
+        $permissionMask = (int)octdec((string)($GLOBALS['TYPO3_CONF_VARS']['SYS']['folderCreateMask'] ?? '0'));
         if (!@is_dir($currentPath)) {
             do {
                 $firstCreatedPath = $currentPath;
@@ -2121,14 +2120,24 @@ class GeneralUtility
      */
     public static function createVersionNumberedFilename($file)
     {
+        $isFrontend = ($GLOBALS['TYPO3_REQUEST'] ?? null) instanceof ServerRequestInterface
+            && ApplicationType::fromRequest($GLOBALS['TYPO3_REQUEST'])->isFrontend();
         $lookupFile = explode('?', $file);
-        $path = self::resolveBackPath(self::dirname(Environment::getCurrentScript()) . '/' . $lookupFile[0]);
+        $path = $lookupFile[0];
+
+        // @todo: in v12 this should be resolved by using Environment::getPublicPath() once
+        if ($isFrontend) {
+            // Frontend should still allow /static/myfile.css - see #98106
+            // This should happen regardless of the incoming path is absolute or not
+            $path = self::resolveBackPath(self::dirname(Environment::getCurrentScript()) . '/' . $path);
+        } elseif (!PathUtility::isAbsolutePath($path)) {
+            // Backend and non-absolute path
+            $path = self::resolveBackPath(self::dirname(Environment::getCurrentScript()) . '/' . $path);
+        }
 
         $doNothing = false;
 
-        if (($GLOBALS['TYPO3_REQUEST'] ?? null) instanceof ServerRequestInterface
-            && ApplicationType::fromRequest($GLOBALS['TYPO3_REQUEST'])->isFrontend()
-        ) {
+        if ($isFrontend) {
             $mode = strtolower($GLOBALS['TYPO3_CONF_VARS']['FE']['versionNumberInFilename']);
             if ($mode === 'embed') {
                 $mode = true;
@@ -2142,7 +2151,12 @@ class GeneralUtility
         } else {
             $mode = $GLOBALS['TYPO3_CONF_VARS']['BE']['versionNumberInFilename'];
         }
-        if ($doNothing || !file_exists($path)) {
+        try {
+            $fileExists = file_exists($path);
+        } catch (\Throwable $e) {
+            $fileExists = false;
+        }
+        if ($doNothing || !$fileExists) {
             // File not found, return filename unaltered
             $fullName = $file;
         } else {
@@ -2230,10 +2244,10 @@ class GeneralUtility
     }
 
     /**
-     * This method is only for testing and should never be used outside tests-
+     * This method is only for testing and should never be used outside tests.
      *
-     * @param string $envName
-     * @param mixed $value
+     * @param non-empty-string $envName
+     * @param string|bool|array<string, string|bool|null>|null $value
      * @internal
      */
     public static function setIndpEnv($envName, $value)
@@ -3187,14 +3201,17 @@ class GeneralUtility
     }
 
     /**
-     * Flush internal runtime caches
+     * Flushes some internal runtime caches:
+     * - the class-name mapping used by `makeInstance()`
+     * - the cache for `getIndpEnv()`
      *
-     * Used in unit tests only.
+     * This function is intended to be used in unit tests to keep environment changes from spilling into the next test.
      *
      * @internal
      */
     public static function flushInternalRuntimeCaches()
     {
+        self::$finalClassNameCache = [];
         self::$indpEnvCache = [];
     }
 
@@ -3202,13 +3219,17 @@ class GeneralUtility
      * Find the best service and check if it works.
      * Returns object of the service class.
      *
+     * This method is used for the legacy ExtensionManager:addService() mechanism,
+     * not with Dependency-Injected services. In practice, all remaining core uses of
+     * this mechanism are authentication services, which all have an info property.
+     *
      * @param string $serviceType Type of service (service key).
      * @param string $serviceSubType Sub type like file extensions or similar. Defined by the service.
      * @param array $excludeServiceKeys List of service keys which should be excluded in the search for a service
      * @throws \RuntimeException
-     * @return object|string[] The service object or an array with error infos.
+     * @return object|string[]|false The service object or an array with error infos, or false if no service was found.
      */
-    public static function makeInstanceService($serviceType, $serviceSubType = '', array $excludeServiceKeys = [])
+    public static function makeInstanceService(string $serviceType, string $serviceSubType = '', array $excludeServiceKeys = []): array|object|false
     {
         $error = false;
         $requestInfo = [
@@ -3219,7 +3240,11 @@ class GeneralUtility
         while ($info = ExtensionManagementUtility::findService($serviceType, $serviceSubType, $excludeServiceKeys)) {
             // provide information about requested service to service object
             $info = array_merge($info, $requestInfo);
-            $obj = self::makeInstance($info['className']);
+
+            /** @var class-string<AbstractAuthenticationService> $className */
+            $className = $info['className'];
+            /** @var AbstractAuthenticationService $obj */
+            $obj = self::makeInstance($className);
             if (is_object($obj)) {
                 if (!is_callable([$obj, 'init'])) {
                     self::getLogger()->error('Requested service {class} has no init() method.', [

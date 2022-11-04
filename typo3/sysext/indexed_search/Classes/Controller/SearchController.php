@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 /*
  * This file is part of the TYPO3 CMS project.
  *
@@ -190,7 +192,7 @@ class SearchController extends ActionController
         }
 
         // Sets availableResultsNumbers - has to be called before request settings are read to avoid DoS attack
-        $this->availableResultsNumbers = array_filter(GeneralUtility::intExplode(',', $this->settings['blind']['numberOfResults']));
+        $this->availableResultsNumbers = array_filter(GeneralUtility::intExplode(',', (string)($this->settings['blind']['numberOfResults'] ?? '')));
 
         // Sets default result number if at least one availableResultsNumbers exists
         if (isset($this->availableResultsNumbers[0])) {
@@ -210,7 +212,7 @@ class SearchController extends ActionController
 
         // Indexer configuration from Extension Manager interface:
         $this->indexerConfig = GeneralUtility::makeInstance(ExtensionConfiguration::class)->get('indexed_search');
-        $this->enableMetaphoneSearch = (bool)$this->indexerConfig['enableMetaphoneSearch'];
+        $this->enableMetaphoneSearch = (bool)($this->indexerConfig['enableMetaphoneSearch'] ?? false);
         $this->initializeExternalParsers();
         // If "_sections" is set, this value overrides any existing value.
         if ($searchData['_sections'] ?? false) {
@@ -238,8 +240,9 @@ class SearchController extends ActionController
         // the above will then fetch the menu for the CURRENT site - regardless
         // of this kind of searching here. Thus a general search will lookup in
         // the WHOLE database while a specific section search will take the current sections.
-        if ($this->settings['rootPidList']) {
-            $this->searchRootPageIdList = implode(',', GeneralUtility::intExplode(',', $this->settings['rootPidList']));
+        $rootPidListFromSettings = (string)($this->settings['rootPidList'] ?? '');
+        if ($rootPidListFromSettings) {
+            $this->searchRootPageIdList = implode(',', GeneralUtility::intExplode(',', $rootPidListFromSettings));
         }
         $this->searchRepository = GeneralUtility::makeInstance(IndexSearchRepository::class);
         $this->searchRepository->initialize($this->settings, $searchData, $this->externalParsers, $this->searchRootPageIdList);
@@ -280,7 +283,7 @@ class SearchController extends ActionController
             $this->view->assignMultiple($this->processExtendedSearchParameters());
         }
 
-        $indexCfgs = GeneralUtility::intExplode(',', $freeIndexUid);
+        $indexCfgs = GeneralUtility::intExplode(',', (string)$freeIndexUid);
         $resultsets = [];
         foreach ($indexCfgs as $freeIndexUid) {
             // Get result rows
@@ -306,7 +309,7 @@ class SearchController extends ActionController
                         ->where(
                             $queryBuilder->expr()->eq(
                                 'uid',
-                                $queryBuilder->createNamedParameter($freeIndexUid, \PDO::PARAM_INT)
+                                $queryBuilder->createNamedParameter($freeIndexUid, Connection::PARAM_INT)
                             )
                         )
                         ->executeQuery()
@@ -356,7 +359,7 @@ class SearchController extends ActionController
             // Browsing box
             if ($resultData['count']) {
                 // could we get this in the view?
-                if ($this->searchData['group'] === 'sections' && $freeIndexUid <= 0) {
+                if (($this->searchData['group'] ?? '') === 'sections' && $freeIndexUid <= 0) {
                     $resultSectionsCount = count($this->resultSections);
                     $result['sectionText'] = sprintf(LocalizationUtility::translate('result.' . ($resultSectionsCount > 1 ? 'inNsections' : 'inNsection'), 'IndexedSearch') ?? '', $resultSectionsCount);
                 }
@@ -389,7 +392,7 @@ class SearchController extends ActionController
         // performing some mapping of sub-results etc.
         $newResultRows = [];
         foreach ($resultRows as $row) {
-            $id = md5($row['phash_grouping']);
+            $id = md5((string)$row['phash_grouping']);
             if (is_array($newResultRows[$id] ?? null)) {
                 // swapping:
                 if (!$newResultRows[$id]['show_resume'] && $row['show_resume']) {
@@ -409,7 +412,7 @@ class SearchController extends ActionController
         }
         $resultRows = $newResultRows;
         $this->resultSections = [];
-        if ($freeIndexUid <= 0 && $this->searchData['group'] === 'sections') {
+        if ($freeIndexUid <= 0 && ($this->searchData['group'] ?? '') === 'sections') {
             $rl2flag = str_starts_with($this->searchData['sections'], 'rl');
             $sections = [];
             foreach ($resultRows as $row) {
@@ -473,17 +476,19 @@ class SearchController extends ActionController
         $resultData = $row;
         $resultData['headerOnly'] = $headerOnly;
         $resultData['CSSsuffix'] = ($specRowConf['CSSsuffix'] ?? false) ? '-' . $specRowConf['CSSsuffix'] : '';
-        if ($this->multiplePagesType($row['item_type'])) {
+        if ($this->multiplePagesType($row['item_type']) && isset($row['static_page_arguments'])) {
             $dat = json_decode($row['static_page_arguments'], true);
-            $pp = explode('-', $dat['key']);
-            if ($pp[0] != $pp[1]) {
-                $resultData['titleaddition'] = ', ' . LocalizationUtility::translate('result.pages', 'IndexedSearch') . ' ' . $dat['key'];
-            } else {
-                $resultData['titleaddition'] = ', ' . LocalizationUtility::translate('result.page', 'IndexedSearch') . ' ' . $pp[0];
+            if (is_array($dat) && is_string($dat['key'] ?? null) && $dat['key'] !== '') {
+                $pp = explode('-', $dat['key']);
+                if ($pp[0] != $pp[1]) {
+                    $resultData['titleaddition'] = ', ' . LocalizationUtility::translate('result.pages', 'IndexedSearch') . ' ' . $dat['key'];
+                } else {
+                    $resultData['titleaddition'] = ', ' . LocalizationUtility::translate('result.page', 'IndexedSearch') . ' ' . $pp[0];
+                }
             }
         }
         $title = $resultData['item_title'] . ($resultData['titleaddition'] ?? '');
-        $title = GeneralUtility::fixed_lgd_cs($title, $this->settings['results.']['titleCropAfter'], $this->settings['results.']['titleCropSignifier']);
+        $title = GeneralUtility::fixed_lgd_cs($title, (int)$this->settings['results.']['titleCropAfter'], $this->settings['results.']['titleCropSignifier']);
         // If external media, link to the media-file instead.
         if ($row['item_type']) {
             if ($row['show_resume']) {
@@ -651,7 +656,6 @@ class SearchController extends ActionController
         if ((string)$row['item_type'] === '0') {
             // If TypoScript is used to render the flag:
             if (is_array($this->settings['flagRendering'] ?? false)) {
-                /** @var \TYPO3\CMS\Frontend\ContentObject\ContentObjectRenderer $cObj */
                 $cObj = GeneralUtility::makeInstance(ContentObjectRenderer::class);
                 $cObj->setCurrentVal($row['sys_language_uid']);
                 $typoScriptArray = $this->typoScriptService->convertPlainArrayToTypoScriptArray($this->settings['flagRendering']);
@@ -684,7 +688,6 @@ class SearchController extends ActionController
             $this->iconFileNameCache[$imageType] = '';
             // If TypoScript is used to render the icon:
             if (is_array($this->settings['iconRendering'] ?? false)) {
-                /** @var \TYPO3\CMS\Frontend\ContentObject\ContentObjectRenderer $cObj */
                 $cObj = GeneralUtility::makeInstance(ContentObjectRenderer::class);
                 $cObj->setCurrentVal($imageType);
                 $typoScriptArray = $this->typoScriptService->convertPlainArrayToTypoScriptArray($this->settings['iconRendering']);
@@ -741,7 +744,7 @@ class SearchController extends ActionController
                     ->where(
                         $queryBuilder->expr()->eq(
                             'phash',
-                            $queryBuilder->createNamedParameter($row['phash'], \PDO::PARAM_INT)
+                            $queryBuilder->createNamedParameter($row['phash'], Connection::PARAM_INT)
                         )
                     )
                     ->executeQuery()
@@ -753,7 +756,7 @@ class SearchController extends ActionController
                 }
             }
             if (!trim($markedSW)) {
-                $outputStr = GeneralUtility::fixed_lgd_cs($row['item_description'], $length, $this->settings['results.']['summaryCropSignifier']);
+                $outputStr = GeneralUtility::fixed_lgd_cs($row['item_description'], (int)$length, $this->settings['results.']['summaryCropSignifier']);
                 $outputStr = htmlspecialchars($outputStr);
             }
             $output = $outputStr ?: $markedSW;
@@ -866,7 +869,7 @@ class SearchController extends ActionController
                 'index_stat_word',
                 $entries,
                 [ 'word', 'tstamp', 'pageid' ],
-                [ \PDO::PARAM_STR, \PDO::PARAM_INT, \PDO::PARAM_INT ]
+                [ Connection::PARAM_STR, Connection::PARAM_INT, Connection::PARAM_INT ]
             );
     }
 
@@ -1175,8 +1178,9 @@ class SearchController extends ActionController
         $blindSettings = $this->settings['blind'];
         if (!($blindSettings['indexingConfigurations'] ?? false)) {
             // add an additional index configuration
-            if ($this->settings['defaultFreeIndexUidList']) {
-                $uidList = GeneralUtility::intExplode(',', $this->settings['defaultFreeIndexUidList']);
+            $defaultFreeIndexUidList = (string)($this->settings['defaultFreeIndexUidList'] ?? '');
+            if ($defaultFreeIndexUidList) {
+                $uidList = GeneralUtility::intExplode(',', $defaultFreeIndexUidList);
                 $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)
                     ->getQueryBuilderForTable('index_config');
                 $queryBuilder->setRestrictions(GeneralUtility::makeInstance(FrontendRestrictionContainer::class));

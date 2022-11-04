@@ -31,7 +31,6 @@ return [
         'gdlib_png' => false,
         'processor_enabled' => true,
         'processor_path' => '/usr/bin/',
-        'processor_path_lzw' => '/usr/bin/',
         'processor' => 'ImageMagick',
         'processor_effects' => false,
         'processor_allowUpscaling' => true,
@@ -46,6 +45,7 @@ return [
     'SYS' => [
         // System related concerning both frontend and backend.
         'lang' => [
+            'requireApprovedLocalizations' => true,
             'format' => [
                 'priority' => 'xlf',
             ],
@@ -72,11 +72,8 @@ return [
         'folderCreateMask' => '2775',
         'features' => [
             'redirects.hitCount' => false,
-            'unifiedPageTranslationHandling' => false,
             'security.backend.htmlSanitizeRte' => false,
             'security.backend.enforceReferrer' => true,
-            'yamlImportsFollowDeclarationOrder' => false,
-            'subrequestPageErrors' => false,
         ],
         'createGroup' => '',
         'sitename' => 'TYPO3',
@@ -180,15 +177,6 @@ return [
                     ],
                     'groups' => ['pages'],
                 ],
-                'pagesection' => [
-                    'frontend' => \TYPO3\CMS\Core\Cache\Frontend\VariableFrontend::class,
-                    'backend' => \TYPO3\CMS\Core\Cache\Backend\Typo3DatabaseBackend::class,
-                    'options' => [
-                        'compression' => true,
-                        'defaultLifetime' => 2592000, // 30 days; set this to a lower value in case your cache gets too big
-                    ],
-                    'groups' => ['pages'],
-                ],
                 'runtime' => [
                     'frontend' => \TYPO3\CMS\Core\Cache\Frontend\VariableFrontend::class,
                     'backend' => \TYPO3\CMS\Core\Cache\Backend\TransientMemoryBackend::class,
@@ -245,6 +233,11 @@ return [
                     'backend' => \TYPO3\CMS\Core\Cache\Backend\SimpleFileBackend::class,
                     'groups' => ['system'],
                 ],
+                'typoscript' => [
+                    'frontend' => \TYPO3\CMS\Core\Cache\Frontend\PhpFrontend::class,
+                    'backend' => \TYPO3\CMS\Core\Cache\Backend\SimpleFileBackend::class,
+                    'groups' => ['pages'],
+                ],
             ],
         ],
         'htmlSanitizer' => [
@@ -258,7 +251,7 @@ return [
         'errorHandlerErrors' => E_ALL & ~(E_STRICT | E_NOTICE | E_COMPILE_WARNING | E_COMPILE_ERROR | E_CORE_WARNING | E_CORE_ERROR | E_PARSE | E_ERROR),
         'exceptionalErrors' => E_ALL & ~(E_STRICT | E_NOTICE | E_COMPILE_WARNING | E_COMPILE_ERROR | E_CORE_WARNING | E_CORE_ERROR | E_PARSE | E_ERROR | E_DEPRECATED | E_USER_DEPRECATED | E_WARNING | E_USER_ERROR | E_USER_NOTICE | E_USER_WARNING),
         'belogErrorReporting' => E_ALL & ~(E_STRICT | E_NOTICE),
-        'locallangXMLOverride' => [], // For extension/overriding of the arrays in 'locallang' files in frontend  and backend. See 'Inside TYPO3' for more information.
+        'locallangXMLOverride' => [], // For extension/overriding of the arrays in 'locallang' files in frontend  and backend.
         'generateApacheHtaccess' => 1,
         'ipAnonymization' => 1,
         'Objects' => [],
@@ -375,6 +368,7 @@ return [
                 ],
             ],
         ],
+        'defaultScheme' => \TYPO3\CMS\Core\LinkHandling\LinkHandlingInterface::DEFAULT_SCHEME,
         'linkHandler' => [ // Array: Available link types, class which implement the LinkHandling interface
             'page'   => \TYPO3\CMS\Core\LinkHandling\PageLinkHandler::class,
             'file'   => \TYPO3\CMS\Core\LinkHandling\FileLinkHandler::class,
@@ -663,6 +657,11 @@ return [
                             \TYPO3\CMS\Backend\Form\FormDataProvider\TcaInlineConfiguration::class,
                         ],
                     ],
+                    \TYPO3\CMS\Backend\Form\FormDataProvider\TcaFiles::class => [
+                        'depends' => [
+                            \TYPO3\CMS\Backend\Form\FormDataProvider\TcaInline::class,
+                        ],
+                    ],
                     \TYPO3\CMS\Backend\Form\FormDataProvider\TcaInputPlaceholders::class => [
                         'depends' => [
                             \TYPO3\CMS\Backend\Form\FormDataProvider\TcaInlineConfiguration::class,
@@ -888,6 +887,11 @@ return [
                             \TYPO3\CMS\Backend\Form\FormDataProvider\TcaInlineConfiguration::class,
                         ],
                     ],
+                    \TYPO3\CMS\Backend\Form\FormDataProvider\TcaFiles::class => [
+                        'depends' => [
+                            \TYPO3\CMS\Backend\Form\FormDataProvider\TcaInline::class,
+                        ],
+                    ],
                     \TYPO3\CMS\Backend\Form\FormDataProvider\TcaInputPlaceholders::class => [
                         'depends' => [
                             \TYPO3\CMS\Backend\Form\FormDataProvider\SiteResolving::class,
@@ -972,6 +976,11 @@ return [
                     \TYPO3\CMS\Backend\Form\FormDataProvider\TcaInline::class => [
                         'depends' => [
                             \TYPO3\CMS\Backend\Form\FormDataProvider\TcaInlineConfiguration::class,
+                        ],
+                    ],
+                    \TYPO3\CMS\Backend\Form\FormDataProvider\TcaFiles::class => [
+                        'depends' => [
+                            \TYPO3\CMS\Backend\Form\FormDataProvider\TcaInline::class,
                         ],
                     ],
                 ],
@@ -1223,13 +1232,34 @@ return [
                 ],
             ],
         ],
+        'passwordPolicies' => [
+            'default' => [
+                'validators' => [
+                    \TYPO3\CMS\Core\PasswordPolicy\Validator\CorePasswordValidator::class => [
+                        'options' => [
+                            'minimumLength' => 8,
+                            'upperCaseCharacterRequired' => true,
+                            'lowerCaseCharacterRequired' => true,
+                            'digitCharacterRequired' => true,
+                            'specialCharacterRequired' => true,
+                        ],
+                        'excludeActions' => [],
+                    ],
+                    \TYPO3\CMS\Core\PasswordPolicy\Validator\NotCurrentPasswordValidator::class => [
+                        'options' => [],
+                        'excludeActions' => [
+                            \TYPO3\CMS\Core\PasswordPolicy\PasswordPolicyAction::NEW_USER_PASSWORD,
+                        ],
+                    ],
+                ],
+            ],
+        ],
     ],
     'EXT' => [ // Options related to the Extension Management
         'excludeForPackaging' => '(?:\\.(?!htaccess$).*|.*~|.*\\.swp|.*\\.bak|node_modules|bower_components)',
     ],
     'BE' => [
         // Backend Configuration.
-        'fluidPageModule' => true,
         'languageDebug' => false,
         'fileadminDir' => 'fileadmin/',
         'lockRootPath' => '',
@@ -1295,7 +1325,6 @@ return [
         'defaultPermissions' => [],
         'defaultUC' => [],
         'customPermOptions' => [], // Array with sets of custom permission options. Syntax is; 'key' => array('header' => 'header string, language split', 'items' => array('key' => array('label, language split','icon reference', 'Description text, language split'))). Keys cannot contain ":|," characters.
-        'interfaces' => 'backend',
         'flexformForceCDATA' => 0,
         'versionNumberInFilename' => false,
         'debug' => false,
@@ -1313,6 +1342,7 @@ return [
             'className' => \TYPO3\CMS\Core\Crypto\PasswordHashing\Argon2iPasswordHash::class,
             'options' => [],
         ],
+        'passwordPolicy' => 'default',
     ],
     'FE' => [ // Configuration for the TypoScript frontend (FE). Nothing here relates to the administration backend!
         'addAllowedPaths' => '',
@@ -1346,7 +1376,7 @@ return [
         'disableNoCacheParameter' => false,
         'cacheHash' => [
             'cachedParametersWhiteList' => [],
-            'excludedParameters' => ['L', 'pk_campaign', 'pk_kwd', 'utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content', 'gclid', 'fbclid'],
+            'excludedParameters' => ['L', 'pk_campaign', 'pk_kwd', 'utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content', 'gclid', 'fbclid', 'msclkid'],
             'requireCacheHashPresenceParameters' => [],
             'excludeAllEmptyParameters' => false,
             'excludedParametersIfEmpty' => [],
@@ -1369,6 +1399,7 @@ return [
             'className' => \TYPO3\CMS\Core\Crypto\PasswordHashing\Argon2iPasswordHash::class,
             'options' => [],
         ],
+        'passwordPolicy' => 'default',
         'exposeRedirectInformation' => false,
     ],
     'MAIL' => [ // Mail configurations to tune how \TYPO3\CMS\Core\Mail\ classes will send their mails.
@@ -1460,7 +1491,7 @@ return [
     ],
     'USER' => [],
     // Here you can more or less freely define additional configuration for scripts in TYPO3. Of course the features
-    // supported depends on the script. See documentation "Inside TYPO3" for examples. Keys in the array are the relative
+    // supported depends on the script.  Keys in the array are the relative
     // path of a script (for output scripts it should be the "script ID" as found in a comment in the HTML header ) and
     // values can then be anything that scripts wants to define for itself. The key "GLOBAL" is reserved.
     'SC_OPTIONS' => [

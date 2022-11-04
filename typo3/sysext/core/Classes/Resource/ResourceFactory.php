@@ -17,8 +17,10 @@ namespace TYPO3\CMS\Core\Resource;
 
 use Psr\Http\Message\ServerRequestInterface;
 use TYPO3\CMS\Backend\Utility\BackendUtility;
+use TYPO3\CMS\Core\Collection\AbstractRecordCollection;
 use TYPO3\CMS\Core\Collection\CollectionInterface;
 use TYPO3\CMS\Core\Core\Environment;
+use TYPO3\CMS\Core\Database\Connection;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Database\Query\Restriction\DeletedRestriction;
 use TYPO3\CMS\Core\Http\ApplicationType;
@@ -129,7 +131,7 @@ class ResourceFactory implements SingletonInterface
         if (!is_numeric($uid)) {
             throw new \InvalidArgumentException('The UID of collection has to be numeric. UID given: "' . $uid . '"', 1314085999);
         }
-        if (!$this->collectionInstances[$uid]) {
+        if (!isset($this->collectionInstances[$uid])) {
             // Get mount data if not already supplied as argument to this function
             if (empty($recordData) || $recordData['uid'] !== $uid) {
                 $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable('sys_file_collection');
@@ -139,7 +141,7 @@ class ResourceFactory implements SingletonInterface
                     ->where(
                         $queryBuilder->expr()->eq(
                             'uid',
-                            $queryBuilder->createNamedParameter($uid, \PDO::PARAM_INT)
+                            $queryBuilder->createNamedParameter($uid, Connection::PARAM_INT)
                         )
                     )
                     ->executeQuery()
@@ -162,10 +164,9 @@ class ResourceFactory implements SingletonInterface
      */
     public function createCollectionObject(array $collectionData)
     {
-        /** @var Collection\FileCollectionRegistry $registry */
         $registry = GeneralUtility::makeInstance(FileCollectionRegistry::class);
 
-        /** @var \TYPO3\CMS\Core\Collection\AbstractRecordCollection $class */
+        /** @var AbstractRecordCollection $class */
         $class = $registry->getFileCollectionClass($collectionData['type']);
 
         return $class::create($collectionData);
@@ -409,7 +410,6 @@ class ResourceFactory implements SingletonInterface
         } else {
             throw new \RuntimeException('A file needs to reside in a Storage', 1381570997);
         }
-        /** @var File $fileObject */
         $fileObject = GeneralUtility::makeInstance(File::class, $fileData, $storageObject);
         return $fileObject;
     }
@@ -459,7 +459,6 @@ class ResourceFactory implements SingletonInterface
      */
     public function createFileReferenceObject(array $fileReferenceData)
     {
-        /** @var FileReference $fileReferenceObject */
         $fileReferenceObject = GeneralUtility::makeInstance(FileReference::class, $fileReferenceData);
         return $fileReferenceObject;
     }
@@ -488,7 +487,7 @@ class ResourceFactory implements SingletonInterface
                 ->where(
                     $queryBuilder->expr()->eq(
                         'uid',
-                        $queryBuilder->createNamedParameter($uid, \PDO::PARAM_INT)
+                        $queryBuilder->createNamedParameter($uid, Connection::PARAM_INT)
                     )
                 )
                 ->executeQuery()

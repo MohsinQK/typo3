@@ -22,12 +22,14 @@ use Doctrine\DBAL\Schema\Column;
 use Doctrine\DBAL\Schema\Table;
 use Symfony\Component\Console\Output\Output;
 use Symfony\Component\Console\Output\StreamOutput;
+use TYPO3\CMS\Core\Database\Connection;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Database\Schema\SchemaMigrator;
 use TYPO3\CMS\Core\Database\Schema\SqlReader;
 use TYPO3\CMS\Core\Messaging\FlashMessage;
 use TYPO3\CMS\Core\Messaging\FlashMessageQueue;
 use TYPO3\CMS\Core\Registry;
+use TYPO3\CMS\Core\Type\ContextualFeedbackSeverity;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Install\Updates\ChattyInterface;
 use TYPO3\CMS\Install\Updates\ConfirmableInterface;
@@ -214,7 +216,6 @@ class UpgradeWizardsService
      */
     public function isDatabaseCharsetUtf8(): bool
     {
-        /** @var \TYPO3\CMS\Core\Database\Connection $connection */
         $connection = GeneralUtility::makeInstance(ConnectionPool::class)
             ->getConnectionByName(ConnectionPool::DEFAULT_CONNECTION_NAME);
 
@@ -230,7 +231,7 @@ class UpgradeWizardsService
                 ->where(
                     $queryBuilder->expr()->eq(
                         'SCHEMA_NAME',
-                        $queryBuilder->createNamedParameter($connection->getDatabase(), \PDO::PARAM_STR)
+                        $queryBuilder->createNamedParameter($connection->getDatabase())
                     )
                 )
                 ->setMaxResults(1)
@@ -420,7 +421,7 @@ class UpgradeWizardsService
                 new FlashMessage(
                     (string)stream_get_contents($stream),
                     'Update failed!',
-                    FlashMessage::ERROR
+                    ContextualFeedbackSeverity::ERROR
                 )
             );
         }
@@ -429,7 +430,7 @@ class UpgradeWizardsService
 
     /**
      * Marks some wizard as being "seen" so that it not shown again.
-     * Writes the info in LocalConfiguration.php
+     * Writes the info in system/settings.php
      *
      * @param string $identifier
      * @throws \RuntimeException

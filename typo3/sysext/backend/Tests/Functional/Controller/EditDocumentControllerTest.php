@@ -27,16 +27,10 @@ use TYPO3\CMS\Core\Http\ServerRequest;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\TestingFramework\Core\Functional\FunctionalTestCase;
 
-/**
- * Test case for TYPO3\CMS\Backend\Controller\EditDocumentController
- */
 class EditDocumentControllerTest extends FunctionalTestCase
 {
     protected EditDocumentController $subject;
 
-    /**
-     * @var NormalizedParams
-     */
     protected NormalizedParams $normalizedParams;
 
     /**
@@ -46,10 +40,10 @@ class EditDocumentControllerTest extends FunctionalTestCase
     {
         parent::setUp();
 
-        $this->importDataSet('PACKAGE:typo3/testing-framework/Resources/Core/Functional/Fixtures/pages.xml');
-        $this->importDataSet('PACKAGE:typo3/testing-framework/Resources/Core/Functional/Fixtures/tt_content.xml');
-
-        $this->setUpBackendUserFromFixture(1);
+        $this->importCSVDataSet(__DIR__ . '/../Fixtures/pages.csv');
+        $this->importCSVDataSet(__DIR__ . '/../Fixtures/tt_content.csv');
+        $this->importCSVDataSet(__DIR__ . '/../Fixtures/be_users.csv');
+        $this->setUpBackendUser(1);
         Bootstrap::initializeLanguageObject();
 
         $this->subject = GeneralUtility::makeInstance(EditDocumentController::class);

@@ -51,13 +51,13 @@ class FlexFormTabsContainer extends AbstractContainer
         $flexFormRowData = $this->data['flexFormRowData'];
 
         $resultArray = $this->initializeResultArray();
-        $resultArray['requireJsModules'][] = JavaScriptModuleInstruction::create('@typo3/backend/tabs.js');
+        $resultArray['javaScriptModules'][] = JavaScriptModuleInstruction::create('@typo3/backend/tabs.js');
 
         $domIdPrefix = 'DTM-' . md5($this->data['parameterArray']['itemFormElName']);
         $tabCounter = 0;
         $tabElements = [];
         foreach ($flexFormDataStructureArray['sheets'] as $sheetName => $sheetDataStructure) {
-            $flexFormRowSheetDataSubPart = $flexFormRowData['data'][$sheetName]['lDEF'] ?: [];
+            $flexFormRowSheetDataSubPart = $flexFormRowData['data'][$sheetName]['lDEF'] ?? [];
 
             if (!is_array($sheetDataStructure['ROOT']['el'])) {
                 $resultArray['html'] .= LF . 'No Data Structure ERROR: No [\'ROOT\'][\'el\'] found for sheet "' . $sheetName . '".';
@@ -83,7 +83,7 @@ class FlexFormTabsContainer extends AbstractContainer
 
             if ($childReturn['html'] !== '') {
                 $tabElements[] = [
-                    'label' => !empty(trim($sheetDataStructure['ROOT']['sheetTitle'])) ? $languageService->sL(trim($sheetDataStructure['ROOT']['sheetTitle'])) : $sheetName,
+                    'label' => !empty(trim($sheetDataStructure['ROOT']['sheetTitle'] ?? '')) ? $languageService->sL(trim($sheetDataStructure['ROOT']['sheetTitle'])) : $sheetName,
                     'content' => $childReturn['html'],
                     'description' => trim($sheetDataStructure['ROOT']['sheetDescription'] ?? '') ? $languageService->sL(trim($sheetDataStructure['ROOT']['sheetDescription'])) : '',
                     'linkTitle' => trim($sheetDataStructure['ROOT']['sheetShortDescr'] ?? '') ? $languageService->sL(trim($sheetDataStructure['ROOT']['sheetShortDescr'])) : '',

@@ -21,11 +21,12 @@ use Psr\Http\Message\ServerRequestInterface;
 use Symfony\Component\Mailer\Exception\TransportExceptionInterface;
 use TYPO3\CMS\Core\Authentication\AbstractUserAuthentication;
 use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
+use TYPO3\CMS\Core\Database\Connection;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Database\Query\QueryBuilder;
 use TYPO3\CMS\Core\Log\LogDataTrait;
 use TYPO3\CMS\Core\Mail\FluidEmail;
-use TYPO3\CMS\Core\Mail\Mailer;
+use TYPO3\CMS\Core\Mail\MailerInterface;
 use TYPO3\CMS\Core\SysLog\Action\Login as SystemLogLoginAction;
 use TYPO3\CMS\Core\SysLog\Error as SystemLogErrorClassification;
 use TYPO3\CMS\Core\SysLog\Type as SystemLogType;
@@ -163,7 +164,8 @@ class FailedLoginAttemptNotification
         }
 
         try {
-            GeneralUtility::makeInstance(Mailer::class)->send($email);
+            // TODO: DI should be used to inject the MailerInterface
+            GeneralUtility::makeInstance(MailerInterface::class)->send($email);
         } catch (TransportExceptionInterface $e) {
             // Sending mail failed. Probably broken smtp setup.
             // @todo: Maybe log that sending mail failed.
@@ -184,15 +186,15 @@ class FailedLoginAttemptNotification
             ->where(
                 $queryBuilder->expr()->eq(
                     'type',
-                    $queryBuilder->createNamedParameter(SystemLogType::LOGIN, \PDO::PARAM_INT)
+                    $queryBuilder->createNamedParameter(SystemLogType::LOGIN, Connection::PARAM_INT)
                 ),
                 $queryBuilder->expr()->eq(
                     'action',
-                    $queryBuilder->createNamedParameter($loginAction, \PDO::PARAM_INT)
+                    $queryBuilder->createNamedParameter($loginAction, Connection::PARAM_INT)
                 ),
                 $queryBuilder->expr()->gt(
                     'tstamp',
-                    $queryBuilder->createNamedParameter($earliestLogDate, \PDO::PARAM_INT)
+                    $queryBuilder->createNamedParameter($earliestLogDate, Connection::PARAM_INT)
                 )
             );
         return $queryBuilder;

@@ -17,6 +17,7 @@ declare(strict_types=1);
 
 namespace TYPO3\CMS\Linkvalidator\QueryRestrictions;
 
+use TYPO3\CMS\Core\Database\Connection;
 use TYPO3\CMS\Core\Database\Query\Expression\CompositeExpression;
 use TYPO3\CMS\Core\Database\Query\Expression\ExpressionBuilder;
 use TYPO3\CMS\Core\Database\Query\QueryBuilder;
@@ -162,7 +163,7 @@ class EditableRestriction implements QueryRestrictionInterface
         if ($this->allowedFields) {
             $constraints = [
                 $expressionBuilder->or(
-                // broken link is in page and page is editable
+                    // broken link is in page and page is editable
                     $expressionBuilder->and(
                         $expressionBuilder->eq(
                             'tx_linkvalidator_link.table_name',
@@ -221,9 +222,7 @@ class EditableRestriction implements QueryRestrictionInterface
                 'tx_linkvalidator_link.table_name',
                 $this->queryBuilder->quote($table)
             );
-            if ($additionalWhere) {
-                $constraints[] = $expressionBuilder->or(...$additionalWhere);
-            }
+            $constraints[] = $expressionBuilder->or(...$additionalWhere);
         }
 
         if ($this->allowedLanguages) {
@@ -232,11 +231,11 @@ class EditableRestriction implements QueryRestrictionInterface
                 $additionalWhere[] = $expressionBuilder->or(
                     $expressionBuilder->eq(
                         'tx_linkvalidator_link.language',
-                        $this->queryBuilder->quote($langId, \PDO::PARAM_INT)
+                        $this->queryBuilder->quote($langId, Connection::PARAM_INT)
                     ),
                     $expressionBuilder->eq(
                         'tx_linkvalidator_link.language',
-                        $this->queryBuilder->quote(-1, \PDO::PARAM_INT)
+                        $this->queryBuilder->quote(-1, Connection::PARAM_INT)
                     )
                 );
             }

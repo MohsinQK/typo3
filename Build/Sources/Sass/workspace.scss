@@ -48,8 +48,8 @@ $workspace-topbar-logo-width: 22px;
 .typo3-topbar-tabs,
 .typo3-topbar-workspace-actions,
 .workspace-action {
-    margin-top: ceil(($workspace-topbar-height - $workspace-topbar-line-height) / 2);
-    margin-bottom: ceil(($workspace-topbar-height - $workspace-topbar-line-height) / 2);
+    margin-top: calc((#{$workspace-topbar-height} - #{$workspace-topbar-line-height}) / 2);
+    margin-bottom: calc((#{$workspace-topbar-height} - #{$workspace-topbar-line-height}) / 2);
 }
 
 .typo3-topbar-site {
@@ -62,7 +62,7 @@ $workspace-topbar-logo-width: 22px;
 
 .typo3-topbar-site-logo {
     padding-top: 1px;
-    padding-right: 0.25em;
+    padding-right: .25em;
     display: inline-block;
     vertical-align: top;
 
@@ -91,9 +91,8 @@ $workspace-topbar-logo-width: 22px;
         > li {
             + li {
                 margin-left: 0;
-                border-left: 1px solid rgba(0, 0, 0, 0.5);
+                border-left: 1px solid rgba(0, 0, 0, .5);
             }
-
             margin-bottom: 0;
 
             &.active > a {
@@ -134,7 +133,7 @@ $workspace-topbar-logo-width: 22px;
             float: none;
             margin-right: 0;
             height: auto;
-            margin-bottom: 0.75em;
+            margin-bottom: .75em;
 
             &:after {
                 content: '';
@@ -176,7 +175,7 @@ $workspace-topbar-logo-width: 22px;
     .btn-sm {
         vertical-align: top;
         line-height: $workspace-topbar-line-height;
-        padding: 0 0.5em;
+        padding: 0 .5em;
         border: none !important;
     }
 
@@ -203,7 +202,8 @@ $workspace-topbar-logo-width: 22px;
             left: 0;
             z-index: 100;
             width: 100%;
-            height: calc(#{"100vh -"} #{$workspace-topbar-height});
+            height: calc(100vh - #{$workspace-topbar-height});
+            background-color: #fff;
         }
 
         #live-view {
@@ -225,6 +225,6 @@ $workspace-topbar-logo-width: 22px;
 }
 
 #list iframe {
-    height: calc(#{"100vh -"} #{$workspace-topbar-height}) !important;
+    height: calc(100vh - #{$workspace-topbar-height}) !important;
     width: 100%;
 }

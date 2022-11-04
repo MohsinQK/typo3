@@ -78,7 +78,7 @@ class SuggestWizardController
                 // @todo: See if a path in pageTsConfig like "TCEForm.tableName.theContainerFieldName =" is useful and works with other pageTs, too.
                 $fieldNameInPageTsConfig = $flexFormFieldName;
                 if (!isset($dataStructure['sheets'][$flexFormSheetName]['ROOT']
-                    ['el'][$flexFormFieldName]['TCEforms']['config'])
+                    ['el'][$flexFormFieldName]['config'])
                 ) {
                     throw new \RuntimeException(
                         'Specified path ' . $flexFormFieldName . ' not found in flex form data structure',
@@ -86,13 +86,13 @@ class SuggestWizardController
                     );
                 }
                 $fieldConfig = $dataStructure['sheets'][$flexFormSheetName]['ROOT']
-                    ['el'][$flexFormFieldName]['TCEforms']['config'];
+                    ['el'][$flexFormFieldName]['config'];
             } else {
                 $fieldNameInPageTsConfig = $flexFormContainerFieldName;
                 if (!isset($dataStructure['sheets'][$flexFormSheetName]['ROOT']
                         ['el'][$flexFormFieldName]
                         ['el'][$flexFormContainerName]
-                        ['el'][$flexFormContainerFieldName]['TCEforms']['config'])
+                        ['el'][$flexFormContainerFieldName]['config'])
                 ) {
                     throw new \RuntimeException(
                         'Specified path ' . $flexFormContainerName . ' not found in flex form section container data structure',
@@ -102,7 +102,7 @@ class SuggestWizardController
                 $fieldConfig = $dataStructure['sheets'][$flexFormSheetName]['ROOT']
                     ['el'][$flexFormFieldName]
                     ['el'][$flexFormContainerName]
-                    ['el'][$flexFormContainerFieldName]['TCEforms']['config'];
+                    ['el'][$flexFormContainerFieldName]['config'];
             }
         }
 
@@ -141,7 +141,7 @@ class SuggestWizardController
                         $replacement['###PAGE_TSCONFIG_ID###'] = (int)$fieldTSconfig['PAGE_TSCONFIG_ID'];
                     }
                     if (isset($fieldTSconfig['PAGE_TSCONFIG_IDLIST'])) {
-                        $replacement['###PAGE_TSCONFIG_IDLIST###'] = implode(',', GeneralUtility::intExplode(',', $fieldTSconfig['PAGE_TSCONFIG_IDLIST']));
+                        $replacement['###PAGE_TSCONFIG_IDLIST###'] = implode(',', GeneralUtility::intExplode(',', (string)$fieldTSconfig['PAGE_TSCONFIG_IDLIST']));
                     }
                     if (isset($fieldTSconfig['PAGE_TSCONFIG_STR'])) {
                         $connection = $connectionPool->getConnectionForTable($fieldConfig['foreign_table']);

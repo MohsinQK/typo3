@@ -34,9 +34,6 @@ use TYPO3\CMS\Core\Utility\PathUtility;
  * As TYPO3 internally does not match the proper ISO locale standard, the "locale" here
  * is actually a list of supported language keys, (see Locales class), whereas "english"
  * has the language key "default".
- *
- * For detailed information about how localization is handled,
- * please refer to the 'Inside TYPO3' document which describes this.
  */
 class LanguageService
 {
@@ -230,7 +227,7 @@ class LanguageService
                 unset($labels[$this->lang]);
             }
         }
-        return is_array($labels) ? $labels : [];
+        return $labels;
     }
 
     /**

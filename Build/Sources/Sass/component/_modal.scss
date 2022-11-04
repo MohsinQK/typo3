@@ -7,23 +7,9 @@
 //
 // Variables
 //
-$modal-notice-bg: $btn-default-bg;
-$modal-notice-color: $btn-default-color;
-$modal-notice-border: $btn-default-border;
-$modal-info-bg: $info;
-$modal-info-color: $white;
-$modal-info-border: darken($info, 5%);
-$modal-success-bg: $success;
-$modal-success-color: $white;
-$modal-success-border: darken($success, 5%);
-$modal-warning-bg: $warning;
-$modal-warning-color: $white;
-$modal-warning-border: darken($warning, 5%);
-$modal-danger-bg: $danger;
-$modal-danger-color: $white;
-$modal-danger-border: darken($danger, 5%);
 $modal-sidebar-sm: 250px;
 $modal-sidebar-md: 300px;
+
 //
 // Component
 //
@@ -34,8 +20,8 @@ $modal-sidebar-md: 300px;
         color: inherit;
         padding: 0;
         margin: 0;
-        text-shadow: rgba(0, 0, 0, 0.5) 0 0 3px;
-        opacity: 0.5;
+        text-shadow: rgba(0, 0, 0, .5) 0 0 3px;
+        opacity: .5;
         user-select: none;
 
         &:hover,
@@ -73,7 +59,8 @@ $modal-sidebar-md: 300px;
 .modal-body {
     flex: 1 1 auto;
     overflow-y: auto;
-    padding-bottom: 0;
+    display: flex;
+    flex-direction: column;
 
     &:after {
         content: "";
@@ -84,7 +71,7 @@ $modal-sidebar-md: 300px;
 
 .modal-header,
 .modal-footer {
-    padding: 0.625rem 1rem;
+    padding: calc(var(--#{$prefix}modal-padding) / 2) var(--#{$prefix}modal-padding);
 }
 
 .modal-footer {
@@ -92,14 +79,12 @@ $modal-sidebar-md: 300px;
         margin-right: 0;
         padding-left: 1em;
         padding-right: 1em;
+        display: inline-flex;
+        align-items: center;
 
-        .icon {
+        typo3-backend-icon {
             margin-left: -2px;
             margin-right: 4px;
-        }
-
-        span {
-            vertical-align: middle;
         }
     }
 
@@ -116,14 +101,12 @@ $modal-sidebar-md: 300px;
 }
 
 .modal-content {
-    transition: margin-top 0.1s ease-in;
+    transition: margin-top .1s ease-in;
     border: none;
 
     .modal-loading {
-        position: absolute;
         display: flex;
-        height: 100%;
-        width: 100%;
+        flex: 1 0 auto;
         justify-content: center;
         align-items: center;
     }
@@ -135,7 +118,10 @@ $modal-sidebar-md: 300px;
 .modal-image-manipulation {
     .modal-body {
         padding: 0;
-        display: flex;
+
+        @media (min-width: $screen-sm-min) {
+            flex-direction: row;
+        }
     }
 
     .modal-panel-main {
@@ -169,7 +155,7 @@ $modal-sidebar-md: 300px;
     .modal-panel-sidebar {
         padding: 15px;
         flex-shrink: 0;
-        border-left: 1px solid rgba(0, 0, 0, 0.25);
+        border-left: 1px solid rgba(0, 0, 0, .25);
         position: relative;
         overflow: auto;
         -webkit-overflow-scrolling: touch;
@@ -261,43 +247,13 @@ $modal-sidebar-md: 300px;
 //
 // Severity
 //
-.modal-severity-notice {
-    .modal-header {
-        background-color: $modal-notice-bg;
-        color: $modal-notice-color;
-        border-bottom-color: $modal-notice-border;
-    }
-}
-
-.modal-severity-info {
-    .modal-header {
-        background-color: $modal-info-bg;
-        color: $modal-info-color;
-        border-bottom-color: $modal-info-border;
-    }
-}
-
-.modal-severity-success {
-    .modal-header {
-        background-color: $modal-success-bg;
-        color: $modal-success-color;
-        border-bottom-color: $modal-success-border;
-    }
-}
-
-.modal-severity-warning {
-    .modal-header {
-        background-color: $modal-warning-bg;
-        color: $modal-warning-color;
-        border-bottom-color: $modal-warning-border;
-    }
-}
-
-.modal-severity-danger {
-    .modal-header {
-        background-color: $modal-danger-bg;
-        color: $modal-danger-color;
-        border-bottom-color: $modal-danger-border;
+@each $state, $value in $theme-colors {
+    .modal-severity-#{$state} {
+        .modal-header {
+            background-color: $value;
+            color: color-contrast($value);
+            border-bottom-color: shade-color($value, 10%);
+        }
     }
 }
 
@@ -365,7 +321,7 @@ $modal-sidebar-md: 300px;
 
     .modal-footer {
         .btn + .btn {
-            margin-left: 0.5em;
+            margin-left: .5em;
         }
 
         .progress-bar {

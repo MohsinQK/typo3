@@ -51,11 +51,6 @@ Editor Configuration
 YAML
 ----
 
-For TYPO3 v8 the ability to configure editor-related configuration and transformations
-via YAML (Yet-Another-Markup-Language) was made available and is usable for both CKEditor
-and HtmlArea, although for the latter it is recommended to use the existing configuration
-when having special setups.
-
 TYPO3 is using a custom :ref:`YAML API <t3coreapi:yaml-api>` for handling YAML
 in TYPO3 based on the Symfony YAML package. Therefore environment variables
 can be used.
@@ -106,8 +101,8 @@ TYPO3 ships with three RTE presets, “default”, “minimal” and “full”.
 
 It is possible for extensions to ship their own preset like “news”, or “site_xyz”.
 
-Registration of a preset happens within :file:`LocalConfiguration.php`,
-:file:`AdditionalConfiguration.php` or within
+Registration of a preset happens within :file:`system/config.php`,
+:file:`system/additional.php` or within
 :file:`ext_localconf.php` of an extension:
 
 .. code-block:: php

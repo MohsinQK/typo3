@@ -29,12 +29,12 @@ use TYPO3\CMS\Core\Database\Schema\Exception\StatementException;
 use TYPO3\CMS\Core\Database\Schema\SchemaMigrator;
 use TYPO3\CMS\Core\Database\Schema\SqlReader;
 use TYPO3\CMS\Core\FormProtection\FormProtectionFactory;
-use TYPO3\CMS\Core\FormProtection\InstallToolFormProtection;
 use TYPO3\CMS\Core\Http\JsonResponse;
 use TYPO3\CMS\Core\Localization\Locales;
 use TYPO3\CMS\Core\Messaging\FlashMessage;
 use TYPO3\CMS\Core\Messaging\FlashMessageQueue;
 use TYPO3\CMS\Core\Service\OpcodeCacheService;
+use TYPO3\CMS\Core\Type\ContextualFeedbackSeverity;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Install\Service\ClearCacheService;
 use TYPO3\CMS\Install\Service\ClearTableService;
@@ -48,43 +48,14 @@ use TYPO3\CMS\Install\Service\Typo3tempFileService;
  */
 class MaintenanceController extends AbstractController
 {
-    /**
-     * @var LateBootService
-     */
-    private $lateBootService;
-
-    /**
-     * @var ClearCacheService
-     */
-    private $clearCacheService;
-
-    /**
-     * @var ConfigurationManager
-     */
-    private $configurationManager;
-
-    /**
-     * @var PasswordHashFactory
-     */
-    private $passwordHashFactory;
-
-    /**
-     * @var Locales
-     */
-    private $locales;
-
     public function __construct(
-        LateBootService $lateBootService,
-        ClearCacheService $clearCacheService,
-        ConfigurationManager $configurationManager,
-        PasswordHashFactory $passwordHashFactory,
-        Locales $locales
+        private readonly LateBootService $lateBootService,
+        private readonly ClearCacheService $clearCacheService,
+        private readonly ConfigurationManager $configurationManager,
+        private readonly PasswordHashFactory $passwordHashFactory,
+        private readonly Locales $locales,
+        private readonly FormProtectionFactory $formProtectionFactory
     ) {
-        $this->lateBootService = $lateBootService;
-        $this->clearCacheService = $clearCacheService;
-        $this->configurationManager = $configurationManager;
-        $this->passwordHashFactory = $passwordHashFactory;
-        $this->locales = $locales;
     }
     /**
      * Main "show the cards" view
@@ -110,7 +81,8 @@ class MaintenanceController extends AbstractController
     {
         $this->clearCacheService->clearAll();
         GeneralUtility::makeInstance(OpcodeCacheService::class)->clearAllActive();
-        $messageQueue = (new FlashMessageQueue('install'))->enqueue(
+        $messageQueue = new FlashMessageQueue('install');
+        $messageQueue->enqueue(
             new FlashMessage('Successfully cleared all caches and all available opcode caches.', 'Caches cleared')
         );
         return new JsonResponse([
@@ -131,7 +103,7 @@ class MaintenanceController extends AbstractController
         $typo3tempFileService = $container->get(Typo3tempFileService::class);
 
         $view = $this->initializeView($request);
-        $formProtection = FormProtectionFactory::get(InstallToolFormProtection::class);
+        $formProtection = $this->formProtectionFactory->createFromRequest($request);
         $view->assignMultiple([
             'clearTypo3tempFilesToken' => $formProtection->generateToken('installTool', 'clearTypo3tempFiles'),
         ]);
@@ -176,7 +148,7 @@ class MaintenanceController extends AbstractController
                 $messageQueue->enqueue(new FlashMessage(
                     'Failed to delete ' . $failedDeletions . ' processed files. See TYPO3 log (by default typo3temp/var/log/typo3_*.log)',
                     'Failed to delete files',
-                    FlashMessage::ERROR
+                    ContextualFeedbackSeverity::ERROR
                 ));
             } else {
                 $messageQueue->enqueue(new FlashMessage(
@@ -203,7 +175,7 @@ class MaintenanceController extends AbstractController
             $messageQueue->enqueue(new FlashMessage(
                 'Skipped generating additional class loading information in Composer mode.',
                 'Autoloader not dumped',
-                FlashMessage::NOTICE
+                ContextualFeedbackSeverity::NOTICE
             ));
         } else {
             ClassLoadingInformation::dumpClassLoadingInformation();
@@ -227,7 +199,7 @@ class MaintenanceController extends AbstractController
     public function databaseAnalyzerAction(ServerRequestInterface $request): ResponseInterface
     {
         $view = $this->initializeView($request);
-        $formProtection = FormProtectionFactory::get(InstallToolFormProtection::class);
+        $formProtection = $this->formProtectionFactory->createFromRequest($request);
         $view->assignMultiple([
             'databaseAnalyzerExecuteToken' => $formProtection->generateToken('installTool', 'databaseAnalyzerExecute'),
         ]);
@@ -392,7 +364,7 @@ class MaintenanceController extends AbstractController
             $messageQueue->enqueue(new FlashMessage(
                 $e->getMessage(),
                 'Database analysis failed',
-                FlashMessage::ERROR
+                ContextualFeedbackSeverity::ERROR
             ));
         }
         return new JsonResponse([
@@ -417,7 +389,7 @@ class MaintenanceController extends AbstractController
             $messageQueue->enqueue(new FlashMessage(
                 'Please select any change by activating their respective checkboxes.',
                 'No database changes selected',
-                FlashMessage::WARNING
+                ContextualFeedbackSeverity::WARNING
             ));
         } else {
             $sqlReader = $container->get(SqlReader::class);
@@ -430,7 +402,7 @@ class MaintenanceController extends AbstractController
                 $messageQueue->enqueue(new FlashMessage(
                     'Error: ' . $errorMessage,
                     'Database update failed',
-                    FlashMessage::ERROR
+                    ContextualFeedbackSeverity::ERROR
                 ));
             }
             $messageQueue->enqueue(new FlashMessage(
@@ -453,7 +425,7 @@ class MaintenanceController extends AbstractController
     public function clearTablesStatsAction(ServerRequestInterface $request): ResponseInterface
     {
         $view = $this->initializeView($request);
-        $formProtection = FormProtectionFactory::get(InstallToolFormProtection::class);
+        $formProtection = $this->formProtectionFactory->createFromRequest($request);
         $view->assignMultiple([
             'clearTablesClearToken' => $formProtection->generateToken('installTool', 'clearTablesClear'),
         ]);
@@ -487,7 +459,8 @@ class MaintenanceController extends AbstractController
             );
         }
         (new ClearTableService())->clearSelectedTable($table);
-        $messageQueue = (new FlashMessageQueue('install'))->enqueue(
+        $messageQueue = new FlashMessageQueue('install');
+        $messageQueue->enqueue(
             new FlashMessage('The table ' . $table . ' has been cleared.', 'Table cleared')
         );
         return new JsonResponse([
@@ -504,7 +477,7 @@ class MaintenanceController extends AbstractController
     public function createAdminGetDataAction(ServerRequestInterface $request): ResponseInterface
     {
         $view = $this->initializeView($request);
-        $formProtection = FormProtectionFactory::get(InstallToolFormProtection::class);
+        $formProtection = $this->formProtectionFactory->createFromRequest($request);
         $view->assignMultiple([
             'createAdminToken' => $formProtection->generateToken('installTool', 'createAdmin'),
         ]);
@@ -540,19 +513,19 @@ class MaintenanceController extends AbstractController
             $messages->enqueue(new FlashMessage(
                 'No username given.',
                 'Administrator user not created',
-                FlashMessage::ERROR
+                ContextualFeedbackSeverity::ERROR
             ));
         } elseif ($password !== $passwordCheck) {
             $messages->enqueue(new FlashMessage(
                 'Passwords do not match.',
                 'Administrator user not created',
-                FlashMessage::ERROR
+                ContextualFeedbackSeverity::ERROR
             ));
         } elseif (strlen($password) < 8) {
             $messages->enqueue(new FlashMessage(
                 'Password must be at least eight characters long.',
                 'Administrator user not created',
-                FlashMessage::ERROR
+                ContextualFeedbackSeverity::ERROR
             ));
         } else {
             $connectionPool = GeneralUtility::makeInstance(ConnectionPool::class);
@@ -566,7 +539,7 @@ class MaintenanceController extends AbstractController
                 $messages->enqueue(new FlashMessage(
                     'A user with username "' . $username . '" exists already.',
                     'Administrator user not created',
-                    FlashMessage::ERROR
+                    ContextualFeedbackSeverity::ERROR
                 ));
             } else {
                 $hashInstance = $this->passwordHashFactory->getDefaultHashInstance('BE');
@@ -584,7 +557,6 @@ class MaintenanceController extends AbstractController
                 $connectionPool->getConnectionForTable('be_users')->insert('be_users', $adminUserFields);
 
                 if ($isSystemMaintainer) {
-
                     // Get the new admin user uid just created
                     $newAdminUserUid = (int)$connectionPool->getConnectionForTable('be_users')->lastInsertId('be_users');
 
@@ -595,7 +567,7 @@ class MaintenanceController extends AbstractController
                     $newSystemMaintainersList = $existingSystemMaintainersList;
                     $newSystemMaintainersList[] = $newAdminUserUid;
 
-                    // Update the LocalConfiguration.php file with the new list
+                    // Update the system/settings.php file with the new list
                     $this->configurationManager->setLocalConfigurationValuesByPathValuePairs(
                         ['SYS/systemMaintainers' => $newSystemMaintainersList]
                     );
@@ -624,7 +596,7 @@ class MaintenanceController extends AbstractController
     public function languagePacksGetDataAction(ServerRequestInterface $request): ResponseInterface
     {
         $view = $this->initializeView($request);
-        $formProtection = FormProtectionFactory::get(InstallToolFormProtection::class);
+        $formProtection = $this->formProtectionFactory->createFromRequest($request);
         $view->assignMultiple([
             'languagePacksActivateLanguageToken' => $formProtection->generateToken('installTool', 'languagePacksActivateLanguage'),
             'languagePacksDeactivateLanguageToken' => $formProtection->generateToken('installTool', 'languagePacksDeactivateLanguage'),
@@ -690,7 +662,7 @@ class MaintenanceController extends AbstractController
             );
         } else {
             $messageQueue->enqueue(
-                new FlashMessage('Language with ISO code "' . $iso . '" not found or already active.', '', FlashMessage::ERROR)
+                new FlashMessage('Language with ISO code "' . $iso . '" not found or already active.', '', ContextualFeedbackSeverity::ERROR)
             );
         }
         return new JsonResponse([
@@ -738,7 +710,7 @@ class MaintenanceController extends AbstractController
                     . ' other languages depend on it and need to be deactivated before:'
                     . implode(', ', $dependentArray),
                     '',
-                    FlashMessage::ERROR
+                    ContextualFeedbackSeverity::ERROR
                 )
             );
         } else {
@@ -765,7 +737,7 @@ class MaintenanceController extends AbstractController
                     new FlashMessage(
                         'Language "' . $availableLanguages[$iso] . ' (' . $iso . ')" has not been deactivated',
                         '',
-                        FlashMessage::ERROR
+                        ContextualFeedbackSeverity::ERROR
                     )
                 );
             }

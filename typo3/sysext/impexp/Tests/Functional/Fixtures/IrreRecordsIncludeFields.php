@@ -1,6 +1,18 @@
 <?php
 
-// Fields of record types to be included in the export
+/*
+ * This file is part of the TYPO3 CMS project.
+ *
+ * It is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU General Public License, either version 2
+ * of the License, or any later version.
+ *
+ * For the full copyright and license information, please read the
+ * LICENSE.txt file that was distributed with this source code.
+ *
+ * The TYPO3 project - inspiring people to share!
+ */
+
 return [
     'pages' => [
         'title',
@@ -19,7 +31,6 @@ return [
         'tx_testirrecsv_hotels',
     ],
     'tx_testirrecsv_hotel' => [
-        'cruser_id',
         'sys_language_uid',
         'l18n_parent',
         'sorting',
@@ -29,7 +40,6 @@ return [
         'offers',
     ],
     'tx_testirrecsv_offer' => [
-        'cruser_id',
         'sys_language_uid',
         'l18n_parent',
         'sorting',
@@ -39,7 +49,6 @@ return [
         'prices',
     ],
     'tx_testirrecsv_price' => [
-        'cruser_id',
         'sys_language_uid',
         'l18n_parent',
         'sorting',
@@ -49,7 +58,6 @@ return [
         'price',
     ],
     'tx_testirreforeignfield_hotel' => [
-        'cruser_id',
         'sys_language_uid',
         'l18n_parent',
         'sorting',
@@ -62,7 +70,6 @@ return [
         'offers',
     ],
     'tx_testirreforeignfield_offer' => [
-        'cruser_id',
         'sys_language_uid',
         'l18n_parent',
         'sorting',
@@ -75,7 +82,6 @@ return [
         'prices',
     ],
     'tx_testirreforeignfield_price' => [
-        'cruser_id',
         'sys_language_uid',
         'l18n_parent',
         'sorting',
@@ -88,7 +94,6 @@ return [
         'price',
     ],
     'tx_testirremnattributeinline_hotel' => [
-        'cruser_id',
         'sys_language_uid',
         'l18n_parent',
         'sorting',
@@ -98,7 +103,6 @@ return [
         'offers',
     ],
     'tx_testirremnattributeinline_hotel_offer_rel' => [
-        'cruser_id',
         'sys_language_uid',
         'l18n_parent',
         'deleted',
@@ -110,7 +114,6 @@ return [
         'prices',
     ],
     'tx_testirremnattributeinline_offer' => [
-        'cruser_id',
         'sys_language_uid',
         'l18n_parent',
         'sorting',
@@ -120,7 +123,6 @@ return [
         'hotels',
     ],
     'tx_testirremnattributeinline_price' => [
-        'cruser_id',
         'sys_language_uid',
         'l18n_parent',
         'sorting',
@@ -131,7 +133,6 @@ return [
         'price',
     ],
     'tx_testirremnattributesimple_hotel' => [
-        'cruser_id',
         'sys_language_uid',
         'l18n_parent',
         'sorting',
@@ -141,7 +142,6 @@ return [
         'offers',
     ],
     'tx_testirremnattributesimple_hotel_offer_rel' => [
-        'cruser_id',
         'sys_language_uid',
         'l18n_parent',
         'deleted',
@@ -154,7 +154,6 @@ return [
         'allincl',
     ],
     'tx_testirremnattributesimple_offer' => [
-        'cruser_id',
         'sys_language_uid',
         'l18n_parent',
         'sorting',
@@ -164,7 +163,6 @@ return [
         'hotels',
     ],
     'tx_testirremm_hotel' => [
-        'cruser_id',
         'sys_language_uid',
         'l18n_parent',
         'sorting',
@@ -174,7 +172,6 @@ return [
         'offers',
     ],
     'tx_testirremm_offer' => [
-        'cruser_id',
         'sys_language_uid',
         'l18n_parent',
         'sorting',
@@ -185,7 +182,6 @@ return [
         'prices',
     ],
     'tx_testirremm_price' => [
-        'cruser_id',
         'sys_language_uid',
         'l18n_parent',
         'sorting',
@@ -196,7 +192,6 @@ return [
         'offers',
     ],
     'tx_testirremnsymmetric_hotel' => [
-        'cruser_id',
         'sys_language_uid',
         'l18n_parent',
         'sorting',
@@ -206,7 +201,6 @@ return [
         'branches',
     ],
     'tx_testirremnsymmetric_hotel_rel' => [
-        'cruser_id',
         'sys_language_uid',
         'l18n_parent',
         'deleted',

@@ -24,6 +24,7 @@ namespace TYPO3\CMS\Form\Domain\Model;
 use TYPO3\CMS\Core\Utility\ArrayUtility;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Extbase\Mvc\Request;
+use TYPO3\CMS\Extbase\Mvc\RequestInterface;
 use TYPO3\CMS\Extbase\Reflection\ObjectAccess;
 use TYPO3\CMS\Form\Domain\Exception\IdentifierNotValidException;
 use TYPO3\CMS\Form\Domain\Exception\TypeDefinitionNotFoundException;
@@ -222,7 +223,6 @@ use TYPO3\CMS\Form\Mvc\ProcessingRule;
  */
 class FormDefinition extends AbstractCompositeRenderable implements VariableRenderableInterface
 {
-
     /**
      * The Form's pages
      *
@@ -282,11 +282,6 @@ class FormDefinition extends AbstractCompositeRenderable implements VariableRend
     protected $finishersDefinition;
 
     /**
-     * @var array
-     */
-    protected $conditionContextDefinition;
-
-    /**
      * The persistence identifier of the form
      *
      * @var string
@@ -311,7 +306,6 @@ class FormDefinition extends AbstractCompositeRenderable implements VariableRend
         $this->typeDefinitions = $prototypeConfiguration['formElementsDefinition'] ?? [];
         $this->validatorsDefinition = $prototypeConfiguration['validatorsDefinition'] ?? [];
         $this->finishersDefinition = $prototypeConfiguration['finishersDefinition'] ?? [];
-        $this->conditionContextDefinition = $prototypeConfiguration['conditionContextDefinition'] ?? [];
 
         if (!is_string($identifier) || strlen($identifier) === 0) {
             throw new IdentifierNotValidException('The given identifier was not a string or the string was empty.', 1477082503);
@@ -650,11 +644,8 @@ class FormDefinition extends AbstractCompositeRenderable implements VariableRend
     /**
      * Bind the current request & response to this form instance, effectively creating
      * a new "instance" of the Form.
-     *
-     * @param Request $request
-     * @return FormRuntime
      */
-    public function bind(Request $request): FormRuntime
+    public function bind(RequestInterface $request): FormRuntime
     {
         $formRuntime = GeneralUtility::makeInstance(FormRuntime::class);
         $formRuntime->setFormDefinition($this);
@@ -702,15 +693,6 @@ class FormDefinition extends AbstractCompositeRenderable implements VariableRend
     public function getValidatorsDefinition(): array
     {
         return $this->validatorsDefinition;
-    }
-
-    /**
-     * @return array
-     * @internal
-     */
-    public function getConditionContextDefinition(): array
-    {
-        return $this->conditionContextDefinition;
     }
 
     /**

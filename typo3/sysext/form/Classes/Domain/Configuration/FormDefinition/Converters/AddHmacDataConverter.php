@@ -27,7 +27,6 @@ use TYPO3\CMS\Form\Domain\Configuration\ArrayProcessing\ArrayProcessor;
  */
 class AddHmacDataConverter extends AbstractConverter
 {
-
     /**
      * Add a new value "_orig_<propertyName>" as a sibling of the property key.
      * "_orig_<propertyName>" is an array which contains the property value
@@ -64,7 +63,7 @@ class AddHmacDataConverter extends AbstractConverter
             GeneralUtility::makeInstance(
                 ArrayProcessing::class,
                 'addHmacData',
-                '^(?!(.*\._label|.*\._value)$).*',
+                '^.*',
                 GeneralUtility::makeInstance(
                     AddHmacDataToFormElementPropertyConverter::class,
                     $this->converterDto,

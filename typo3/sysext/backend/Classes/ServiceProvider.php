@@ -35,11 +35,13 @@ use TYPO3\CMS\Core\Configuration\ConfigurationManager;
 use TYPO3\CMS\Core\Context\Context;
 use TYPO3\CMS\Core\EventDispatcher\ListenerProvider;
 use TYPO3\CMS\Core\Exception as CoreException;
+use TYPO3\CMS\Core\FormProtection\FormProtectionFactory;
 use TYPO3\CMS\Core\Http\MiddlewareDispatcher;
 use TYPO3\CMS\Core\Http\MiddlewareStackResolver;
 use TYPO3\CMS\Core\Imaging\IconRegistry;
 use TYPO3\CMS\Core\Package\AbstractServiceProvider;
 use TYPO3\CMS\Core\Package\Cache\PackageDependentCacheIdentifier;
+use TYPO3\CMS\Core\Routing\BackendEntryPointResolver;
 
 /**
  * @internal
@@ -92,7 +94,8 @@ class ServiceProvider extends AbstractServiceProvider
         return new Application(
             $requestHandler,
             $container->get(ConfigurationManager::class),
-            $container->get(Context::class)
+            $container->get(Context::class),
+            $container->get(BackendEntryPointResolver::class)
         );
     }
 
@@ -108,9 +111,8 @@ class ServiceProvider extends AbstractServiceProvider
     public static function getRouteDispatcher(ContainerInterface $container): RouteDispatcher
     {
         return self::new($container, RouteDispatcher::class, [
+            $container->get(FormProtectionFactory::class),
             $container,
-            $container->get(UriBuilder::class),
-            $container->get(ModuleProvider::class),
         ]);
     }
 
@@ -118,6 +120,8 @@ class ServiceProvider extends AbstractServiceProvider
     {
         return self::new($container, UriBuilder::class, [
             $container->get(Router::class),
+            $container->get(BackendEntryPointResolver::class),
+            $container->get(FormProtectionFactory::class),
         ]);
     }
 
@@ -138,16 +142,18 @@ class ServiceProvider extends AbstractServiceProvider
 
     public static function getModuleRegistry(ContainerInterface $container): ModuleRegistry
     {
+        $moduleFactory = $container->get(ModuleFactory::class);
         $cache = $container->get('cache.core');
         $cacheIdentifier = $container->get(PackageDependentCacheIdentifier::class)->withPrefix('BackendModules')->toString();
         $modulesFromPackages = $cache->require($cacheIdentifier);
         if ($modulesFromPackages === false) {
             $modulesFromPackages = $container->get('backend.modules')->getArrayCopy();
+            $modulesFromPackages = $moduleFactory->adaptAliasMappingFromModuleConfiguration($modulesFromPackages);
             $cache->set($cacheIdentifier, 'return ' . var_export($modulesFromPackages, true) . ';');
         }
 
         foreach ($modulesFromPackages as $identifier => $configuration) {
-            $modulesFromPackages[$identifier] = $container->get(ModuleFactory::class)->createModule($identifier, $configuration);
+            $modulesFromPackages[$identifier] = $moduleFactory->createModule($identifier, $configuration);
         }
 
         return self::new($container, ModuleRegistry::class, [$modulesFromPackages]);
@@ -179,13 +185,13 @@ class ServiceProvider extends AbstractServiceProvider
         foreach ($routesFromPackages as $name => $options) {
             $path = $options['path'];
             $methods = $options['methods'] ?? [];
-            unset($options['path']);
-            unset($options['methods']);
+            $aliases = $options['aliases'] ?? [];
+            unset($options['path'], $options['methods'], $options['aliases']);
             $route = new Route($path, $options);
             if (count($methods) > 0) {
                 $route->setMethods($methods);
             }
-            $router->addRoute($name, $route);
+            $router->addRoute($name, $route, $aliases);
         }
 
         // Add routes from all modules

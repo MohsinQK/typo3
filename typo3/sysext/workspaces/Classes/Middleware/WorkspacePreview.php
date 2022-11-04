@@ -28,6 +28,7 @@ use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
 use TYPO3\CMS\Core\Context\Context;
 use TYPO3\CMS\Core\Context\UserAspect;
 use TYPO3\CMS\Core\Context\WorkspaceAspect;
+use TYPO3\CMS\Core\Database\Connection;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Http\CookieHeaderTrait;
 use TYPO3\CMS\Core\Http\HtmlResponse;
@@ -77,7 +78,6 @@ class WorkspacePreview implements MiddlewareInterface
         $addInformationAboutDisabledCache = false;
         $keyword = $this->getPreviewInputCode($request);
         $setCookieOnCurrentRequest = false;
-        /** @var NormalizedParams $normalizedParams */
         $normalizedParams = $request->getAttribute('normalizedParams');
         $context = GeneralUtility::makeInstance(Context::class);
 
@@ -115,7 +115,7 @@ class WorkspacePreview implements MiddlewareInterface
         // This option is solely used to ensure that a be-user can preview the live version of a page in the
         // workspace preview module.
         if ($keyword === 'LIVE' && isset($GLOBALS['BE_USER']) && $GLOBALS['BE_USER'] instanceof FrontendBackendUserAuthentication) {
-            // We need to set the workspace to live here
+            // We need to set the workspace to "live" here
             $GLOBALS['BE_USER']->setTemporaryWorkspace(0);
             // Register the backend user as aspect
             $this->setBackendUserAspect($context, $GLOBALS['BE_USER']);
@@ -289,7 +289,7 @@ class WorkspacePreview implements MiddlewareInterface
                 ),
                 $queryBuilder->expr()->gt(
                     'endtime',
-                    $queryBuilder->createNamedParameter($GLOBALS['EXEC_TIME'], \PDO::PARAM_INT)
+                    $queryBuilder->createNamedParameter($GLOBALS['EXEC_TIME'], Connection::PARAM_INT)
                 )
             )
             ->setMaxResults(1)
@@ -378,7 +378,7 @@ class WorkspacePreview implements MiddlewareInterface
             ->where(
                 $queryBuilder->expr()->eq(
                     'uid',
-                    $queryBuilder->createNamedParameter($workspaceId, \PDO::PARAM_INT)
+                    $queryBuilder->createNamedParameter($workspaceId, Connection::PARAM_INT)
                 )
             )
             ->executeQuery()
@@ -416,9 +416,6 @@ class WorkspacePreview implements MiddlewareInterface
 
     /**
      * Register or override the backend user as aspect, as well as the workspace information the user object is holding
-     *
-     * @param Context $context
-     * @param BackendUserAuthentication $user
      */
     protected function setBackendUserAspect(Context $context, BackendUserAuthentication $user = null)
     {

@@ -142,10 +142,12 @@ class RecyclerModuleCest
         $page = $this->pageTree->getPageXPathByPageName(static::$pageTitle);
         $I->click($page);
 
+        // Close all notifications to avoid click interceptions
+        $I->click('#alert-container .close');
         $I->switchToContentFrame();
         $I->click('a[title="Edit page properties"]');
         $I->click('a[title="Delete"]');
-        $this->modalDialog->clickButtonInDialog('Yes, delete this record');
+        $this->modalDialog->clickButtonInDialog('Delete record (!)');
     }
 
     /**

@@ -17,19 +17,13 @@ declare(strict_types=1);
 
 namespace TYPO3\CMS\Core\Tests\Unit\Resource\Processing;
 
-use Prophecy\PhpUnit\ProphecyTrait;
 use TYPO3\CMS\Core\Resource\Processing\AbstractTask;
 use TYPO3\CMS\Core\Resource\Processing\LocalImageProcessor;
 use TYPO3\CMS\Core\Resource\Processing\ProcessorRegistry;
 use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
-/**
- * Test case.
- */
 class ProcessorRegistryTest extends UnitTestCase
 {
-    use ProphecyTrait;
-
     protected bool $resetSingletonInstances = true;
 
     /**
@@ -43,11 +37,11 @@ class ProcessorRegistryTest extends UnitTestCase
             ],
         ];
         $subject = new ProcessorRegistry();
-        $taskMock = $this->prophesize(AbstractTask::class);
-        $taskMock->getType()->willReturn('Image');
-        $taskMock->getName()->willReturn('CropScaleMask');
+        $taskMock = $this->createMock(AbstractTask::class);
+        $taskMock->method('getType')->willReturn('Image');
+        $taskMock->method('getName')->willReturn('CropScaleMask');
 
-        $processor = $subject->getProcessorByTask($taskMock->reveal());
+        $processor = $subject->getProcessorByTask($taskMock);
 
         self::assertInstanceOf(LocalImageProcessor::class, $processor);
     }
@@ -60,7 +54,7 @@ class ProcessorRegistryTest extends UnitTestCase
         $this->expectExceptionCode(1560876294);
 
         $subject = new ProcessorRegistry();
-        $taskMock = $this->prophesize(AbstractTask::class)->reveal();
+        $taskMock = $this->createMock(AbstractTask::class);
         $subject->getProcessorByTask($taskMock);
     }
 
@@ -78,12 +72,12 @@ class ProcessorRegistryTest extends UnitTestCase
                 'after' => 'LocalImageProcessor',
             ],
         ];
-        $subject =  new ProcessorRegistry();
-        $taskMock = $this->prophesize(AbstractTask::class);
-        $taskMock->getType()->willReturn('Image');
-        $taskMock->getName()->willReturn('CropScaleMask');
+        $subject = new ProcessorRegistry();
+        $taskMock = $this->createMock(AbstractTask::class);
+        $taskMock->method('getType')->willReturn('Image');
+        $taskMock->method('getName')->willReturn('CropScaleMask');
 
-        $processor = $subject->getProcessorByTask($taskMock->reveal());
+        $processor = $subject->getProcessorByTask($taskMock);
 
         self::assertInstanceOf(LocalImageProcessor::class, $processor);
     }

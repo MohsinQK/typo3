@@ -17,8 +17,6 @@ declare(strict_types=1);
 
 namespace TYPO3\CMS\Backend\Tests\Functional\Form;
 
-use Prophecy\Argument;
-use Prophecy\PhpUnit\ProphecyTrait;
 use TYPO3\CMS\Backend\Form\Element\MfaInfoElement;
 use TYPO3\CMS\Backend\Form\NodeFactory;
 use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
@@ -29,8 +27,6 @@ use TYPO3\TestingFramework\Core\Functional\FunctionalTestCase;
 
 class MfaInfoElementTest extends FunctionalTestCase
 {
-    use ProphecyTrait;
-
     protected function setUp(): void
     {
         parent::setUp();
@@ -40,10 +36,10 @@ class MfaInfoElementTest extends FunctionalTestCase
         $GLOBALS['BE_USER']->enablecolumns = ['deleted' => true];
         $GLOBALS['BE_USER']->setBeUserByUid(1);
 
-        // Default LANG prophecy just returns incoming value as label if calling ->sL()
-        $languageServiceProphecy = $this->prophesize(LanguageService::class);
-        $languageServiceProphecy->sL(Argument::cetera())->willReturnArgument(0);
-        $GLOBALS['LANG'] = $languageServiceProphecy->reveal();
+        // Default LANG mock just returns incoming value as label if calling ->sL()
+        $languageServiceMock = $this->createMock(LanguageService::class);
+        $languageServiceMock->method('sL')->with(self::anything())->willReturnArgument(0);
+        $GLOBALS['LANG'] = $languageServiceMock;
     }
 
     /**
@@ -79,7 +75,7 @@ class MfaInfoElementTest extends FunctionalTestCase
         // MFA can NOT be deactivated
         self::assertMatchesRegularExpression('/<button.*class="t3js-deactivate-mfa-button btn btn-danger disabled".*disabled="disabled"/s', $result['html']);
         // JavaScript is NOT added
-        self::assertEmpty($result['requireJsModules']);
+        self::assertEmpty($result['javaScriptModules']);
     }
 
     /**
@@ -103,7 +99,7 @@ class MfaInfoElementTest extends FunctionalTestCase
         // MFA can NOT be deactivated
         self::assertMatchesRegularExpression('/<button.*class="t3js-deactivate-mfa-button btn btn-danger disabled".*disabled="disabled"/s', $result['html']);
         // JavaScript is NOT added
-        self::assertEmpty($result['requireJsModules']);
+        self::assertEmpty($result['javaScriptModules']);
     }
 
     /**
@@ -131,12 +127,12 @@ class MfaInfoElementTest extends FunctionalTestCase
         // No item is locked
         self::assertDoesNotMatchRegularExpression('/<span.*class="badge badge-danger".*>LLL:EXT:core\/Resources\/Private\/Language\/locallang_core.xlf:labels.locked/s', $result['html']);
         // Item can be deactivated
-        self::assertMatchesRegularExpression('/<button.*class="btn btn-default btn-sm pull-right t3js-deactivate-provider-button"/s', $result['html']);
+        self::assertMatchesRegularExpression('/<button.*class="btn btn-default btn-sm float-end t3js-deactivate-provider-button"/s', $result['html']);
         // MFA can be deactivated
         self::assertMatchesRegularExpression('/<button.*class="t3js-deactivate-mfa-button btn btn-danger "/s', $result['html']);
         // JavaScript is added
-        self::assertInstanceOf(JavaScriptModuleInstruction::class, $result['requireJsModules'][0]);
-        self::assertSame('@typo3/backend/form-engine/element/mfa-info-element.js', $result['requireJsModules'][0]->getName());
+        self::assertInstanceOf(JavaScriptModuleInstruction::class, $result['javaScriptModules'][0]);
+        self::assertSame('@typo3/backend/form-engine/element/mfa-info-element.js', $result['javaScriptModules'][0]->getName());
     }
 
     /**
@@ -164,12 +160,12 @@ class MfaInfoElementTest extends FunctionalTestCase
         // Item is locked
         self::assertMatchesRegularExpression('/<span.*class="badge badge-danger".*>LLL:EXT:core\/Resources\/Private\/Language\/locallang_core.xlf:labels.locked/s', $result['html']);
         // Items can be deactivated
-        self::assertMatchesRegularExpression('/<button.*class="btn btn-default btn-sm pull-right t3js-deactivate-provider-button"/s', $result['html']);
+        self::assertMatchesRegularExpression('/<button.*class="btn btn-default btn-sm float-end t3js-deactivate-provider-button"/s', $result['html']);
         // MFA can be deactivated
         self::assertMatchesRegularExpression('/<button.*class="t3js-deactivate-mfa-button btn btn-danger "/s', $result['html']);
         // JavaScript is added
-        self::assertInstanceOf(JavaScriptModuleInstruction::class, $result['requireJsModules'][0]);
-        self::assertSame('@typo3/backend/form-engine/element/mfa-info-element.js', $result['requireJsModules'][0]->getName());
+        self::assertInstanceOf(JavaScriptModuleInstruction::class, $result['javaScriptModules'][0]);
+        self::assertSame('@typo3/backend/form-engine/element/mfa-info-element.js', $result['javaScriptModules'][0]->getName());
     }
 
     /**
@@ -205,7 +201,7 @@ class MfaInfoElementTest extends FunctionalTestCase
         // MFA deactivation button is not shown
         self::assertStringNotContainsString('t3js-deactivate-mfa-button', $result['html']);
         // JavaScript is NOT added
-        self::assertEmpty($result['requireJsModules']);
+        self::assertEmpty($result['javaScriptModules']);
     }
 
     protected function getFormElementResult(array $data): array

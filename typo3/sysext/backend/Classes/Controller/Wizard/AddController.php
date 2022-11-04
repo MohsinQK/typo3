@@ -38,45 +38,33 @@ class AddController extends AbstractWizardController
 {
     /**
      * If set, the DataHandler class is loaded and used to add the returning ID to the parent record.
-     *
-     * @var int
      */
-    protected $processDataFlag = 0;
+    protected int $processDataFlag = 0;
 
     /**
      * Create new record -pid (pos/neg). If blank, return immediately
-     *
-     * @var int
      */
-    protected $pid;
+    protected int $pid = 0;
 
     /**
      * The parent table we are working on.
-     *
-     * @var string
      */
-    protected $table;
+    protected string $table = '';
 
     /**
      * Loaded with the created id of a record FormEngine returns ...
-     *
-     * @var int
      */
-    protected $id;
+    protected int $id = 0;
 
     /**
      * Wizard parameters, coming from TCEforms linking to the wizard.
-     *
-     * @var array
      */
-    protected $P;
+    protected array $P = [];
 
     /**
      * Information coming back from the FormEngine script, telling what the table/id was of the newly created record.
-     *
-     * @var string
      */
-    protected $returnEditConf;
+    protected string $returnEditConf = '';
 
     /**
      * Injects the request object for the current request or subrequest
@@ -90,18 +78,11 @@ class AddController extends AbstractWizardController
         $this->getLanguageService()->includeLLFile('EXT:core/Resources/Private/Language/locallang_wizards.xlf');
         $this->init($request);
 
-        // Return if new record as parent (not possibly/allowed)
-        if ($this->pid === '') {
-            return new RedirectResponse(GeneralUtility::sanitizeLocalUrl($this->P['returnUrl']));
-        }
-
         if ($this->returnEditConf) {
             if ($this->processDataFlag) {
                 // Because OnTheFly can't handle MM relations with intermediate tables we use TcaDatabaseRecord here
                 // Otherwise already stored relations are overwritten with the new entry
-                /** @var TcaDatabaseRecord $formDataGroup */
                 $formDataGroup = GeneralUtility::makeInstance(TcaDatabaseRecord::class);
-                /** @var FormDataCompiler $formDataCompiler */
                 $formDataCompiler = GeneralUtility::makeInstance(FormDataCompiler::class, $formDataGroup);
                 $input = [
                     'tableName' => $this->P['table'],
@@ -114,7 +95,6 @@ class AddController extends AbstractWizardController
                 // If that record was found (should absolutely be...), then init DataHandler and set, prepend or append
                 // the record
                 if (is_array($currentParentRow)) {
-                    /** @var DataHandler $dataHandler */
                     $dataHandler = GeneralUtility::makeInstance(DataHandler::class);
                     $data = [];
                     $recordId = $this->table . '_' . $this->id;
@@ -197,9 +177,7 @@ class AddController extends AbstractWizardController
 
         // Redirecting to FormEngine with instructions to create a new record
         // AND when closing to return back with information about that records ID etc.
-        /** @var \TYPO3\CMS\Core\Http\NormalizedParams */
         $normalizedParams = $request->getAttribute('normalizedParams');
-        /** @var \TYPO3\CMS\Backend\Routing\UriBuilder $uriBuilder */
         $uriBuilder = GeneralUtility::makeInstance(UriBuilder::class);
         $redirectUrl = (string)$uriBuilder->buildUriFromRoute('record_edit', [
             'returnEditConf' => 1,
@@ -220,7 +198,7 @@ class AddController extends AbstractWizardController
         $queryParams = $request->getQueryParams();
         // Init GPvars:
         $this->P = $parsedBody['P'] ?? $queryParams['P'] ?? [];
-        $this->returnEditConf = $parsedBody['returnEditConf'] ?? $queryParams['returnEditConf'] ?? null;
+        $this->returnEditConf = $parsedBody['returnEditConf'] ?? $queryParams['returnEditConf'] ?? '';
         // Get this record
         $record = BackendUtility::getRecord($this->P['table'], $this->P['uid']);
         // Set table:
@@ -231,23 +209,15 @@ class AddController extends AbstractWizardController
             is_array($record) ? $record : ['pid' => (int)$this->P['params']['pid']]
         );
         // Set [params][pid]
-        if (str_starts_with($this->P['params']['pid'], '###') && substr($this->P['params']['pid'], -3) === '###') {
+        if (str_starts_with($this->P['params']['pid'], '###') && str_ends_with($this->P['params']['pid'], '###')) {
             $keyword = substr($this->P['params']['pid'], 3, -3);
-            if (str_starts_with($keyword, 'PAGE_TSCONFIG_')) {
-                $this->pid = (int)$TSconfig[$this->P['field']][$keyword];
-            } else {
-                $this->pid = (int)$TSconfig['_' . $keyword];
-            }
+            $this->pid = str_starts_with($keyword, 'PAGE_TSCONFIG_')
+                ? (int)$TSconfig[$this->P['field']][$keyword]
+                : (int)$TSconfig['_' . $keyword];
         } else {
             $this->pid = (int)$this->P['params']['pid'];
         }
-        // Return if new record as parent (not possibly/allowed)
-        // @todo how could this happen? pid is cast to int in the if/else above
-        if ($this->pid === '') {
-            // HTTP Redirect is performed by processRequest()
-            return;
-        }
-        // Else proceed:
+
         // If a new id has returned from a newly created record...
         if ($this->returnEditConf) {
             $editConfiguration = json_decode($this->returnEditConf, true);

@@ -208,7 +208,7 @@ class RootlineUtility
             $row = $queryBuilder->select(...self::$rootlineFields)
                 ->from('pages')
                 ->where(
-                    $queryBuilder->expr()->eq('uid', $queryBuilder->createNamedParameter($uid, \PDO::PARAM_INT)),
+                    $queryBuilder->expr()->eq('uid', $queryBuilder->createNamedParameter($uid, Connection::PARAM_INT)),
                     $queryBuilder->expr()->in('t3ver_wsid', $queryBuilder->createNamedParameter([0, $this->workspaceUid], Connection::PARAM_INT_ARRAY))
                 )
                 ->executeQuery()
@@ -218,9 +218,7 @@ class RootlineUtility
             }
             $this->pageRepository->versionOL('pages', $row, false, true);
             if (is_array($row)) {
-                if ($this->languageUid > 0) {
-                    $row = $this->pageRepository->getPageOverlay($row, $this->languageUid);
-                }
+                $row = $this->pageRepository->getLanguageOverlay('pages', $row, $this->context->getAspect('language'));
                 $row = $this->enrichWithRelationFields($row['_PAGES_OVERLAY_UID'] ??  $uid, $row);
                 self::$pageRecordCache[$currentCacheIdentifier] = $row;
             }
@@ -288,7 +286,7 @@ class RootlineUtility
         if (!empty($configuration['MM']) && !empty($configuration['type']) && in_array($configuration['type'], ['select', 'inline', 'group'])) {
             return true;
         }
-        if (!empty($configuration['foreign_field']) && !empty($configuration['type']) && in_array($configuration['type'], ['select', 'inline'])) {
+        if (!empty($configuration['foreign_field']) && !empty($configuration['type']) && in_array($configuration['type'], ['select', 'inline', 'file'])) {
             return true;
         }
         if (($configuration['type'] ?? '') === 'category' && ($configuration['relationship'] ?? '') === 'manyToMany') {
@@ -319,7 +317,6 @@ class RootlineUtility
         if ($parentUid > 0) {
             // Get rootline of (and including) parent page
             $mountPointParameter = !empty($this->parsedMountPointParameters) ? $this->mountPointParameter : '';
-            /** @var RootlineUtility $rootlineUtility */
             $rootlineUtility = GeneralUtility::makeInstance(self::class, $parentUid, $mountPointParameter, $this->context);
             $rootline = $rootlineUtility->get();
             // retrieve cache tags of parent rootline
@@ -427,7 +424,7 @@ class RootlineUtility
             ->where(
                 $queryBuilder->expr()->eq(
                     'uid',
-                    $queryBuilder->createNamedParameter($pageId, \PDO::PARAM_INT)
+                    $queryBuilder->createNamedParameter($pageId, Connection::PARAM_INT)
                 )
             )
             ->setMaxResults(1)
@@ -453,15 +450,15 @@ class RootlineUtility
             ->where(
                 $queryBuilder->expr()->eq(
                     't3ver_wsid',
-                    $queryBuilder->createNamedParameter($this->workspaceUid, \PDO::PARAM_INT)
+                    $queryBuilder->createNamedParameter($this->workspaceUid, Connection::PARAM_INT)
                 ),
                 $queryBuilder->expr()->eq(
                     't3ver_state',
-                    $queryBuilder->createNamedParameter(VersionState::MOVE_POINTER, \PDO::PARAM_INT)
+                    $queryBuilder->createNamedParameter(VersionState::MOVE_POINTER, Connection::PARAM_INT)
                 ),
                 $queryBuilder->expr()->eq(
                     't3ver_oid',
-                    $queryBuilder->createNamedParameter($liveId, \PDO::PARAM_INT)
+                    $queryBuilder->createNamedParameter($liveId, Connection::PARAM_INT)
                 )
             )
             ->executeQuery();

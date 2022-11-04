@@ -20,15 +20,13 @@ namespace TYPO3\CMS\Backend\Tests\Unit\Form\FormDataProvider;
 use TYPO3\CMS\Backend\Form\FormDataProvider\DatabaseRecordOverrideValues;
 use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
-/**
- * Test case
- */
 class DatabaseRecordOverrideValuesTest extends UnitTestCase
 {
     protected DatabaseRecordOverrideValues $subject;
 
     protected function setUp(): void
     {
+        parent::setUp();
         $this->subject = new DatabaseRecordOverrideValues();
     }
 

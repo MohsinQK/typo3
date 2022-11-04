@@ -2,8 +2,6 @@
 
 declare(strict_types=1);
 
-namespace TYPO3\CMS\Frontend\DataProcessing;
-
 /*
  * This file is part of the TYPO3 CMS project.
  *
@@ -16,6 +14,8 @@ namespace TYPO3\CMS\Frontend\DataProcessing;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Frontend\DataProcessing;
 
 use TYPO3\CMS\Core\Service\FlexFormService;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
@@ -60,7 +60,6 @@ class FlexFormProcessor implements DataProcessorInterface
         array $processorConfiguration,
         array $processedData
     ): array {
-
         // The field name to process
         $fieldName = $cObj->stdWrapValue('fieldName', $processorConfiguration, 'pi_flexform');
 

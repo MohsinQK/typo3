@@ -17,6 +17,7 @@ declare(strict_types=1);
 
 namespace TYPO3\CMS\Core\Tests\Functional\DataHandling\Flexform;
 
+use TYPO3\CMS\Core\Database\Connection;
 use TYPO3\CMS\Core\Tests\Functional\DataHandling\AbstractDataHandlerActionTestCase;
 
 class ActionTest extends AbstractDataHandlerActionTestCase
@@ -48,16 +49,14 @@ class ActionTest extends AbstractDataHandlerActionTestCase
         <type>array</type>
         <el type="array">
             <settings.bodytext>
-                <TCEforms type="array">
-                    <label>Random Bodytext</label>
-                    <config type="array">
-                        <type>text</type>
-                        <cols>48</cols>
-                        <rows>5</rows>
-                        <enableRichtext>1</enableRichtext>
-                        <richtextConfiguration>default</richtextConfiguration>
-                    </config>
-                </TCEforms>
+                <label>Random Bodytext</label>
+                <config type="array">
+                    <type>text</type>
+                    <cols>48</cols>
+                    <rows>5</rows>
+                    <enableRichtext>1</enableRichtext>
+                    <richtextConfiguration>default</richtextConfiguration>
+                </config>
             </settings.bodytext>
         </el>
     </ROOT>
@@ -104,7 +103,7 @@ class ActionTest extends AbstractDataHandlerActionTestCase
         $flexFormContent = $queryBuilder
             ->select('pi_flexform')
             ->from('tt_content')
-            ->where($queryBuilder->expr()->eq('uid', $queryBuilder->createNamedParameter(self::VALUE_ContentId, \PDO::PARAM_INT)))
+            ->where($queryBuilder->expr()->eq('uid', $queryBuilder->createNamedParameter(self::VALUE_ContentId, Connection::PARAM_INT)))
             ->executeQuery()
             ->fetchOne();
 
@@ -123,9 +122,7 @@ class ActionTest extends AbstractDataHandlerActionTestCase
     <sheets>
         <sheet1>
             <ROOT>
-                <TCEforms>
-                    <sheetTitle>Text Example with an RTE field</sheetTitle>
-                </TCEforms>
+                <sheetTitle>Text Example with an RTE field</sheetTitle>
                 <type>array</type>
                 <el>
                     <settings.bodytext>
@@ -187,7 +184,7 @@ class ActionTest extends AbstractDataHandlerActionTestCase
         $flexFormContent = $queryBuilder
             ->select('pi_flexform')
             ->from('tt_content')
-            ->where($queryBuilder->expr()->eq('uid', $queryBuilder->createNamedParameter(self::VALUE_ContentId, \PDO::PARAM_INT)))
+            ->where($queryBuilder->expr()->eq('uid', $queryBuilder->createNamedParameter(self::VALUE_ContentId, Connection::PARAM_INT)))
             ->executeQuery()
             ->fetchOne();
 

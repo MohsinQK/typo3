@@ -21,14 +21,13 @@ use ExtbaseTeam\BlogExample\Controller\BlogController;
 use Psr\Http\Message\ResponseInterface;
 use TYPO3\CMS\Core\Context\Context;
 use TYPO3\CMS\Core\Context\LanguageAspect;
+use TYPO3\CMS\Core\Http\ServerRequest;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Extbase\Configuration\ConfigurationManager;
+use TYPO3\CMS\Extbase\Mvc\ExtbaseRequestParameters;
 use TYPO3\CMS\Extbase\Mvc\Request;
 use TYPO3\TestingFramework\Core\Functional\FunctionalTestCase;
 
-/**
- * Test case
- */
 class ControllerArgumentsMappingTest extends FunctionalTestCase
 {
     /**
@@ -61,11 +60,12 @@ class ControllerArgumentsMappingTest extends FunctionalTestCase
         ];
         $configurationManager = $this->get(ConfigurationManager::class);
         $configurationManager->setConfiguration($configuration);
-        $this->request = new Request();
-        $this->request->setPluginName('Pi1');
-        $this->request->setControllerExtensionName(BlogController::class);
-        $this->request->setControllerName('Blog');
-        $this->request->setFormat('html');
+        $serverRequest = (new ServerRequest())->withAttribute('extbase', new ExtbaseRequestParameters());
+        $this->request = new Request($serverRequest);
+        $this->request = $this->request->withPluginName('Pi1');
+        $this->request = $this->request->withControllerExtensionName(BlogController::class);
+        $this->request = $this->request->withControllerName('Blog');
+        $this->request = $this->request->withFormat('html');
 
         $this->controller = $this->get(BlogController::class);
     }
@@ -94,8 +94,8 @@ class ControllerArgumentsMappingTest extends FunctionalTestCase
     {
         $context = GeneralUtility::makeInstance(Context::class);
         $context->setAspect('language', new LanguageAspect($language, $language, LanguageAspect::OVERLAYS_ON));
-        $this->request->setControllerActionName('details');
-        $this->request->setArgument('blog', $blogUid);
+        $this->request = $this->request->withControllerActionName('details');
+        $this->request = $this->request->withArgument('blog', $blogUid);
 
         $response = $this->controller->processRequest($this->request);
 

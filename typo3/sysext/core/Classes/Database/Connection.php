@@ -22,7 +22,6 @@ use Doctrine\DBAL\Configuration;
 use Doctrine\DBAL\Driver;
 use Doctrine\DBAL\Platforms\PostgreSQL94Platform as PostgreSqlPlatform;
 use Doctrine\DBAL\Result;
-use Doctrine\DBAL\Types\Type;
 use Psr\Log\LoggerAwareInterface;
 use Psr\Log\LoggerAwareTrait;
 use TYPO3\CMS\Core\Database\Query\BulkInsertQuery;
@@ -37,32 +36,32 @@ class Connection extends \Doctrine\DBAL\Connection implements LoggerAwareInterfa
     /**
      * Represents a SQL NULL data type.
      */
-    const PARAM_NULL = \PDO::PARAM_NULL; // 0
+    public const PARAM_NULL = \PDO::PARAM_NULL; // 0
 
     /**
      * Represents a SQL INTEGER data type.
      */
-    const PARAM_INT = \PDO::PARAM_INT; // 1
+    public const PARAM_INT = \PDO::PARAM_INT; // 1
 
     /**
      * Represents a SQL CHAR, VARCHAR data type.
      */
-    const PARAM_STR = \PDO::PARAM_STR; // 2
+    public const PARAM_STR = \PDO::PARAM_STR; // 2
 
     /**
      * Represents a SQL large object data type.
      */
-    const PARAM_LOB = \PDO::PARAM_LOB; // 3
+    public const PARAM_LOB = \PDO::PARAM_LOB; // 3
 
     /**
      * Represents a recordset type. Not currently supported by any drivers.
      */
-    const PARAM_STMT = \PDO::PARAM_STMT; // 4
+    public const PARAM_STMT = \PDO::PARAM_STMT; // 4
 
     /**
      * Represents a boolean data type.
      */
-    const PARAM_BOOL = \PDO::PARAM_BOOL; // 5
+    public const PARAM_BOOL = \PDO::PARAM_BOOL; // 5
 
     /** @var ExpressionBuilder */
     protected $_expr;
@@ -184,10 +183,21 @@ class Connection extends \Doctrine\DBAL\Connection implements LoggerAwareInterfa
     }
 
     /**
+     * Quotes like wildcards for given string value.
+     *
+     * @param string $value The value to be quoted.
+     *
+     * @return string The quoted value.
+     */
+    public function escapeLikeWildcards(string $value): string
+    {
+        return addcslashes($value, '_%');
+    }
+
+    /**
      * Inserts a table row with specified data.
      *
      * All SQL identifiers are expected to be unquoted and will be quoted when building the query.
-     * Table expression and columns are not escaped and are not safe for user-input.
      *
      * @param string $tableName The name of the table to insert data into.
      * @param array $data An associative array containing column-value pairs.
@@ -208,7 +218,6 @@ class Connection extends \Doctrine\DBAL\Connection implements LoggerAwareInterfa
      * Bulk inserts table rows with specified data.
      *
      * All SQL identifiers are expected to be unquoted and will be quoted when building the query.
-     * Table expression and columns are not escaped and are not safe for user-input.
      *
      * @param string $tableName The name of the table to insert data into.
      * @param array $data An array containing associative arrays of column-value pairs or just the values to be inserted.
@@ -231,7 +240,6 @@ class Connection extends \Doctrine\DBAL\Connection implements LoggerAwareInterfa
      * Executes an SQL SELECT statement on a table.
      *
      * All SQL identifiers are expected to be unquoted and will be quoted when building the query.
-     * Table expression and columns are not escaped and are not safe for user-input.
      *
      * @param string[] $columns The columns of the table which to select.
      * @param string $tableName The name of the table on which to select.
@@ -280,7 +288,6 @@ class Connection extends \Doctrine\DBAL\Connection implements LoggerAwareInterfa
      * Executes an SQL UPDATE statement on a table.
      *
      * All SQL identifiers are expected to be unquoted and will be quoted when building the query.
-     * Table expression and columns are not escaped and are not safe for user-input.
      *
      * @param string $tableName The name of the table to update.
      * @param array $data An associative array containing column-value pairs.
@@ -303,7 +310,6 @@ class Connection extends \Doctrine\DBAL\Connection implements LoggerAwareInterfa
      * Executes an SQL DELETE statement on a table.
      *
      * All SQL identifiers are expected to be unquoted and will be quoted when building the query.
-     * Table expression and columns are not escaped and are not safe for user-input.
      *
      * @param string $tableName The name of the table on which to delete.
      * @param array $identifier The deletion criteria. An associative array containing column-value pairs.
@@ -324,7 +330,6 @@ class Connection extends \Doctrine\DBAL\Connection implements LoggerAwareInterfa
      * Executes an SQL TRUNCATE statement on a table.
      *
      * All SQL identifiers are expected to be unquoted and will be quoted when building the query.
-     * Table expression is not escaped and not safe for user-input.
      *
      * @param string $tableName The name of the table to truncate.
      * @param bool $cascade Not supported on many platforms but would cascade the truncate by following foreign keys.

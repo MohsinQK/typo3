@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 /*
  * This file is part of the TYPO3 CMS project.
  *
@@ -16,10 +18,8 @@
 namespace TYPO3\CMS\Fluid\View;
 
 use Psr\Http\Message\ServerRequestInterface;
-use TYPO3\CMS\Core\Utility\GeneralUtility;
-use TYPO3\CMS\Extbase\Mvc\Request;
+use TYPO3\CMS\Extbase\Mvc\RequestInterface;
 use TYPO3\CMS\Fluid\Core\Rendering\RenderingContext;
-use TYPO3\CMS\Fluid\Core\Rendering\RenderingContextFactory;
 use TYPO3Fluid\Fluid\View\Exception\InvalidTemplateResourceException;
 
 /**
@@ -28,31 +28,22 @@ use TYPO3Fluid\Fluid\View\Exception\InvalidTemplateResourceException;
  */
 class StandaloneView extends AbstractTemplateView
 {
-    public function __construct()
-    {
-        $renderingContext = GeneralUtility::makeInstance(RenderingContextFactory::class)->create();
-        // @todo: This is very unfortunate. This creates an extbase request by default. Standalone
-        //        usage is typically *not* extbase context. Controllers that want to get rid of this
-        //        have to ->setRequest($myServerRequestInterface), or even ->setRequest(null) after
-        //        object construction to get rid of an extbase request again.
-        $renderingContext->setRequest(GeneralUtility::makeInstance(Request::class));
-        parent::__construct($renderingContext);
-    }
-
     /**
      * Sets the format of the current request (default format is "html")
      *
-     * @param string $format
      * @throws \RuntimeException
      */
-    public function setFormat($format)
+    public function setFormat(string $format): void
     {
-        if ($this->baseRenderingContext instanceof RenderingContext) {
-            $this->baseRenderingContext->getRequest()->setFormat($format);
-            $this->baseRenderingContext->getTemplatePaths()->setFormat($format);
-        } else {
+        if (!$this->baseRenderingContext instanceof RenderingContext) {
             throw new \RuntimeException('The rendering context must be of type ' . RenderingContext::class, 1482251886);
         }
+        $request = $this->baseRenderingContext->getRequest();
+        if ($request instanceof RequestInterface) {
+            $request = $request->withFormat($format);
+            $this->baseRenderingContext->setRequest($request);
+        }
+        $this->baseRenderingContext->getTemplatePaths()->setFormat($format);
     }
 
     /**
@@ -60,10 +51,14 @@ class StandaloneView extends AbstractTemplateView
      *
      * @return string $format
      * @throws \RuntimeException
-     * @todo: deprecate?!
+     * @deprecated since v12, will be removed in v13: Views should be data sinks, not data sources. No substitution.
      */
     public function getFormat()
     {
+        trigger_error(
+            'Method ' . __METHOD__ . ' has been deprecated in v12 and will be removed with v13. Do not use StandaloneView as data source.',
+            E_USER_DEPRECATED
+        );
         if ($this->baseRenderingContext instanceof RenderingContext) {
             return $this->baseRenderingContext->getRequest()->getFormat();
         }
@@ -85,10 +80,14 @@ class StandaloneView extends AbstractTemplateView
      *
      * @throws \RuntimeException
      * @internal
-     * @todo: deprecate?!
+     * @deprecated since v12, will be removed in v13: Views should be data sinks, not data sources. No substitution.
      */
     public function getRequest(): ?ServerRequestInterface
     {
+        trigger_error(
+            'Method ' . __METHOD__ . ' has been deprecated in v12 and will be removed with v13. Do not use StandaloneView as data source.',
+            E_USER_DEPRECATED
+        );
         if ($this->baseRenderingContext instanceof RenderingContext) {
             return $this->baseRenderingContext->getRequest();
         }
@@ -103,9 +102,14 @@ class StandaloneView extends AbstractTemplateView
      * and return that template path and filename directly, instead of attempting to resolve it.
      *
      * @return string Fluid template path
+     * @deprecated since v12, will be removed in v13: Views should be data sinks, not data sources. No substitution.
      */
     public function getTemplatePathAndFilename()
     {
+        trigger_error(
+            'Method ' . __METHOD__ . ' has been deprecated in v12 and will be removed with v13. Do not use StandaloneView as data source.',
+            E_USER_DEPRECATED
+        );
         $templatePaths = $this->baseRenderingContext->getTemplatePaths();
         return $templatePaths->resolveTemplateFileForControllerAndActionAndFormat(
             $this->baseRenderingContext->getControllerName(),
@@ -115,22 +119,18 @@ class StandaloneView extends AbstractTemplateView
     }
 
     /**
-     * Sets the Fluid template source
+     * Sets a Fluid template source string directly.
      * You can use setTemplatePathAndFilename() alternatively if you only want to specify the template path
-     *
-     * @param string $templateSource Fluid template source code
      */
-    public function setTemplateSource($templateSource)
+    public function setTemplateSource(string $templateSource): void
     {
         $this->baseRenderingContext->getTemplatePaths()->setTemplateSource($templateSource);
     }
 
     /**
      * Checks whether a template can be resolved for the current request
-     *
-     * @return bool
      */
-    public function hasTemplate()
+    public function hasTemplate(): bool
     {
         try {
             $this->baseRenderingContext->getTemplatePaths()->getTemplateSource(
@@ -138,7 +138,7 @@ class StandaloneView extends AbstractTemplateView
                 $this->baseRenderingContext->getControllerAction()
             );
             return true;
-        } catch (InvalidTemplateResourceException $e) {
+        } catch (InvalidTemplateResourceException $_) {
             return false;
         }
     }

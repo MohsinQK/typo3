@@ -22,6 +22,8 @@ use Psr\Log\LoggerAwareTrait;
 use Symfony\Component\HttpFoundation\Cookie;
 use TYPO3\CMS\Core\Authentication\Mfa\MfaProviderRegistry;
 use TYPO3\CMS\Core\Authentication\Mfa\MfaRequiredException;
+use TYPO3\CMS\Core\Context\Context;
+use TYPO3\CMS\Core\Context\SecurityAspect;
 use TYPO3\CMS\Core\Core\Environment;
 use TYPO3\CMS\Core\Database\Connection;
 use TYPO3\CMS\Core\Database\ConnectionPool;
@@ -29,11 +31,13 @@ use TYPO3\CMS\Core\Database\Query\Restriction\DefaultRestrictionContainer;
 use TYPO3\CMS\Core\Database\Query\Restriction\DeletedRestriction;
 use TYPO3\CMS\Core\Database\Query\Restriction\EndTimeRestriction;
 use TYPO3\CMS\Core\Database\Query\Restriction\HiddenRestriction;
+use TYPO3\CMS\Core\Database\Query\Restriction\PageIdListRestriction;
 use TYPO3\CMS\Core\Database\Query\Restriction\QueryRestrictionContainerInterface;
 use TYPO3\CMS\Core\Database\Query\Restriction\RootLevelRestriction;
 use TYPO3\CMS\Core\Database\Query\Restriction\StartTimeRestriction;
 use TYPO3\CMS\Core\Exception;
 use TYPO3\CMS\Core\Http\CookieHeaderTrait;
+use TYPO3\CMS\Core\Security\RequestToken;
 use TYPO3\CMS\Core\Session\UserSession;
 use TYPO3\CMS\Core\Session\UserSessionManager;
 use TYPO3\CMS\Core\SysLog\Action\Login as SystemLogLoginAction;
@@ -47,8 +51,6 @@ use TYPO3\CMS\Core\Utility\GeneralUtility;
  * This class is used to authenticate a login user.
  * The class is used by both the frontend and backend.
  * In both cases this class is a parent class to BackendUserAuthentication and FrontendUserAuthentication
- *
- * See Inside TYPO3 for more information about the API of the class and internal variables.
  */
 abstract class AbstractUserAuthentication implements LoggerAwareInterface
 {
@@ -165,7 +167,7 @@ abstract class AbstractUserAuthentication implements LoggerAwareInterface
 
     /**
      * The page id the user record must be stored at, can also hold a comma separated list of pids
-     * @var int|string
+     * @var int|string|null
      */
     public $checkPid_value = 0;
 
@@ -322,9 +324,10 @@ abstract class AbstractUserAuthentication implements LoggerAwareInterface
             // SameSite "none" needs the secure option (only allowed on HTTPS)
             $isSecure = $cookieSameSite === Cookie::SAMESITE_NONE || GeneralUtility::getIndpEnv('TYPO3_SSL');
             $sessionId = $this->userSession->getIdentifier();
+            $cookieValue = $this->userSession->getJwt();
             $this->setCookie = new Cookie(
                 $this->name,
-                $sessionId,
+                $cookieValue,
                 $cookieExpire,
                 $cookiePath,
                 $cookieDomain,
@@ -429,16 +432,12 @@ abstract class AbstractUserAuthentication implements LoggerAwareInterface
         if (!empty($authConfiguration)) {
             $this->logger->debug('Authentication Service Configuration found.', ['auth_configuration' => $authConfiguration]);
         }
-        // No user for now - will be searched by service below
-        $tempuserArr = [];
-        $tempuser = false;
+        $userRecordCandidate = false;
         // User is not authenticated by default
         $authenticated = false;
         // User want to login with passed login data (name/password)
         $activeLogin = false;
         $this->logger->debug('Login type: {type}', ['type' => $this->loginType]);
-        // The info array provide additional information for auth services
-        $authInfo = $this->getAuthInfoArray();
         // Get Login/Logout data submitted by a form or params
         $loginData = $this->getLoginFormData($request);
         $this->logger->debug('Login data', $this->removeSensitiveLoginDataForLoggingInfo($loginData));
@@ -454,61 +453,237 @@ abstract class AbstractUserAuthentication implements LoggerAwareInterface
         // Determine whether we need to skip session update.
         // This is used mainly for checking session timeout in advance without refreshing the current session's timeout.
         $skipSessionUpdate = (bool)($request->getQueryParams()['skipSessionUpdate'] ?? false);
-        $haveSession = false;
+        $isExistingSession = false;
         $anonymousSession = false;
+        $authenticatedUserFromSession = null;
         if (!$this->userSession->isNew()) {
             // Read user data if this is bound to a user
             // However, if the user data is not valid, or the session has timed out we'll recreate a new anonymous session
             if ($this->userSession->getUserId() > 0) {
-                $authInfo['user'] = $this->fetchValidUserFromSessionOrDestroySession($skipSessionUpdate);
+                $authenticatedUserFromSession = $this->fetchValidUserFromSessionOrDestroySession($skipSessionUpdate);
             }
-            $haveSession = !$this->userSession->isNew();
-            $anonymousSession = $haveSession && $this->userSession->isAnonymous();
+            $isExistingSession = !$this->userSession->isNew();
+            $anonymousSession = $isExistingSession && $this->userSession->isAnonymous();
         }
 
         // Active login (eg. with login form).
-        if (!$haveSession && $loginData['status'] === LoginType::LOGIN) {
-            $activeLogin = true;
-            $this->logger->debug('Active login (eg. with login form)');
-            // check referrer for submitted login values
-            if ($this->formfield_status && $loginData['uident'] && $loginData['uname']) {
-                // Delete old user session if any
-                $this->logoff();
+        if ($loginData['status'] === LoginType::LOGIN) {
+            if (!$isExistingSession) {
+                $activeLogin = true;
+                $this->logger->debug('Active login (eg. with login form)');
+                // check referrer for submitted login values
+                if ($this->formfield_status && $loginData['uident'] && $loginData['uname']) {
+                    // Delete old user session if any
+                    $this->logoff();
+                }
+                // Refuse login for _CLI users, if not processing a CLI request type
+                // (although we shouldn't be here in case of a CLI request type)
+                if (stripos($loginData['uname'], '_CLI_') === 0 && !Environment::isCli()) {
+                    throw new \RuntimeException('TYPO3 Fatal Error: You have tried to login using a CLI user. Access prohibited!', 1270853931);
+                }
             }
-            // Refuse login for _CLI users, if not processing a CLI request type
-            // (although we shouldn't be here in case of a CLI request type)
-            if (stripos($loginData['uname'], '_CLI_') === 0 && !Environment::isCli()) {
-                throw new \RuntimeException('TYPO3 Fatal Error: You have tried to login using a CLI user. Access prohibited!', 1270853931);
+            // Cause elevation of privilege, make sure regenerateSessionId is called later on
+            // Note for further research: $anonymousSession actually implies having $isExistingSession = true
+            // allowing to further simplify this concern.
+            if ($anonymousSession) {
+                $activeLogin = true;
             }
         }
 
-        // Cause elevation of privilege, make sure regenerateSessionId is called later on
-        if ($anonymousSession && $loginData['status'] === LoginType::LOGIN) {
-            $activeLogin = true;
-        }
-
-        if ($haveSession) {
+        if ($isExistingSession && $authenticatedUserFromSession !== null) {
             $this->logger->debug('User found in session', [
-                $this->userid_column => $authInfo['user'][$this->userid_column] ?? null,
-                $this->username_column => $authInfo['user'][$this->username_column] ?? null,
+                $this->userid_column => $authenticatedUserFromSession[$this->userid_column] ?? null,
+                $this->username_column => $authenticatedUserFromSession[$this->username_column] ?? null,
             ]);
         } else {
             $this->logger->debug('No user session found');
         }
 
-        // Fetch user if ...
+        if ($activeLogin) {
+            $context = GeneralUtility::makeInstance(Context::class);
+            $securityAspect = SecurityAspect::provideIn($context);
+            $requestToken = $securityAspect->getReceivedRequestToken();
+            $requestTokenScopeMatches = ($requestToken->scope ?? null) === 'core/user-auth/' . strtolower($this->loginType);
+            if (!$requestTokenScopeMatches) {
+                $this->logger->debug('Missing or invalid request token during login', ['requestToken' => $requestToken]);
+                // important: disable `$activeLogin` state
+                $activeLogin = false;
+            } elseif ($requestToken instanceof RequestToken && $requestToken->getSigningSecretIdentifier() !== null) {
+                $securityAspect->getSigningSecretResolver()->revokeIdentifier(
+                    $requestToken->getSigningSecretIdentifier()
+                );
+            }
+        }
+
+        // Fetch users from the database (or somewhere else)
+        $possibleUsers = $this->fetchPossibleUsers($loginData, $activeLogin, $isExistingSession, $authenticatedUserFromSession);
+
+        // If no new user was set we use the already found user session
+        if (empty($possibleUsers) && $isExistingSession && !$anonymousSession) {
+            // Check if the previous services returned a proper user
+            if (is_array($authenticatedUserFromSession)) {
+                $possibleUsers[] = $authenticatedUserFromSession;
+                $userRecordCandidate = $authenticatedUserFromSession;
+                // User is authenticated because we found a user session
+                $authenticated = true;
+                $this->logger->debug('User session used', [
+                    $this->userid_column => $authenticatedUserFromSession[$this->userid_column] ?? '',
+                    $this->username_column => $authenticatedUserFromSession[$this->username_column] ?? '',
+                ]);
+            }
+        }
+
+        // Re-auth user when 'auth'-service option is set
+        if (!empty($authConfiguration[$this->loginType . '_alwaysAuthUser'])) {
+            $authenticated = false;
+            $this->logger->debug('alwaysAuthUser option is enabled');
+        }
+        // Authenticate the user if needed
+        if (!empty($possibleUsers) && !$authenticated) {
+            foreach ($possibleUsers as $userRecordCandidate) {
+                // Use 'auth' service to authenticate the user
+                // If one service returns FALSE then authentication failed
+                // a service might return 100 which means there's no reason to stop but the user can't be authenticated by that service
+                $this->logger->debug('Auth user', $this->removeSensitiveLoginDataForLoggingInfo($userRecordCandidate, true));
+                $subType = 'authUser' . $this->loginType;
+
+                /** @var AuthenticationService $serviceObj */
+                foreach ($this->getAuthServices($subType, $loginData, $authenticatedUserFromSession) as $serviceObj) {
+                    if (($ret = (int)$serviceObj->authUser($userRecordCandidate)) > 0) {
+                        // If the service returns >=200 then no more checking is needed - useful for IP checking without password
+                        if ($ret >= 200) {
+                            $authenticated = true;
+                            break;
+                        }
+                        if ($ret < 100) {
+                            $authenticated = true;
+                        }
+                    // $ret is between 100 and 199 which means "I'm not responsible, ask others"
+                    } else {
+                        // $ret is < 0
+                        $authenticated = false;
+                        break;
+                    }
+                }
+
+                if ($authenticated) {
+                    // Leave foreach() because a user is authenticated
+                    break;
+                }
+            }
+        // mimic user authentication to mitigate observable timing discrepancies
+        // @link https://cwe.mitre.org/data/definitions/208.html
+        } elseif ($activeLogin) {
+            $subType = 'authUser' . $this->loginType;
+            foreach ($this->getAuthServices($subType, $loginData, $authenticatedUserFromSession) as $serviceObj) {
+                if ($serviceObj instanceof MimicServiceInterface && $serviceObj->mimicAuthUser() === false) {
+                    break;
+                }
+            }
+        }
+
+        // If user is authenticated, then a valid user is found in $userRecordCandidate
+        if ($authenticated) {
+            // Insert session record if needed
+            if (!$isExistingSession
+                || $anonymousSession
+                || (int)($userRecordCandidate[$this->userid_column] ?? 0) !== $this->userSession->getUserId()
+            ) {
+                $sessionData = $this->userSession->getData();
+                // Create a new session with a fixated user
+                $this->userSession = $this->createUserSession($userRecordCandidate);
+
+                // Preserve session data on login
+                if ($anonymousSession || $isExistingSession) {
+                    $this->userSession->overrideData($sessionData);
+                }
+
+                $this->user = array_merge($userRecordCandidate, $this->user ?? []);
+
+                // The login session is started.
+                $this->loginSessionStarted = true;
+                $this->logger->debug('User session finally read', [
+                    $this->userid_column => $this->user[$this->userid_column],
+                    $this->username_column => $this->user[$this->username_column],
+                ]);
+            } else {
+                // if we come here the current session is for sure not anonymous as this is a pre-condition for $authenticated = true
+                $this->user = $authenticatedUserFromSession;
+            }
+
+            if ($activeLogin && !$this->userSession->isNew()) {
+                $this->regenerateSessionId();
+            }
+
+            // Since the user is not fully authenticated we need to unpack UC here to be
+            // able to retrieve a possible defined default (preferred) MFA provider.
+            $this->unpack_uc();
+
+            if ($activeLogin) {
+                // User logged in - write that to the log!
+                if ($this->writeStdLog) {
+                    $this->writelog(SystemLogType::LOGIN, SystemLogLoginAction::LOGIN, SystemLogErrorClassification::MESSAGE, 1, 'User %s logged in from ###IP###', [$userRecordCandidate[$this->username_column]], '', '', '');
+                }
+                $this->logger->info('User {username} logged in from {ip}', [
+                    'username' => $userRecordCandidate[$this->username_column],
+                    'ip' => GeneralUtility::getIndpEnv('REMOTE_ADDR'),
+                ]);
+            } else {
+                $this->logger->debug('User {username} authenticated from {ip}', [
+                    'username' => $userRecordCandidate[$this->username_column],
+                    'ip' => GeneralUtility::getIndpEnv('REMOTE_ADDR'),
+                ]);
+            }
+            // Check if multi-factor authentication is required
+            $this->evaluateMfaRequirements();
+        } else {
+            // Mark the current login attempt as failed
+            if (empty($possibleUsers) && $activeLogin) {
+                $this->logger->debug('Login failed', [
+                    'loginData' => $this->removeSensitiveLoginDataForLoggingInfo($loginData),
+                ]);
+            } elseif (!empty($possibleUsers)) {
+                $this->logger->debug('Login failed', [
+                    $this->userid_column => $userRecordCandidate[$this->userid_column],
+                    $this->username_column => $userRecordCandidate[$this->username_column],
+                ]);
+            }
+
+            // If there were a login failure, check to see if a warning email should be sent
+            if ($activeLogin) {
+                $this->handleLoginFailure();
+            }
+        }
+    }
+
+    /**
+     * Loads users from various sources (= authentication services) as an array of arrays.
+     *
+     * @param array $loginData
+     * @param bool $activeLogin
+     * @param bool $isExistingSession
+     * @param array|null $authenticatedUserFromSession if we have a user from an existing session, this is set here, otherwise null
+     * @return array
+     */
+    protected function fetchPossibleUsers(array $loginData, bool $activeLogin, bool $isExistingSession, ?array $authenticatedUserFromSession): array
+    {
+        $possibleUsers = [];
+        $authConfiguration = $this->getAuthServiceConfiguration();
+        $alwaysFetchUsers = !empty($authConfiguration[$this->loginType . '_alwaysFetchUser']);
+        $fetchUsersIfNoSessionIsGiven = !empty($authConfiguration[$this->loginType . '_fetchUserIfNoSession']);
         if (
-            $activeLogin || !empty($authConfiguration[$this->loginType . '_alwaysFetchUser'])
-            || !$haveSession && !empty($authConfiguration[$this->loginType . '_fetchUserIfNoSession'])
+            $activeLogin
+            || $alwaysFetchUsers
+            || (!$isExistingSession && $fetchUsersIfNoSessionIsGiven)
         ) {
             // Use 'auth' service to find the user
             // First found user will be used
             $subType = 'getUser' . $this->loginType;
             /** @var AuthenticationService $serviceObj */
-            foreach ($this->getAuthServices($subType, $loginData, $authInfo) as $serviceObj) {
+            foreach ($this->getAuthServices($subType, $loginData, $authenticatedUserFromSession) as $serviceObj) {
                 $row = $serviceObj->getUser();
                 if (is_array($row)) {
-                    $tempuserArr[] = $row;
+                    $possibleUsers[] = $row;
                     $this->logger->debug('User found', [
                         $this->userid_column => $row[$this->userid_column],
                         $this->username_column => $row[$this->username_column],
@@ -520,144 +695,16 @@ abstract class AbstractUserAuthentication implements LoggerAwareInterface
                 }
             }
 
-            if (!empty($authConfiguration[$this->loginType . '_alwaysFetchUser'])) {
+            if ($alwaysFetchUsers) {
                 $this->logger->debug($this->loginType . '_alwaysFetchUser option is enabled');
             }
-            if (empty($tempuserArr)) {
+            if (empty($possibleUsers)) {
                 $this->logger->debug('No user found by services');
             } else {
-                $this->logger->debug('{count} user records found by services', ['count' => count($tempuserArr)]);
+                $this->logger->debug('{count} user records found by services', ['count' => count($possibleUsers)]);
             }
         }
-
-        // If no new user was set we use the already found user session
-        if (empty($tempuserArr) && $haveSession && !$anonymousSession) {
-            // Check if the previous services returned a proper user
-            if (is_array($authInfo['user'] ?? null)) {
-                $tempuserArr[] = $authInfo['user'];
-                $tempuser = $authInfo['user'];
-                // User is authenticated because we found a user session
-                $authenticated = true;
-                $this->logger->debug('User session used', [
-                    $this->userid_column => $authInfo['user'][$this->userid_column] ?? '',
-                    $this->username_column => $authInfo['user'][$this->username_column] ?? '',
-                ]);
-            }
-        }
-        // Re-auth user when 'auth'-service option is set
-        if (!empty($authConfiguration[$this->loginType . '_alwaysAuthUser'])) {
-            $authenticated = false;
-            $this->logger->debug('alwaysAuthUser option is enabled');
-        }
-        // Authenticate the user if needed
-        if (!empty($tempuserArr) && !$authenticated) {
-            foreach ($tempuserArr as $tempuser) {
-                // Use 'auth' service to authenticate the user
-                // If one service returns FALSE then authentication failed
-                // a service might return 100 which means there's no reason to stop but the user can't be authenticated by that service
-                $this->logger->debug('Auth user', $this->removeSensitiveLoginDataForLoggingInfo($tempuser, true));
-                $subType = 'authUser' . $this->loginType;
-
-                /** @var AuthenticationService $serviceObj */
-                foreach ($this->getAuthServices($subType, $loginData, $authInfo) as $serviceObj) {
-                    if (($ret = $serviceObj->authUser($tempuser)) > 0) {
-                        // If the service returns >=200 then no more checking is needed - useful for IP checking without password
-                        if ((int)$ret >= 200) {
-                            $authenticated = true;
-                            break;
-                        }
-                        if ((int)$ret >= 100) {
-                        } else {
-                            $authenticated = true;
-                        }
-                    } else {
-                        $authenticated = false;
-                        break;
-                    }
-                }
-
-                if ($authenticated) {
-                    // Leave foreach() because a user is authenticated
-                    break;
-                }
-            }
-        }
-
-        // If user is authenticated a valid user is in $tempuser
-        if ($authenticated) {
-            // Insert session record if needed:
-            if (!$haveSession
-                || $anonymousSession
-                || (int)($tempuser['uid'] ?? 0) !== $this->userSession->getUserId()
-            ) {
-                $sessionData = $this->userSession->getData();
-                // Create a new session with a fixated user
-                $this->userSession = $this->createUserSession($tempuser);
-
-                // Preserve session data on login
-                if ($anonymousSession || $haveSession) {
-                    $this->userSession->overrideData($sessionData);
-                }
-
-                $this->user = array_merge($tempuser, $this->user ?? []);
-
-                // The login session is started.
-                $this->loginSessionStarted = true;
-                if (is_array($this->user)) {
-                    $this->logger->debug('User session finally read', [
-                        $this->userid_column => $this->user[$this->userid_column],
-                        $this->username_column => $this->user[$this->username_column],
-                    ]);
-                }
-            } else {
-                // if we come here the current session is for sure not anonymous as this is a pre-condition for $authenticated = true
-                $this->user = $authInfo['user'];
-            }
-
-            if ($activeLogin && !$this->userSession->isNew()) {
-                $this->regenerateSessionId();
-            }
-
-            // Since the user is not fully authenticated we need to unpack UC here to be
-            // able to retrieve a possible defined default (preferred) provider.
-            $this->unpack_uc();
-
-            // Check if multi-factor authentication is required
-            $this->evaluateMfaRequirements();
-
-            if ($activeLogin) {
-                // User logged in - write that to the log!
-                if ($this->writeStdLog) {
-                    $this->writelog(SystemLogType::LOGIN, SystemLogLoginAction::LOGIN, SystemLogErrorClassification::MESSAGE, 1, 'User %s logged in from ###IP###', [$tempuser[$this->username_column]], '', '', '');
-                }
-                $this->logger->info('User {username} logged in from {ip}', [
-                    'username' => $tempuser[$this->username_column],
-                    'ip' => GeneralUtility::getIndpEnv('REMOTE_ADDR'),
-                ]);
-            } else {
-                $this->logger->debug('User {username} authenticated from {ip}', [
-                    'username' => $tempuser[$this->username_column],
-                    'ip' => GeneralUtility::getIndpEnv('REMOTE_ADDR'),
-                ]);
-            }
-        } else {
-            // Mark the current login attempt as failed
-            if (empty($tempuserArr) && $activeLogin) {
-                $this->logger->debug('Login failed', [
-                    'loginData' => $this->removeSensitiveLoginDataForLoggingInfo($loginData),
-                ]);
-            } elseif (!empty($tempuserArr)) {
-                $this->logger->debug('Login failed', [
-                    $this->userid_column => $tempuser[$this->userid_column],
-                    $this->username_column => $tempuser[$this->username_column],
-                ]);
-            }
-
-            // If there were a login failure, check to see if a warning email should be sent
-            if ($activeLogin) {
-                $this->handleLoginFailure();
-            }
-        }
+        return $possibleUsers;
     }
 
     /**
@@ -712,12 +759,17 @@ abstract class AbstractUserAuthentication implements LoggerAwareInterface
      *
      * @param string $subType e.g. getUserFE
      * @param array $loginData
-     * @param array $authInfo
+     * @param array|null $authenticatedUserFromSession the user which was loaded from the session, or null if none was found
      * @return \Traversable A generator of service objects
      */
-    protected function getAuthServices(string $subType, array $loginData, array $authInfo): \Traversable
+    protected function getAuthServices(string $subType, array $loginData, ?array $authenticatedUserFromSession): \Traversable
     {
         $serviceChain = [];
+        // The info array provide additional information for auth services
+        $authInfo = $this->getAuthInfoArray();
+        if ($authenticatedUserFromSession !== null) {
+            $authInfo['user'] = $authenticatedUserFromSession;
+        }
         while (is_object($serviceObj = GeneralUtility::makeInstanceService('auth', $subType, $serviceChain))) {
             $serviceChain[] = $serviceObj->getServiceKey();
             $serviceObj->initAuth($subType, $loginData, $authInfo, $this);
@@ -750,19 +802,19 @@ abstract class AbstractUserAuthentication implements LoggerAwareInterface
     /**
      * Creates a user session record and returns its values.
      *
-     * @param array $tempuser User data array
+     * @param array $userRecordCandidate User data array
      * @return UserSession The session data for the newly created session.
      */
-    public function createUserSession(array $tempuser): UserSession
+    public function createUserSession(array $userRecordCandidate): UserSession
     {
         // Needed for testing framework
         if (!isset($this->userSessionManager)) {
             $this->initializeUserSessionManager();
         }
-        $tempUserId = (int)($tempuser[$this->userid_column] ?? 0);
-        $session = $this->userSessionManager->elevateToFixatedUserSession($this->userSession, $tempUserId);
+        $userRecordCandidateId = (int)($userRecordCandidate[$this->userid_column] ?? 0);
+        $session = $this->userSessionManager->elevateToFixatedUserSession($this->userSession, $userRecordCandidateId);
         // Updating lastLogin_column carrying information about last login.
-        $this->updateLoginTimestamp($tempUserId);
+        $this->updateLoginTimestamp($userRecordCandidateId);
         return $session;
     }
 
@@ -938,6 +990,16 @@ abstract class AbstractUserAuthentication implements LoggerAwareInterface
             $restrictionContainer->add(GeneralUtility::makeInstance(RootLevelRestriction::class, [$this->user_table]));
         }
 
+        if ($this->checkPid && $this->checkPid_value !== null) {
+            $restrictionContainer->add(
+                GeneralUtility::makeInstance(
+                    PageIdListRestriction::class,
+                    [$this->user_table],
+                    GeneralUtility::intExplode(',', (string)$this->checkPid_value, true)
+                )
+            );
+        }
+
         return $restrictionContainer;
     }
 
@@ -1102,11 +1164,10 @@ abstract class AbstractUserAuthentication implements LoggerAwareInterface
     {
         $this->logger->debug('Login data before processing', $this->removeSensitiveLoginDataForLoggingInfo($loginData));
         $subType = 'processLoginData' . $this->loginType;
-        $authInfo = $this->getAuthInfoArray();
         $isLoginDataProcessed = false;
         $processedLoginData = $loginData;
         /** @var AuthenticationService $serviceObject */
-        foreach ($this->getAuthServices($subType, $loginData, $authInfo) as $serviceObject) {
+        foreach ($this->getAuthServices($subType, $loginData, null) as $serviceObject) {
             $serviceResult = $serviceObject->processLoginData($processedLoginData, 'normal');
             if (!empty($serviceResult)) {
                 $isLoginDataProcessed = true;
@@ -1136,7 +1197,7 @@ abstract class AbstractUserAuthentication implements LoggerAwareInterface
     protected function removeSensitiveLoginDataForLoggingInfo($data, bool $isUserRecord = false)
     {
         if ($isUserRecord && is_array($data)) {
-            $fieldNames = ['uid', 'pid', 'tstamp', 'crdate', 'cruser_id', 'deleted', 'disabled', 'starttime', 'endtime', 'username', 'admin', 'usergroup', 'db_mountpoints', 'file_mountpoints', 'file_permissions', 'workspace_perms', 'lastlogin', 'workspace_id', 'category_perms'];
+            $fieldNames = ['uid', 'pid', 'tstamp', 'crdate', 'deleted', 'disabled', 'starttime', 'endtime', 'username', 'admin', 'usergroup', 'db_mountpoints', 'file_mountpoints', 'file_permissions', 'workspace_perms', 'lastlogin', 'workspace_id', 'category_perms'];
             $data = array_intersect_key($data, array_combine($fieldNames, $fieldNames));
         }
         if (isset($data['uident'])) {
@@ -1176,16 +1237,6 @@ abstract class AbstractUserAuthentication implements LoggerAwareInterface
             [$this->user_table => $this->user_table],
             $expressionBuilder
         );
-        if ($this->checkPid && $this->checkPid_value !== null) {
-            $authInfo['db_user']['checkPidList'] = $this->checkPid_value;
-            $authInfo['db_user']['check_pid_clause'] = $expressionBuilder->in(
-                'pid',
-                GeneralUtility::intExplode(',', (string)$this->checkPid_value)
-            );
-        } else {
-            $authInfo['db_user']['checkPidList'] = '';
-            $authInfo['db_user']['check_pid_clause'] = '';
-        }
         return $authInfo;
     }
 
@@ -1247,7 +1298,7 @@ abstract class AbstractUserAuthentication implements LoggerAwareInterface
         $query->setRestrictions($this->userConstraints());
         $query->select('*')
             ->from($this->user_table)
-            ->where($query->expr()->eq('uid', $query->createNamedParameter($uid, \PDO::PARAM_INT)));
+            ->where($query->expr()->eq($this->userid_column, $query->createNamedParameter($uid, Connection::PARAM_INT)));
 
         return $query->executeQuery()->fetchAssociative();
     }
@@ -1266,7 +1317,7 @@ abstract class AbstractUserAuthentication implements LoggerAwareInterface
         $query->setRestrictions($this->userConstraints());
         $query->select('*')
             ->from($this->user_table)
-            ->where($query->expr()->eq('username', $query->createNamedParameter($name, \PDO::PARAM_STR)));
+            ->where($query->expr()->eq($this->username_column, $query->createNamedParameter($name)));
 
         return $query->executeQuery()->fetchAssociative();
     }

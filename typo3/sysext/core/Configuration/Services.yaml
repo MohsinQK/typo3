@@ -135,6 +135,9 @@ services:
     shared: false
     public: true
 
+  TYPO3\CMS\Core\Routing\BackendEntryPointResolver:
+    public: true
+
   # FAL security checks for backend users
   TYPO3\CMS\Core\Resource\Security\StoragePermissionsAspect:
     tags:
@@ -210,6 +213,9 @@ services:
         method: 'warmupCaches'
         event: TYPO3\CMS\Core\Cache\Event\CacheWarmupEvent
 
+  TYPO3\CMS\Core\Locking\ResourceMutex:
+    public: true
+
   TYPO3\CMS\Core\Page\PageRenderer:
     arguments:
       $assetsCache: '@cache.assets'
@@ -276,6 +282,12 @@ services:
         method: 'afterFileMetaDataUpdated'
         event: TYPO3\CMS\Core\Resource\Event\AfterFileMetaDataUpdatedEvent
 
+  TYPO3\CMS\Core\Resource\Security\FileMetadataPermissionsAspect:
+    tags:
+      - name: event.listener
+        identifier: 'evaluate-file-meta-data-edit-form-access'
+        method: 'isAllowedToShowEditForm'
+
   TYPO3\CMS\Core\Resource\Security\SvgHookHandler:
     public: true
 
@@ -291,6 +303,28 @@ services:
       $hashCache: '@cache.assets'
       $runtimeCache: '@cache.runtime'
 
+  TYPO3\CMS\Core\TypoScript\AST\AstBuilderInterface:
+    alias: TYPO3\CMS\Core\TypoScript\AST\AstBuilder
+
+  TYPO3\CMS\Core\TypoScript\IncludeTree\SysTemplateRepository:
+    public: true
+
+  TYPO3\CMS\Core\TypoScript\IncludeTree\TreeBuilder:
+    public: true
+
+  TYPO3\CMS\Core\TypoScript\IncludeTree\Visitor\IncludeTreeAstBuilderVisitor:
+    public: true
+    # Ast builder visitor creates state and should not be re-used
+    shared: false
+
+  TYPO3\CMS\Core\TypoScript\IncludeTree\Visitor\IncludeTreeConditionMatcherVisitor:
+    public: true
+    # This visitor creates state and should not be re-used
+    shared: false
+
+  TYPO3\CMS\Core\TypoScript\Tokenizer\TokenizerInterface:
+    alias: TYPO3\CMS\Core\TypoScript\Tokenizer\LossyTokenizer
+
   # Core caches, cache.core and cache.assets are injected as early
   # entries in TYPO3\CMS\Core\Core\Bootstrap and therefore omitted here
   cache.hash:
@@ -302,11 +336,6 @@ services:
     class: TYPO3\CMS\Core\Cache\Frontend\FrontendInterface
     factory: ['@TYPO3\CMS\Core\Cache\CacheManager', 'getCache']
     arguments: ['pages']
-
-  cache.pagesection:
-    class: TYPO3\CMS\Core\Cache\Frontend\FrontendInterface
-    factory: ['@TYPO3\CMS\Core\Cache\CacheManager', 'getCache']
-    arguments: ['pagesection']
 
   cache.runtime:
     class: TYPO3\CMS\Core\Cache\Frontend\FrontendInterface
@@ -327,6 +356,11 @@ services:
     class: TYPO3\CMS\Core\Cache\Frontend\FrontendInterface
     factory: ['@TYPO3\CMS\Core\Cache\CacheManager', 'getCache']
     arguments: ['l10n']
+
+  cache.typoscript:
+    class: TYPO3\CMS\Core\Cache\Frontend\PhpFrontend
+    factory: ['@TYPO3\CMS\Core\Cache\CacheManager', 'getCache']
+    arguments: ['typoscript']
 
   # Interface implementations
   Psr\Container\ContainerInterface:
@@ -359,8 +393,8 @@ services:
   GuzzleHttp\ClientInterface:
     alias: GuzzleHttp\Client
     public: true
-  Symfony\Contracts\EventDispatcher\EventDispatcherInterface:
-    alias: TYPO3\SymfonyPsrEventDispatcherAdapter\EventDispatcherAdapter
+  TYPO3\CMS\Core\Mail\MailerInterface:
+    alias: TYPO3\CMS\Core\Mail\Mailer
     public: true
 
   # External dependencies

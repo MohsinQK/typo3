@@ -2,8 +2,6 @@
 
 declare(strict_types=1);
 
-namespace TYPO3\CMS\Extbase\Tests\Unit\Property;
-
 /*
  * This file is part of the TYPO3 CMS project.
  *
@@ -16,6 +14,8 @@ namespace TYPO3\CMS\Extbase\Tests\Unit\Property;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Extbase\Tests\Unit\Property;
 
 use TYPO3\CMS\Core\Authentication\LoginType;
 use TYPO3\CMS\Core\Type\TypeInterface;
@@ -33,9 +33,6 @@ use TYPO3\CMS\Extbase\Property\TypeConverter\ObjectConverter;
 use TYPO3\CMS\Extbase\Property\TypeConverterRegistry;
 use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
-/**
- * Test case
- */
 class TypeConverterRegistryTest extends UnitTestCase
 {
     private ?TypeConverterRegistry $subject;
@@ -53,7 +50,7 @@ class TypeConverterRegistryTest extends UnitTestCase
      */
     public function addThrowsDuplicateTypeConverterException(): void
     {
-        $extendedBooleanConverter = new class() extends BooleanConverter {
+        $extendedBooleanConverter = new class () extends BooleanConverter {
         };
         $extendedBooleanConverterClassName = get_class($extendedBooleanConverter);
 
@@ -84,7 +81,7 @@ class TypeConverterRegistryTest extends UnitTestCase
      */
     public function findConverterFindsConverterForSimpleTargetTypesWithHighestPriority(): void
     {
-        $extendedBooleanConverter = new class() extends BooleanConverter {
+        $extendedBooleanConverter = new class () extends BooleanConverter {
         };
         $extendedBooleanConverterClassName = get_class($extendedBooleanConverter);
         $this->subject->add($extendedBooleanConverter, 20, ['boolean', 'integer'], 'boolean');
@@ -147,7 +144,7 @@ class TypeConverterRegistryTest extends UnitTestCase
     {
         $this->subject->add(new FileReferenceConverter(), 10, ['integer'], FileReference::class);
 
-        $extendedFileReference = new class() extends FileReference {
+        $extendedFileReference = new class () extends FileReference {
         };
         $extendedFileReferenceClassName = get_class($extendedFileReference);
 
@@ -235,14 +232,14 @@ class TypeConverterRegistryTest extends UnitTestCase
             '/^There exist at least two converters which handle the conversion to an interface with priority "10"/'
         );
 
-        $countableConverter = new class() extends AbstractTypeConverter {
+        $countableConverter = new class () extends AbstractTypeConverter {
             public function convertFrom($source, string $targetType, array $convertedChildProperties = [], PropertyMappingConfigurationInterface $configuration = null)
             {
                 return null;
             }
         };
 
-        $arrayAccessConverter = new class() extends AbstractTypeConverter {
+        $arrayAccessConverter = new class () extends AbstractTypeConverter {
             public function convertFrom($source, string $targetType, array $convertedChildProperties = [], PropertyMappingConfigurationInterface $configuration = null)
             {
                 return null;

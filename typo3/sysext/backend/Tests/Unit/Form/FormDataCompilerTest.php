@@ -24,9 +24,6 @@ use TYPO3\CMS\Backend\Form\FormDataCompiler;
 use TYPO3\CMS\Backend\Form\FormDataGroupInterface;
 use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
-/**
- * Test case
- */
 class FormDataCompilerTest extends UnitTestCase
 {
     use ProphecyTrait;
@@ -38,6 +35,7 @@ class FormDataCompilerTest extends UnitTestCase
 
     protected function setUp(): void
     {
+        parent::setUp();
         $this->formDataGroupProphecy = $this->prophesize(FormDataGroupInterface::class);
         $this->subject = new FormDataCompiler($this->formDataGroupProphecy->reveal());
     }

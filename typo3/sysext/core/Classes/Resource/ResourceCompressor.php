@@ -15,9 +15,7 @@
 
 namespace TYPO3\CMS\Core\Resource;
 
-use Psr\Http\Message\ServerRequestInterface;
 use TYPO3\CMS\Core\Core\Environment;
-use TYPO3\CMS\Core\Http\ApplicationType;
 use TYPO3\CMS\Core\Log\LogManager;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Core\Utility\MathUtility;
@@ -25,8 +23,8 @@ use TYPO3\CMS\Core\Utility\PathUtility;
 use TYPO3\CMS\Frontend\Controller\TypoScriptFrontendController;
 
 /**
- * Compressor
- * This merges and compresses CSS and JavaScript files of the TYPO3 Backend.
+ * This class merges and compresses CSS and JavaScript files of the TYPO3 Frontend.
+ * It should never be used for TYPO3 Backend.
  */
 class ResourceCompressor
 {
@@ -47,6 +45,8 @@ class ResourceCompressor
      */
     protected $createGzipped = false;
 
+    protected string $gzipFileExtension = '.gz';
+
     /**
      * @var int
      */
@@ -55,7 +55,7 @@ class ResourceCompressor
     /**
      * @var string
      */
-    protected $htaccessTemplate = '<FilesMatch "\\.(js|css)(\\.gzip)?$">
+    protected $htaccessTemplate = '<FilesMatch "\\.(js|css)(\\.gz)?$">
 	<IfModule mod_expires.c>
 		ExpiresActive on
 		ExpiresDefault "access plus 7 days"
@@ -82,13 +82,8 @@ class ResourceCompressor
                 GeneralUtility::writeFile($htaccessPath, $this->htaccessTemplate);
             }
         }
-
-        // String 'FE' if in FrontendApplication, else 'BE' (also in CLI without request object)
-        // @todo: Usually, the ResourceCompressor similar to PageRenderer does not make sense if there is no request object ... restrict this?
-        $applicationType = ($GLOBALS['TYPO3_REQUEST'] ?? null) instanceof ServerRequestInterface
-            && ApplicationType::fromRequest($GLOBALS['TYPO3_REQUEST'])->isFrontend() ? 'FE' : 'BE';
         // decide whether we should create gzipped versions or not
-        $compressionLevel = $GLOBALS['TYPO3_CONF_VARS'][$applicationType]['compressionLevel'];
+        $compressionLevel = $GLOBALS['TYPO3_CONF_VARS']['FE']['compressionLevel'];
         // we need zlib for gzencode()
         if (extension_loaded('zlib') && $compressionLevel) {
             $this->createGzipped = true;
@@ -97,21 +92,8 @@ class ResourceCompressor
                 $this->gzipCompressionLevel = (int)$compressionLevel;
             }
         }
-        $this->setRootPath($applicationType === 'BE' ? Environment::getBackendPath() . '/' : Environment::getPublicPath() . '/');
-
+        $this->rootPath = Environment::getPublicPath() . '/';
         $this->initialized = true;
-    }
-
-    /**
-     * Sets absolute path to working directory
-     *
-     * @param string $rootPath Absolute path
-     */
-    public function setRootPath($rootPath)
-    {
-        if (is_string($rootPath)) {
-            $this->rootPath = $rootPath;
-        }
     }
 
     /**
@@ -368,7 +350,7 @@ class ResourceCompressor
         $pathinfo = PathUtility::pathinfo($filenameAbsolute);
         $targetFile = $this->targetDirectory . $pathinfo['filename'] . '-' . md5($unique) . '.css';
         // only create it, if it doesn't exist, yet
-        if (!file_exists(Environment::getPublicPath() . '/' . $targetFile) || $this->createGzipped && !file_exists(Environment::getPublicPath() . '/' . $targetFile . '.gzip')) {
+        if (!file_exists(Environment::getPublicPath() . '/' . $targetFile) || $this->createGzipped && !file_exists(Environment::getPublicPath() . '/' . $targetFile . $this->gzipFileExtension)) {
             $contents = $this->compressCssString((string)file_get_contents($filenameAbsolute));
             if (!str_contains($filename, $this->targetDirectory)) {
                 $contents = $this->cssFixRelativeUrlPaths($contents, $filename);
@@ -422,7 +404,7 @@ class ResourceCompressor
         $pathinfo = PathUtility::pathinfo($filename);
         $targetFile = $this->targetDirectory . $pathinfo['filename'] . '-' . md5($unique) . '.js';
         // only create it, if it doesn't exist, yet
-        if (!file_exists(Environment::getPublicPath() . '/' . $targetFile) || $this->createGzipped && !file_exists(Environment::getPublicPath() . '/' . $targetFile . '.gzip')) {
+        if (!file_exists(Environment::getPublicPath() . '/' . $targetFile) || $this->createGzipped && !file_exists(Environment::getPublicPath() . '/' . $targetFile . $this->gzipFileExtension)) {
             $contents = (string)file_get_contents($filenameAbsolute);
             $this->writeFileAndCompressed($targetFile, $contents);
         }
@@ -473,15 +455,9 @@ class ResourceCompressor
         if (is_file($this->rootPath . $fileNameWithoutSlash)) {
             return $fileNameWithoutSlash;
         }
-        // if the file is from a special TYPO3 internal directory, add the missing typo3/ prefix
-        if (is_file((string)realpath(Environment::getBackendPath() . '/' . $filename))) {
-            $filename = 'typo3/' . $filename;
-        }
         // build the file path relative to the public web path
         if (PathUtility::isExtensionPath($filename)) {
             $file = Environment::getPublicPath() . '/' . PathUtility::getPublicResourceWebPath($filename, false);
-        } elseif (str_starts_with($filename, '../')) {
-            $file = GeneralUtility::resolveBackPath(Environment::getBackendPath() . '/' . $filename);
         } else {
             $file = Environment::getPublicPath() . '/' . $filename;
         }
@@ -577,7 +553,7 @@ class ResourceCompressor
     }
 
     /**
-     * Writes $contents into file $filename together with a gzipped version into $filename.gz
+     * Writes $contents into file $filename together with a gzipped version into $filename.gz (gzipFileExtension)
      *
      * @param string $filename Target filename
      * @param string $contents File contents
@@ -588,7 +564,7 @@ class ResourceCompressor
         GeneralUtility::writeFile(Environment::getPublicPath() . '/' . $filename, $contents);
         if ($this->createGzipped) {
             // create compressed version
-            GeneralUtility::writeFile(Environment::getPublicPath() . '/' . $filename . '.gzip', (string)gzencode($contents, $this->gzipCompressionLevel));
+            GeneralUtility::writeFile(Environment::getPublicPath() . '/' . $filename . $this->gzipFileExtension, (string)gzencode($contents, $this->gzipCompressionLevel));
         }
     }
 
@@ -597,13 +573,13 @@ class ResourceCompressor
      * based on HTTP_ACCEPT_ENCODING
      *
      * @param string $filename File name
-     * @return string $filename suffixed with '.gzip' or not - dependent on HTTP_ACCEPT_ENCODING
+     * @return string $filename suffixed with '.gz' or not - dependent on HTTP_ACCEPT_ENCODING
      */
     protected function returnFileReference($filename)
     {
         // if the client accepts gzip and we can create gzipped files, we give him compressed versions
         if ($this->createGzipped && str_contains(GeneralUtility::getIndpEnv('HTTP_ACCEPT_ENCODING'), 'gzip')) {
-            $filename .= '.gzip';
+            $filename .= $this->gzipFileExtension;
         }
         return PathUtility::getRelativePath($this->rootPath, Environment::getPublicPath() . '/') . $filename;
     }
@@ -697,10 +673,9 @@ class ResourceCompressor
     }
 
     /**
-     * Determines the the JavaScript mime type
+     * Determines the JavaScript mime type
      *
      * The <script> tag only needs the type if the page is not rendered as HTML5.
-     * In TYPO3 Backend or when TSFE is not available we always use HTML5.
      * For TYPO3 Frontend the configured config.doctype is evaluated.
      *
      * @return string
@@ -711,7 +686,7 @@ class ResourceCompressor
             || !($GLOBALS['TSFE'] instanceof TypoScriptFrontendController)
             || ($GLOBALS['TSFE']->config['config']['doctype'] ?? 'html5') === 'html5'
         ) {
-            // Backend, no TSFE, or doctype set to html5
+            // no TSFE, or doctype set to html5
             return '';
         }
         return 'text/javascript';

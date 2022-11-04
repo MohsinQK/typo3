@@ -54,7 +54,7 @@ use TYPO3\CMS\Form\Slot\FilePersistenceSlot;
  */
 class FormPersistenceManager implements FormPersistenceManagerInterface
 {
-    const FORM_DEFINITION_FILE_EXTENSION = '.form.yaml';
+    public const FORM_DEFINITION_FILE_EXTENSION = '.form.yaml';
 
     protected YamlSource $yamlSource;
     protected StorageRepository $storageRepository;
@@ -127,7 +127,7 @@ class FormPersistenceManager implements FormPersistenceManagerInterface
      * Only files with the extension .form.yaml are saved.
      * If the formDefinition is located within an EXT: resource, save is only
      * allowed if the configuration path
-     * TYPO3.CMS.Form.persistenceManager.allowSaveToExtensionPaths
+     * persistenceManager.allowSaveToExtensionPaths
      * is set to true.
      *
      * @param string $persistenceIdentifier
@@ -277,8 +277,8 @@ class FormPersistenceManager implements FormPersistenceManagerInterface
                         'identifier' => $form['identifier'],
                         'name' => $form['label'] ?? $form['identifier'],
                         'persistenceIdentifier' => $fullPath,
-                        'readOnly' => $this->formSettings['persistenceManager']['allowSaveToExtensionPaths'] ? false: true,
-                        'removable' => $this->formSettings['persistenceManager']['allowDeleteFromExtensionPaths'] ? true: false,
+                        'readOnly' => $this->formSettings['persistenceManager']['allowSaveToExtensionPaths'] ? false : true,
+                        'removable' => $this->formSettings['persistenceManager']['allowDeleteFromExtensionPaths'] ? true : false,
                         'location' => 'extension',
                         'duplicateIdentifier' => false,
                         'invalid' => $form['invalid'] ?? false,
@@ -366,7 +366,7 @@ class FormPersistenceManager implements FormPersistenceManagerInterface
      * current backend user.
      *
      * Only registered mountpoints from
-     * TYPO3.CMS.Form.persistenceManager.allowedFileMounts
+     * persistenceManager.allowedFileMounts
      * are listed.
      *
      * @return Folder[]
@@ -399,7 +399,7 @@ class FormPersistenceManager implements FormPersistenceManagerInterface
             $parentFolder = $storage->getRootLevelFolder(false);
 
             foreach ($storage->getFileMounts() as $storageFileMount) {
-                /** @var \TYPO3\CMS\Core\Resource\Folder */
+                /** @var Folder */
                 $storageFileMountFolder = $storageFileMount['folder'];
 
                 // Normally should use ResourceStorage::isWithinFolder() to check if the configured file mount path is within a storage file mount but this requires a valid Folder object and thus a directory which already exists. And the folder could simply not exist yet.
@@ -438,7 +438,7 @@ class FormPersistenceManager implements FormPersistenceManagerInterface
      * Return a list of all accessible extension folders
      *
      * Only registered mountpoints from
-     * TYPO3.CMS.Form.persistenceManager.allowedExtensionPaths
+     * persistenceManager.allowedExtensionPaths
      * are listed.
      *
      * @return array
@@ -567,7 +567,7 @@ class FormPersistenceManager implements FormPersistenceManagerInterface
     /**
      * Check if a persistence path or if a persistence identifier path
      * is configured within the form setup
-     * (TYPO3.CMS.Form.persistenceManager.allowedExtensionPaths / TYPO3.CMS.Form.persistenceManager.allowedFileMounts).
+     * (persistenceManager.allowedExtensionPaths / persistenceManager.allowedFileMounts).
      * If the input is a persistence identifier an additional check for a
      * valid file extension will be performed.
      * .

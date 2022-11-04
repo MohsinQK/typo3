@@ -18,6 +18,7 @@ namespace TYPO3\CMS\Backend\Search\LiveSearch;
 /**
  * Class for parsing query parameters in backend live search.
  * Detects searches for #pages:23 or #content:mycontent
+ *
  * @internal This class is a specific Backend controller implementation and is not considered part of the Public TYPO3 API.
  */
 class QueryParser
@@ -35,12 +36,12 @@ class QueryParser
     /**
      * @var string
      */
-    const COMMAND_KEY_INDICATOR = '#';
+    public const COMMAND_KEY_INDICATOR = '#';
 
     /**
      * @var string
      */
-    const COMMAND_SPLIT_INDICATOR = ':';
+    public const COMMAND_SPLIT_INDICATOR = ':';
 
     /**
      * Retrieve the validated command key
@@ -88,7 +89,7 @@ class QueryParser
      */
     public function getId($query)
     {
-        return str_replace(self::COMMAND_KEY_INDICATOR, '', $query);
+        return (int)str_replace(self::COMMAND_KEY_INDICATOR, '', $query);
     }
 
     /**
@@ -130,12 +131,7 @@ class QueryParser
     public function getCommandForTable($tableName)
     {
         $commandArray = array_keys($GLOBALS['TYPO3_CONF_VARS']['SYS']['livesearch'], $tableName);
-        if (is_array($commandArray)) {
-            $command = $commandArray[0];
-        } else {
-            $command = false;
-        }
-        return $command;
+        return $commandArray[0] ?? '';
     }
 
     /**

@@ -24,15 +24,16 @@ use Psr\Http\Server\MiddlewareInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use TYPO3\CMS\Core\Configuration\ConfigurationManager;
 use TYPO3\CMS\Core\Configuration\Features;
+use TYPO3\CMS\Core\Core\Environment;
 use TYPO3\CMS\Core\Crypto\PasswordHashing\PasswordHashFactory;
 use TYPO3\CMS\Core\FormProtection\FormProtectionFactory;
-use TYPO3\CMS\Core\FormProtection\InstallToolFormProtection;
 use TYPO3\CMS\Core\Http\HtmlResponse;
 use TYPO3\CMS\Core\Http\JsonResponse;
 use TYPO3\CMS\Core\Http\Security\ReferrerEnforcer;
 use TYPO3\CMS\Core\Messaging\FlashMessage;
 use TYPO3\CMS\Core\Messaging\FlashMessageQueue;
 use TYPO3\CMS\Core\Package\FailsafePackageManager;
+use TYPO3\CMS\Core\Type\ContextualFeedbackSeverity;
 use TYPO3\CMS\Install\Authentication\AuthenticationService;
 use TYPO3\CMS\Install\Controller\AbstractController;
 use TYPO3\CMS\Install\Controller\EnvironmentController;
@@ -53,29 +54,9 @@ use TYPO3\CMS\Install\Service\SessionService;
 class Maintenance implements MiddlewareInterface
 {
     /**
-     * @var FailsafePackageManager
-     */
-    protected $packageManager;
-
-    /**
-     * @var ConfigurationManager
-     */
-    protected $configurationManager;
-
-    /**
-     * @var PasswordHashFactory
-     */
-    protected $passwordHashFactory;
-
-    /**
-     * @var ContainerInterface
-     */
-    private $container;
-
-    /**
      * @var array List of valid controllers
      */
-    protected $controllers = [
+    protected array $controllers = [
         'icon' => IconController::class,
         'layout' => LayoutController::class,
         'login' => LoginController::class,
@@ -86,15 +67,12 @@ class Maintenance implements MiddlewareInterface
     ];
 
     public function __construct(
-        FailsafePackageManager $packageManager,
-        ConfigurationManager $configurationManager,
-        PasswordHashFactory $passwordHashFactory,
-        ContainerInterface $container
+        protected readonly FailsafePackageManager $packageManager,
+        protected readonly ConfigurationManager $configurationManager,
+        protected readonly PasswordHashFactory $passwordHashFactory,
+        protected readonly ContainerInterface $container,
+        protected readonly FormProtectionFactory $formProtectionFactory
     ) {
-        $this->packageManager = $packageManager;
-        $this->configurationManager = $configurationManager;
-        $this->passwordHashFactory = $passwordHashFactory;
-        $this->container = $container;
     }
 
     /**
@@ -143,6 +121,19 @@ class Maintenance implements MiddlewareInterface
 
         // session related actions
         $session = new SessionService();
+
+        // the backend user has an active session but the admin / maintainer
+        // rights have been revoked or the user was disabled or deleted in the meantime
+        if ($session->isAuthorizedBackendUserSession() && !$session->hasActiveBackendUserRoleAndSession()) {
+            // log out the user and destroy the session
+            $session->resetSession();
+            $session->destroySession();
+            $formProtection = $this->formProtectionFactory->createFromRequest($request);
+            $formProtection->clean();
+
+            return new HtmlResponse('', 403);
+        }
+
         if ($actionName === 'preAccessCheck') {
             $response = new JsonResponse([
                 'installToolLocked' => !$this->checkEnableInstallToolFile(),
@@ -180,17 +171,19 @@ class Maintenance implements MiddlewareInterface
                 ]);
             } else {
                 if ($password === null || empty($password)) {
-                    $messageQueue = (new FlashMessageQueue('install'))->enqueue(
-                        new FlashMessage('Please enter the install tool password', '', FlashMessage::ERROR)
+                    $messageQueue = new FlashMessageQueue('install');
+                    $messageQueue->enqueue(
+                        new FlashMessage('Please enter the install tool password', '', ContextualFeedbackSeverity::ERROR)
                     );
                 } else {
                     $hashInstance = $this->passwordHashFactory->getDefaultHashInstance('BE');
                     $hashedPassword = $hashInstance->getHashedPassword($password);
-                    $messageQueue = (new FlashMessageQueue('install'))->enqueue(
+                    $messageQueue = new FlashMessageQueue('install');
+                    $messageQueue->enqueue(
                         new FlashMessage(
                             'Given password does not match the install tool login password. Calculated hash: ' . $hashedPassword,
                             '',
-                            FlashMessage::ERROR
+                            ContextualFeedbackSeverity::ERROR
                         )
                     );
                 }
@@ -203,9 +196,7 @@ class Maintenance implements MiddlewareInterface
             if (EnableFileService::installToolEnableFileExists() && !EnableFileService::isInstallToolEnableFilePermanent()) {
                 EnableFileService::removeInstallToolEnableFile();
             }
-            $formProtection = FormProtectionFactory::get(
-                InstallToolFormProtection::class
-            );
+            $formProtection = $this->formProtectionFactory->createFromRequest($request);
             $formProtection->clean();
             $session->destroySession();
             $response = new JsonResponse([
@@ -293,9 +284,7 @@ class Maintenance implements MiddlewareInterface
         $tokenOk = false;
         // A token must be given as soon as there is POST data
         if (isset($postValues['token'])) {
-            $formProtection = FormProtectionFactory::get(
-                InstallToolFormProtection::class
-            );
+            $formProtection = $this->formProtectionFactory->createFromRequest($request);
             $action = (string)$postValues['action'];
             if ($action === '') {
                 throw new \RuntimeException(
@@ -331,13 +320,26 @@ class Maintenance implements MiddlewareInterface
     }
 
     /**
-     * Check if LocalConfiguration.php exists (PackageStates is optional)
+     * Check if system/settings.php exists (PackageStates is optional)
      *
      * @return bool TRUE when the essential configuration is available, otherwise FALSE
      */
     protected function checkIfEssentialConfigurationExists(): bool
     {
-        return file_exists($this->configurationManager->getLocalConfigurationFileLocation());
+        if (file_exists($this->configurationManager->getSystemConfigurationFileLocation())) {
+            return true;
+        }
+        // Check can be removed with TYPO3 v14.0
+        if (file_exists($this->configurationManager->getLocalConfigurationFileLocation())) {
+            mkdir(dirname($this->configurationManager->getSystemConfigurationFileLocation()), 02775, true);
+            rename($this->configurationManager->getLocalConfigurationFileLocation(), $this->configurationManager->getSystemConfigurationFileLocation());
+            if (file_exists(Environment::getLegacyConfigPath() . '/AdditionalConfiguration.php')) {
+                rename(Environment::getLegacyConfigPath() . '/AdditionalConfiguration.php', $this->configurationManager->getAdditionalConfigurationFileLocation());
+            }
+
+            return file_exists($this->configurationManager->getSystemConfigurationFileLocation());
+        }
+        return false;
     }
 
     /**

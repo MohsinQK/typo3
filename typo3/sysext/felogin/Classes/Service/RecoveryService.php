@@ -23,109 +23,52 @@ use Symfony\Component\Mailer\Exception\TransportExceptionInterface;
 use Symfony\Component\Mime\Address;
 use Symfony\Component\Mime\Email;
 use TYPO3\CMS\Core\Mail\FluidEmail;
-use TYPO3\CMS\Core\Mail\Mailer;
+use TYPO3\CMS\Core\Mail\MailerInterface;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Extbase\Configuration\ConfigurationManager;
-use TYPO3\CMS\Extbase\Configuration\Exception\InvalidConfigurationTypeException;
 use TYPO3\CMS\Extbase\Mvc\Web\Routing\UriBuilder;
 use TYPO3\CMS\Extbase\Utility\LocalizationUtility;
-use TYPO3\CMS\FrontendLogin\Configuration\IncompleteConfigurationException;
 use TYPO3\CMS\FrontendLogin\Configuration\RecoveryConfiguration;
-use TYPO3\CMS\FrontendLogin\Domain\Repository\FrontendUserRepository;
 use TYPO3\CMS\FrontendLogin\Event\SendRecoveryEmailEvent;
 
 /**
  * @internal this is a concrete TYPO3 implementation and solely used for EXT:felogin and not part of TYPO3's Core API.
  */
-class RecoveryService implements RecoveryServiceInterface
+class RecoveryService
 {
-    /**
-     * @var RecoveryConfiguration
-     */
-    protected $recoveryConfiguration;
+    protected array $settings;
 
-    /**
-     * @var EventDispatcherInterface
-     */
-    protected $eventDispatcher;
-
-    /**
-     * @var Mailer
-     */
-    protected $mailer;
-
-    /**
-     * @var array
-     */
-    protected $settings;
-
-    /**
-     * @var UriBuilder
-     */
-    protected $uriBuilder;
-
-    /**
-     * @var FrontendUserRepository
-     */
-    protected $userRepository;
-
-    /**
-     * @param Mailer $mailer
-     * @param EventDispatcherInterface $eventDispatcher
-     * @param ConfigurationManager $configurationManager
-     * @param RecoveryConfiguration $recoveryConfiguration
-     * @param UriBuilder $uriBuilder
-     * @param FrontendUserRepository $userRepository
-     *
-     * @throws InvalidConfigurationTypeException
-     */
     public function __construct(
-        Mailer $mailer,
-        EventDispatcherInterface $eventDispatcher,
+        protected readonly MailerInterface $mailer,
+        protected EventDispatcherInterface $eventDispatcher,
         ConfigurationManager $configurationManager,
-        RecoveryConfiguration $recoveryConfiguration,
-        UriBuilder $uriBuilder,
-        FrontendUserRepository $userRepository
+        protected RecoveryConfiguration $recoveryConfiguration,
+        protected UriBuilder $uriBuilder
     ) {
-        $this->mailer = $mailer;
-        $this->eventDispatcher = $eventDispatcher;
         $this->settings = $configurationManager->getConfiguration(ConfigurationManager::CONFIGURATION_TYPE_SETTINGS);
-        $this->recoveryConfiguration = $recoveryConfiguration;
-        $this->uriBuilder = $uriBuilder;
-        $this->userRepository = $userRepository;
     }
 
     /**
-     * Sends an email with an absolute link including a forgot hash to the passed email address
+     * Sends an email with an absolute link including the given forgot hash to the passed user
      * with instructions to recover the account.
      *
-     * @param string $emailAddress Receiver's email address.
+     * @param array $userData
+     * @param string $hash
      *
      * @throws TransportExceptionInterface
-     * @throws IncompleteConfigurationException
      */
-    public function sendRecoveryEmail(string $emailAddress): void
+    public function sendRecoveryEmail(array $userData, string $hash): void
     {
-        $hash = $this->recoveryConfiguration->getForgotHash();
-        // @todo: This repository method call should be moved to PasswordRecoveryController, since its
-        // @todo: unexpected that it happens here. Would also drop the dependency to FrontendUserRepository
-        // @todo: in this sendRecoveryEmail() method and the class.
-        $this->userRepository->updateForgotHashForUserByEmail($emailAddress, GeneralUtility::hmac($hash));
-        $userInformation = $this->userRepository->fetchUserInformationByEmail($emailAddress);
-        $receiver = new Address($emailAddress, $this->getReceiverName($userInformation));
+        $receiver = new Address($userData['email'], $this->getReceiverName($userData));
         $email = $this->prepareMail($receiver, $hash);
 
-        $event = new SendRecoveryEmailEvent($email, $userInformation);
+        $event = new SendRecoveryEmailEvent($email, $userData);
         $this->eventDispatcher->dispatch($event);
         $this->mailer->send($event->getEmail());
     }
 
     /**
      * Get display name from values. Fallback to username if none of the "_name" fields is set.
-     *
-     * @param array $userInformation
-     *
-     * @return string
      */
     protected function getReceiverName(array $userInformation): string
     {
@@ -143,12 +86,6 @@ class RecoveryService implements RecoveryServiceInterface
 
     /**
      * Create email object from configuration.
-     *
-     * @param Address $receiver
-     * @param string $hash
-     *
-     * @return Email
-     * @throws IncompleteConfigurationException
      */
     protected function prepareMail(Address $receiver, string $hash): Email
     {

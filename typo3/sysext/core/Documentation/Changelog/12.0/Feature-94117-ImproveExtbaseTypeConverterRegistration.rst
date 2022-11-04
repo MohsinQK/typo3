@@ -1,7 +1,9 @@
 .. include:: /Includes.rst.txt
 
+.. _feature-94117:
+
 =============================================================
-Feature: #94117 - Improve extbase type converter registration
+Feature: #94117 - Improve Extbase type converter registration
 =============================================================
 
 See :issue:`94117`
@@ -9,7 +11,7 @@ See :issue:`94117`
 Description
 ===========
 
-Extbase type converters are an important part of the extbase data and property
+Extbase type converters are an important part of the Extbase data and property
 mapping mechanism. Those converters usually convert data from simple types
 to objects or other simple types.
 
@@ -19,7 +21,7 @@ file and adding the configuration, such as the `sourceType`, the `targetType`
 or the `priority` as class properties, accessible via public methods.
 
 This has now been improved. Type converters are now registered as container
-services in the extensions' :file:`Services.yaml` file by tagging the service
+services in the extension's :file:`Services.yaml` file by tagging the service
 with :yaml:`extbase.type_converter` and adding the configuration as tag
 attributes.
 
@@ -33,20 +35,20 @@ Impact
 
 Registration is now done in your :file:`Services.yaml` like the following:
 
-.. code-block:: yaml
+..  code-block:: yaml
 
-   services:
-     Vendor\Extension\Property\TypeConverter\MyBooleanConverter:
-       tag:
-         - name: extbase.type_converter
-           priority: 10
-           target: boolean
-           sources: boolean,string
+    services:
+      Vendor\Extension\Property\TypeConverter\MyBooleanConverter:
+        tag:
+          - name: extbase.type_converter
+            priority: 10
+            target: boolean
+            sources: boolean,string
 
 .. tip::
 
-    Tag arguments (priority, target ,sources, etc.) have to be simple types.
-    Don't register the sources as array but as comma seperated list as shown
+    Tag arguments (priority, target, sources, etc.) have to be simple types.
+    Don't register the sources as array but as comma separated list as shown
     in the example.
 
 .. note::

@@ -20,9 +20,6 @@ namespace TYPO3\CMS\Belog\Tests\Unit\Domain\Model;
 use TYPO3\CMS\Belog\Domain\Model\LogEntry;
 use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
-/**
- * Test case
- */
 class LogEntryTest extends UnitTestCase
 {
     protected LogEntry $subject;
@@ -76,5 +73,37 @@ class LogEntryTest extends UnitTestCase
     {
         $this->subject->setLogData(serialize(new \stdClass()));
         self::assertSame([], $this->subject->getLogData());
+    }
+
+    public function getErrorIconReturnsCorrespondingClassDataProvider(): array
+    {
+        return [
+            'empty' => [
+                0,
+                'empty-empty',
+            ],
+            'warning' => [
+                1,
+                'status-dialog-warning',
+            ],
+            'error 2' => [
+                2,
+                'status-dialog-error',
+            ],
+            'error 3' => [
+                3,
+                'status-dialog-error',
+            ],
+        ];
+    }
+
+    /**
+     * @test
+     * @dataProvider getErrorIconReturnsCorrespondingClassDataProvider
+     */
+    public function getErrorIconReturnsCorrespondingClass(int $error, string $expectedClass): void
+    {
+        $this->subject->setError($error);
+        self::assertSame($expectedClass, $this->subject->getErrorIconClass());
     }
 }

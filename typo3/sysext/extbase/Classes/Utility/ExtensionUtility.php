@@ -24,8 +24,8 @@ use TYPO3\CMS\Core\Utility\GeneralUtility;
  */
 class ExtensionUtility
 {
-    const PLUGIN_TYPE_PLUGIN = 'list_type';
-    const PLUGIN_TYPE_CONTENT_ELEMENT = 'CType';
+    public const PLUGIN_TYPE_PLUGIN = 'list_type';
+    public const PLUGIN_TYPE_CONTENT_ELEMENT = 'CType';
 
     /**
      * Add auto-generated TypoScript to configure the Extbase Dispatcher.
@@ -61,14 +61,12 @@ class ExtensionUtility
             $GLOBALS['TYPO3_CONF_VARS']['EXTCONF']['extbase']['extensions'][$extensionName]['plugins'][$pluginName]['controllers'][$controllerClassName] = [
                 'className' => $controllerClassName,
                 'alias' => $controllerAlias,
-                'actions' => GeneralUtility::trimExplode(',', $actionsList),
+                'actions' => GeneralUtility::trimExplode(',', (string)$actionsList),
             ];
 
-            if (isset($nonCacheableControllerActions[$controllerClassName]) && !empty($nonCacheableControllerActions[$controllerClassName])) {
-                $GLOBALS['TYPO3_CONF_VARS']['EXTCONF']['extbase']['extensions'][$extensionName]['plugins'][$pluginName]['controllers'][$controllerClassName]['nonCacheableActions'] = GeneralUtility::trimExplode(
-                    ',',
-                    $nonCacheableControllerActions[$controllerClassName]
-                );
+            if (!empty($nonCacheableControllerActions[$controllerClassName])) {
+                $GLOBALS['TYPO3_CONF_VARS']['EXTCONF']['extbase']['extensions'][$extensionName]['plugins'][$pluginName]['controllers'][$controllerClassName]['nonCacheableActions']
+                    = GeneralUtility::trimExplode(',', (string)$nonCacheableControllerActions[$controllerClassName]);
             }
         }
 

@@ -21,7 +21,7 @@ use TYPO3\CMS\Backend\Template\ModuleTemplate;
 use TYPO3\CMS\Backend\Template\ModuleTemplateFactory;
 use TYPO3\CMS\Core\Core\Environment;
 use TYPO3\CMS\Extbase\Mvc\Controller\ActionController;
-use TYPO3\CMS\Extbase\Mvc\Request;
+use TYPO3\CMS\Extbase\Mvc\RequestInterface;
 use TYPO3\CMS\Extbase\Utility\LocalizationUtility;
 
 /**
@@ -30,8 +30,8 @@ use TYPO3\CMS\Extbase\Utility\LocalizationUtility;
  */
 class AbstractController extends ActionController
 {
-    const TRIGGER_RefreshModuleMenu = 'refreshModuleMenu';
-    const TRIGGER_RefreshTopbar = 'refreshTopbar';
+    public const TRIGGER_RefreshModuleMenu = 'refreshModuleMenu';
+    public const TRIGGER_RefreshTopbar = 'refreshTopbar';
 
     protected ModuleTemplateFactory $moduleTemplateFactory;
 
@@ -77,7 +77,7 @@ class AbstractController extends ActionController
      * Generates the action menu. Helper used in action that render backend moduleTemplate
      * views and not just redirect or response download things.
      */
-    protected function initializeModuleTemplate(Request $request): ModuleTemplate
+    protected function initializeModuleTemplate(RequestInterface $request): ModuleTemplate
     {
         $menuItems = [
             'installedExtensions' => [

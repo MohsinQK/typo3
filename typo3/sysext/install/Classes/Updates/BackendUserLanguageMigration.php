@@ -2,8 +2,6 @@
 
 declare(strict_types=1);
 
-namespace TYPO3\CMS\Install\Updates;
-
 /*
  * This file is part of the TYPO3 CMS project.
  *
@@ -16,6 +14,8 @@ namespace TYPO3\CMS\Install\Updates;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Install\Updates;
 
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Database\Query\QueryBuilder;
@@ -61,7 +61,7 @@ class BackendUserLanguageMigration implements UpgradeWizardInterface
 
         foreach ($this->getRecordsToUpdate() as $record) {
             $currentDatabaseFieldValue = (string)($record['lang'] ?? '');
-            $uc = unserialize($user['uc'] ?? '', ['allowed_classes' => false]);
+            $uc = unserialize($record['uc'] ?? '', ['allowed_classes' => false]);
             // Check if the user has a preference set, otherwise use the default from the database field
             // however, "default" is now explicitly set.
             $selectedLanguage = $uc['lang'] ?? $currentDatabaseFieldValue;

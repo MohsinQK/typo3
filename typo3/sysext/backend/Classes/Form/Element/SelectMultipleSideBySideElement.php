@@ -98,6 +98,8 @@ class SelectMultipleSideBySideElement extends AbstractFormElement
             'additionalHiddenFields' => [],
             'additionalInlineLanguageLabelFiles' => [],
             'stylesheetFiles' => [],
+            'javaScriptModules' => [],
+            // @deprecated will be removed in TYPO3 v13.0
             'requireJsModules' => [],
             'inlineData' => [],
             'html' => '',
@@ -222,7 +224,7 @@ class SelectMultipleSideBySideElement extends AbstractFormElement
         // Html stuff for filter and select filter on top of right side of multi select boxes
         $filterTextfield[] = '<span class="input-group input-group-sm">';
         $filterTextfield[] =    '<span class="input-group-text">';
-        $filterTextfield[] =        '<span class="fa fa-filter"></span>';
+        $filterTextfield[] =        $this->iconFactory->getIcon('actions-filter', Icon::SIZE_SMALL)->render();
         $filterTextfield[] =    '</span>';
         $filterTextfield[] =    '<input class="t3js-formengine-multiselect-filter-textfield form-control" value="">';
         $filterTextfield[] = '</span>';
@@ -391,7 +393,7 @@ class SelectMultipleSideBySideElement extends AbstractFormElement
         $html[] =   '</div>';
         $html[] = '</div>';
 
-        $resultArray['requireJsModules'][] = JavaScriptModuleInstruction::create(
+        $resultArray['javaScriptModules'][] = JavaScriptModuleInstruction::create(
             '@typo3/backend/form-engine/element/select-multiple-side-by-side-element.js'
         )->instance($selectedOptionsFieldId, $availableOptionsFieldId);
 

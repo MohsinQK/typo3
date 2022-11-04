@@ -24,17 +24,9 @@ use TYPO3\CMS\Core\Utility\StringUtility;
 use TYPO3\TestingFramework\Core\AccessibleObjectInterface;
 use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
-/**
- * Test case
- */
 class FileReferenceTest extends UnitTestCase
 {
-    /**
-     * @param array $fileReferenceProperties
-     * @param array $originalFileProperties
-     * @return FileReference|MockObject|AccessibleObjectInterface
-     */
-    protected function prepareFixture(array $fileReferenceProperties, array $originalFileProperties)
+    protected function prepareFixture(array $fileReferenceProperties, array $originalFileProperties): FileReference&MockObject&AccessibleObjectInterface
     {
         $fixture = $this->getAccessibleMock(FileReference::class, ['dummy'], [], '', false);
         $originalFileMock = $this->getAccessibleMock(File::class, [], [], '', false);
@@ -49,9 +41,6 @@ class FileReferenceTest extends UnitTestCase
         return $fixture;
     }
 
-    /**
-     * @return array
-     */
     public function propertiesDataProvider(): array
     {
         return [
@@ -78,9 +67,6 @@ class FileReferenceTest extends UnitTestCase
     }
 
     /**
-     * @param array $fileReferenceProperties
-     * @param array $originalFileProperties
-     * @param array $expectedMergedProperties
      * @test
      * @dataProvider propertiesDataProvider
      */
@@ -92,9 +78,6 @@ class FileReferenceTest extends UnitTestCase
     }
 
     /**
-     * @param array $fileReferenceProperties
-     * @param array $originalFileProperties
-     * @param array $expectedMergedProperties
      * @test
      * @dataProvider propertiesDataProvider
      */
@@ -107,9 +90,6 @@ class FileReferenceTest extends UnitTestCase
     }
 
     /**
-     * @param array $fileReferenceProperties
-     * @param array $originalFileProperties
-     * @param array $expectedMergedProperties
      * @test
      * @dataProvider propertiesDataProvider
      */
@@ -124,9 +104,6 @@ class FileReferenceTest extends UnitTestCase
     /**
      * @test
      * @dataProvider propertiesDataProvider
-     *
-     * @param array $fileReferenceProperties
-     * @param array $originalFileProperties
      */
     public function getPropertyThrowsExceptionForNotAvailableProperty(array $fileReferenceProperties, array $originalFileProperties): void
     {
@@ -140,9 +117,6 @@ class FileReferenceTest extends UnitTestCase
     /**
      * @test
      * @dataProvider propertiesDataProvider
-     *
-     * @param array $fileReferenceProperties
-     * @param array $originalFileProperties
      */
     public function getPropertyDoesNotThrowExceptionForPropertyOnlyAvailableInOriginalFile(
         array $fileReferenceProperties,
@@ -155,10 +129,6 @@ class FileReferenceTest extends UnitTestCase
     /**
      * @test
      * @dataProvider propertiesDataProvider
-     *
-     * @param array $fileReferenceProperties
-     * @param array $originalFileProperties
-     * @param array $expectedMergedProperties
      */
     public function getReferencePropertyThrowsExceptionForPropertyOnlyAvailableInOriginalFile(
         array $fileReferenceProperties,

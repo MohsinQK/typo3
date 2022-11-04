@@ -43,11 +43,11 @@ class GridDataService implements LoggerAwareInterface
 {
     use LoggerAwareTrait;
 
-    const GridColumn_Collection = 'Workspaces_Collection';
-    const GridColumn_CollectionLevel = 'Workspaces_CollectionLevel';
-    const GridColumn_CollectionParent = 'Workspaces_CollectionParent';
-    const GridColumn_CollectionCurrent = 'Workspaces_CollectionCurrent';
-    const GridColumn_CollectionChildren = 'Workspaces_CollectionChildren';
+    public const GridColumn_Collection = 'Workspaces_Collection';
+    public const GridColumn_CollectionLevel = 'Workspaces_CollectionLevel';
+    public const GridColumn_CollectionParent = 'Workspaces_CollectionParent';
+    public const GridColumn_CollectionCurrent = 'Workspaces_CollectionCurrent';
+    public const GridColumn_CollectionChildren = 'Workspaces_CollectionChildren';
 
     /**
      * Id of the current active workspace.
@@ -87,14 +87,10 @@ class GridDataService implements LoggerAwareInterface
      */
     protected $integrityService;
 
-    /**
-     * @var EventDispatcherInterface
-     */
-    protected $eventDispatcher;
-
-    public function __construct(EventDispatcherInterface $eventDispatcher)
-    {
-        $this->eventDispatcher = $eventDispatcher;
+    public function __construct(
+        private readonly EventDispatcherInterface $eventDispatcher,
+        private readonly WorkspaceService $workspaceService,
+    ) {
     }
 
     /**
@@ -195,9 +191,9 @@ class GridDataService implements LoggerAwareInterface
                     $versionArray['uid'] = $record['uid'];
                     $versionArray = array_merge($versionArray, $defaultGridColumns);
                     $versionArray['label_Workspace'] = htmlspecialchars($workspaceRecordLabel);
-                    $versionArray['label_Workspace_crop'] = htmlspecialchars(GeneralUtility::fixed_lgd_cs($workspaceRecordLabel, $backendUser->uc['titleLen']));
+                    $versionArray['label_Workspace_crop'] = htmlspecialchars(GeneralUtility::fixed_lgd_cs($workspaceRecordLabel, (int)$backendUser->uc['titleLen']));
                     $versionArray['label_Live'] = htmlspecialchars($liveRecordLabel);
-                    $versionArray['label_Live_crop'] = htmlspecialchars(GeneralUtility::fixed_lgd_cs($liveRecordLabel, $backendUser->uc['titleLen']));
+                    $versionArray['label_Live_crop'] = htmlspecialchars(GeneralUtility::fixed_lgd_cs($liveRecordLabel, (int)$backendUser->uc['titleLen']));
                     $versionArray['label_Stage'] = htmlspecialchars($stagesObj->getStageTitle($versionRecord['t3ver_stage']));
                     $tempStage = $stagesObj->getNextStage($versionRecord['t3ver_stage']);
                     $versionArray['label_nextStage'] = htmlspecialchars($stagesObj->getStageTitle($tempStage['uid']));
@@ -208,7 +204,7 @@ class GridDataService implements LoggerAwareInterface
                     $versionArray['path_Live'] = htmlspecialchars(BackendUtility::getRecordPath($record['livepid'], '', 999));
                     $versionArray['path_Workspace'] = htmlspecialchars($pathWorkspace);
                     $versionArray['path_Workspace_crop'] = htmlspecialchars($pathWorkspaceCropped);
-                    $versionArray['workspace_Title'] = htmlspecialchars(WorkspaceService::getWorkspaceTitle($versionRecord['t3ver_wsid']));
+                    $versionArray['workspace_Title'] = htmlspecialchars($this->workspaceService->getWorkspaceTitle((int)$versionRecord['t3ver_wsid']));
                     $versionArray['workspace_Tstamp'] = $versionRecord['tstamp'];
                     $versionArray['workspace_Formated_Tstamp'] = BackendUtility::datetime($versionRecord['tstamp']);
                     $versionArray['t3ver_wsid'] = $versionRecord['t3ver_wsid'];
@@ -237,7 +233,7 @@ class GridDataService implements LoggerAwareInterface
                     $versionArray['allowedAction_edit'] = $isRecordTypeAllowedToModify && !$isDeletedPage;
                     $versionArray['allowedAction_versionPageOpen'] = $this->isPageModuleAllowed() && !$isDeletedPage;
                     $versionArray['state_Workspace'] = $recordState;
-                    $versionArray['hasChanges'] = ($recordState === 'unchanged') ? false: true;
+                    $versionArray['hasChanges'] = ($recordState === 'unchanged') ? false : true;
                     // Allows to be overridden by PSR-14 event to dynamically modify the expand / collapse state
                     $versionArray['expanded'] = false;
 
@@ -558,7 +554,7 @@ class GridDataService implements LoggerAwareInterface
             ];
         }
         foreach ($visibleColumns as $column => $value) {
-            if (isset($value['hidden']) && isset($column) && isset($versionArray[$column])) {
+            if (isset($value['hidden']) && isset($versionArray[$column])) {
                 if ($value['hidden'] == 0) {
                     switch ($column) {
                         case 'workspace_Tstamp':

@@ -22,22 +22,9 @@ use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\TestingFramework\Core\Functional\Framework\Frontend\InternalRequest;
 use TYPO3\TestingFramework\Core\Functional\FunctionalTestCase;
 
-/**
- * Test case
- */
 class TitleTagRenderingTest extends FunctionalTestCase
 {
     protected array $coreExtensionsToLoad = ['seo'];
-
-    protected array $configurationToUseInTestInstance = [
-        'SC_OPTIONS' => [
-            'Core/TypoScript/TemplateService' => [
-                'runThroughTemplatesPostProcessing' => [
-                    'FunctionalTest' => \TYPO3\TestingFramework\Core\Functional\Framework\Frontend\Hook\TypoScriptInstructionModifier::class . '->apply',
-                ],
-            ],
-        ],
-    ];
 
     protected function setUp(): void
     {

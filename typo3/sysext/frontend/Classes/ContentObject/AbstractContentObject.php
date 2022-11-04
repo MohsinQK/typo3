@@ -18,8 +18,11 @@ declare(strict_types=1);
 namespace TYPO3\CMS\Frontend\ContentObject;
 
 use Psr\Http\Message\ServerRequestInterface;
+use TYPO3\CMS\Core\Domain\Repository\PageRepository;
 use TYPO3\CMS\Core\Page\PageRenderer;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\CMS\Frontend\ContentObject\Exception\ContentRenderingException;
+use TYPO3\CMS\Frontend\Controller\TypoScriptFrontendController;
 
 /**
  * Contains an abstract class for all tslib content class implementations.
@@ -28,7 +31,10 @@ abstract class AbstractContentObject
 {
     protected ?PageRenderer $pageRenderer = null;
 
-    protected ?ServerRequestInterface $request = null;
+    /**
+     * Always set via setRequest() by ContentObjectFactory after instantiation
+     */
+    protected ServerRequestInterface $request;
 
     protected ?ContentObjectRenderer $cObj = null;
 
@@ -42,7 +48,7 @@ abstract class AbstractContentObject
 
     public function getContentObjectRenderer(): ContentObjectRenderer
     {
-        return $this->cObj;
+        return $this->cObj ?? $this->getTypoScriptFrontendController()->cObj;
     }
 
     public function setRequest(ServerRequestInterface $request): void
@@ -53,6 +59,38 @@ abstract class AbstractContentObject
     public function setContentObjectRenderer(ContentObjectRenderer $cObj): void
     {
         $this->cObj = $cObj;
+    }
+
+    protected function hasTypoScriptFrontendController(): bool
+    {
+        return $this->cObj?->getTypoScriptFrontendController() instanceof TypoScriptFrontendController;
+    }
+
+    /**
+     * @throws ContentRenderingException
+     */
+    protected function getTypoScriptFrontendController(): TypoScriptFrontendController
+    {
+        if (!$this->hasTypoScriptFrontendController()) {
+            throw new ContentRenderingException('TypoScriptFrontendController is not available.', 1655723512);
+        }
+
+        return $this->cObj->getTypoScriptFrontendController();
+    }
+
+    protected function getPageRepository(): PageRepository
+    {
+        if (!$this->hasTypoScriptFrontendController()) {
+            return GeneralUtility::makeInstance(PageRepository::class);
+        }
+        /** do not lose the used {@link \TYPO3\CMS\Core\Context\Context} of TSFE, if it is currently not fully initialized */
+        if (!$this->getTypoScriptFrontendController()->sys_page instanceof PageRepository) {
+            return GeneralUtility::makeInstance(
+                PageRepository::class,
+                $this->getTypoScriptFrontendController()->getContext()
+            );
+        }
+        return $this->getTypoScriptFrontendController()->sys_page;
     }
 
     protected function getPageRenderer(): PageRenderer

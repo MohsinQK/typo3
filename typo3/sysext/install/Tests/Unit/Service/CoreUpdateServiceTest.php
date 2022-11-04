@@ -17,15 +17,10 @@ declare(strict_types=1);
 
 namespace TYPO3\CMS\Install\Tests\Unit\Service;
 
-use PHPUnit\Framework\MockObject\MockObject;
 use TYPO3\CMS\Core\Messaging\FlashMessageQueue;
 use TYPO3\CMS\Install\Service\CoreUpdateService;
-use TYPO3\TestingFramework\Core\AccessibleObjectInterface;
 use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
-/**
- * Test case
- */
 class CoreUpdateServiceTest extends UnitTestCase
 {
     /**
@@ -33,7 +28,6 @@ class CoreUpdateServiceTest extends UnitTestCase
      */
     public function getMessagesReturnsPreviouslySetMessage(): void
     {
-        /** @var CoreUpdateService|AccessibleObjectInterface|MockObject $instance */
         $instance = $this->getAccessibleMock(CoreUpdateService::class, ['dummy'], [], '', false);
         $aMessage = new FlashMessageQueue('install');
         $instance->_set('messages', $aMessage);
@@ -48,7 +42,6 @@ class CoreUpdateServiceTest extends UnitTestCase
         if (defined('TYPO3_COMPOSER_MODE') && TYPO3_COMPOSER_MODE) {
             self::markTestSkipped('This test is only available in Non-Composer mode.');
         }
-        /** @var CoreUpdateService|AccessibleObjectInterface|MockObject $instance */
         $instance = $this->getAccessibleMock(CoreUpdateService::class, ['dummy'], [], '', false);
         putenv('TYPO3_DISABLE_CORE_UPDATER');
         putenv('REDIRECT_TYPO3_DISABLE_CORE_UPDATER');
@@ -60,7 +53,6 @@ class CoreUpdateServiceTest extends UnitTestCase
      */
     public function isCoreUpdateEnabledReturnsFalseFor_TYPO3_DISABLE_CORE_UPDATER_EnvironmentVariableSet(): void
     {
-        /** @var CoreUpdateService|AccessibleObjectInterface|MockObject $instance */
         $instance = $this->getAccessibleMock(CoreUpdateService::class, ['dummy'], [], '', false);
         putenv('TYPO3_DISABLE_CORE_UPDATER=1');
         putenv('REDIRECT_TYPO3_DISABLE_CORE_UPDATER');
@@ -72,7 +64,6 @@ class CoreUpdateServiceTest extends UnitTestCase
      */
     public function isCoreUpdateEnabledReturnsFalseFor_REDIRECT_TYPO3_DISABLE_CORE_UPDATER_EnvironmentVariableSet(): void
     {
-        /** @var CoreUpdateService|AccessibleObjectInterface|MockObject $instance */
         $instance = $this->getAccessibleMock(CoreUpdateService::class, ['dummy'], [], '', false);
         putenv('TYPO3_DISABLE_CORE_UPDATER');
         putenv('REDIRECT_TYPO3_DISABLE_CORE_UPDATER=1');

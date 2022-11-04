@@ -54,11 +54,11 @@ class DumpAutoloadCommand extends Command
     /**
      * Dumps the class loading information
      */
-    protected function execute(InputInterface $input, OutputInterface $output)
+    protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $io = new SymfonyStyle($input, $output);
         ClassLoadingInformation::dumpClassLoadingInformation();
         $io->success('Class loading information has been updated.');
-        return 0;
+        return Command::SUCCESS;
     }
 }

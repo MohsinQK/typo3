@@ -17,8 +17,6 @@ declare(strict_types=1);
 
 namespace TYPO3\CMS\Frontend\Tests\Functional\Configuration\TypoScript\ConditionMatching;
 
-use Prophecy\Argument;
-use Prophecy\PhpUnit\ProphecyTrait;
 use Psr\Log\NullLogger;
 use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
 use TYPO3\CMS\Core\Context\Context;
@@ -30,7 +28,6 @@ use TYPO3\CMS\Core\Http\ServerRequest;
 use TYPO3\CMS\Core\Information\Typo3Version;
 use TYPO3\CMS\Core\Routing\PageArguments;
 use TYPO3\CMS\Core\Site\Entity\Site;
-use TYPO3\CMS\Core\TypoScript\TemplateService;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Core\Utility\StringUtility;
 use TYPO3\CMS\Frontend\Authentication\FrontendUserAuthentication;
@@ -38,16 +35,8 @@ use TYPO3\CMS\Frontend\Configuration\TypoScript\ConditionMatching\ConditionMatch
 use TYPO3\CMS\Frontend\Controller\TypoScriptFrontendController;
 use TYPO3\TestingFramework\Core\Functional\FunctionalTestCase;
 
-/**
- * Functional test for the ConditionMatcher of EXT:frontend
- */
 class ConditionMatcherTest extends FunctionalTestCase
 {
-    use ProphecyTrait;
-
-    /**
-     * Sets up this test case.
-     */
     protected function setUp(): void
     {
         parent::setUp();
@@ -55,7 +44,7 @@ class ConditionMatcherTest extends FunctionalTestCase
         $GLOBALS['TYPO3_REQUEST'] = (new ServerRequest())
             ->withAttribute('applicationType', SystemEnvironmentBuilder::REQUESTTYPE_FE);
 
-        $this->importDataSet('PACKAGE:typo3/testing-framework/Resources/Core/Functional/Fixtures/pages.xml');
+        $this->importCSVDataSet(__DIR__ . '/../../../Fixtures/pages.csv');
         $this->setupFrontendController(3);
     }
 
@@ -384,12 +373,9 @@ class ConditionMatcherTest extends FunctionalTestCase
     public function genericGetVariablesSucceedsWithNamespaceTSFE(): void
     {
         $GLOBALS['TSFE']->id = 1234567;
-        $GLOBALS['TSFE']->testSimpleObject = new \stdClass();
-        $GLOBALS['TSFE']->testSimpleObject->testSimpleVariable = 'testValue';
 
         $subject = $this->getConditionMatcher();
         self::assertTrue($subject->match('[getTSFE().id == 1234567]'));
-        self::assertTrue($subject->match('[getTSFE().testSimpleObject.testSimpleVariable == "testValue"]'));
     }
 
     /**
@@ -399,9 +385,9 @@ class ConditionMatcherTest extends FunctionalTestCase
      */
     public function genericGetVariablesSucceedsWithNamespaceSession(): void
     {
-        $prophecy = $this->prophesize(FrontendUserAuthentication::class);
-        $prophecy->getSessionData(Argument::exact('foo'))->willReturn(['bar' => 1234567]);
-        $GLOBALS['TSFE']->fe_user = $prophecy->reveal();
+        $frontendUserAuthenticationMock = $this->createMock(FrontendUserAuthentication::class);
+        $frontendUserAuthenticationMock->method('getSessionData')->with('foo')->willReturn(['bar' => 1234567]);
+        $GLOBALS['TSFE']->fe_user = $frontendUserAuthenticationMock;
 
         self::assertTrue($this->getConditionMatcher()->match('[session("foo|bar") == 1234567]'));
     }
@@ -515,6 +501,70 @@ class ConditionMatcherTest extends FunctionalTestCase
     }
 
     /**
+     * @test
+     * @todo: It would be good to have another FE related test that actively sets up a page tree and uses a
+     *        condition like "[tree.pagelayout == "pagets__simple"]" to make sure the full FE processing chain
+     *        including TS parsing kicks in properly.
+     */
+    public function pageLayoutIsResolvedCorrectlyFromBackendLayoutNextLevel(): void
+    {
+        $fullRootLine = [
+            [
+                'uid' => 4, // Deepest / current page
+                'backend_layout_next_level' => '', // Current page
+            ],
+            [
+                'uid' => 3,
+                'backend_layout_next_level' => 'pagets__article',
+            ],
+            [
+                'uid' => 2, // Could be TypoScript template with 'root' flag set
+                'backend_layout_next_level' => 'pagets__default',
+            ],
+            [
+                'uid' => 1, // Uppermost page
+                'backend_layout_next_level' => '',
+            ],
+        ];
+        $conditionMatcher = new ConditionMatcher(null, null, null, $fullRootLine);
+        self::assertTrue($conditionMatcher->match('[tree.pagelayout == "pagets__article"]'));
+    }
+
+    /**
+     * @test
+     * @todo: It would be good to have another FE related test that actively sets up a page tree and uses a
+     *        condition like "[tree.pagelayout == "pagets__simple"]" to make sure the full FE processing chain
+     *        including TS parsing kicks in properly.
+     */
+    public function pageLayoutIsResolvedCorrectlyFromBackendLayout(): void
+    {
+        $GLOBALS['TSFE']->page = [
+            'backend_layout' => 'pagets__special_layout',
+        ];
+        $fullRootLine = [
+            [
+                'uid' => 4, // Deepest / current page
+                'backend_layout' => 'pagets__special_layout',
+                'backend_layout_next_level' => '',
+            ],
+            [
+                'uid' => 3,
+                'backend_layout_next_level' => 'pagets__article',
+            ],
+            [
+                'uid' => 2, // Could be TypoScript template with 'root' flag set
+                'backend_layout_next_level' => 'pagets__default',
+            ],
+            [
+                'uid' => 1, // Uppermost page
+                'backend_layout_next_level' => '',
+            ],
+        ];
+        $conditionMatcher = new ConditionMatcher(null, null, null, $fullRootLine);
+        self::assertTrue($conditionMatcher->match('[tree.pagelayout == "pagets__special_layout"]'));
+    }
+
+    /**
      * @return ConditionMatcher
      */
     protected function getConditionMatcher(): ConditionMatcher
@@ -577,8 +627,7 @@ class ConditionMatcherTest extends FunctionalTestCase
             new FrontendUserAuthentication()
         );
         $GLOBALS['TSFE']->sys_page = GeneralUtility::makeInstance(PageRepository::class);
-        $GLOBALS['TSFE']->tmpl = GeneralUtility::makeInstance(TemplateService::class);
-        $GLOBALS['TSFE']->tmpl->rootLine = [
+        $GLOBALS['TSFE']->config['rootLine'] = [
             0 => ['uid' => 1, 'pid' => 0],
             1 => ['uid' => 2, 'pid' => 1],
             2 => ['uid' => 3, 'pid' => 2],

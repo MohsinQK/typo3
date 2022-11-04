@@ -125,10 +125,11 @@ class RenameFileController
         // rename the folder
         if ($this->fileOrFolderObject instanceof Folder) {
             $parsedUrl = parse_url($this->returnUrl);
-            $queryParts = GeneralUtility::explodeUrl2Array(urldecode($parsedUrl['query']));
-            if ($queryParts['id'] === $this->fileOrFolderObject->getCombinedIdentifier()) {
+            $queryParts = GeneralUtility::explodeUrl2Array(urldecode($parsedUrl['query'] ?? ''));
+            $queryPartsId = $queryParts['id'] ?? null;
+            if ($queryPartsId === $this->fileOrFolderObject->getCombinedIdentifier()) {
                 $this->returnUrl = str_replace(
-                    urlencode($queryParts['id']),
+                    urlencode($queryPartsId),
                     urlencode($this->fileOrFolderObject->getStorage()->getRootLevelFolder()->getCombinedIdentifier()),
                     $this->returnUrl
                 );
@@ -174,6 +175,7 @@ class RenameFileController
             $backButton = $buttonBar->makeLinkButton()
                 ->setHref($this->returnUrl)
                 ->setTitle($this->getLanguageService()->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.goBack'))
+                ->setShowLabelText(true)
                 ->setIcon($this->iconFactory->getIcon('actions-close', Icon::SIZE_SMALL));
             $buttonBar->addButton($backButton);
         }

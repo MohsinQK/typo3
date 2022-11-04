@@ -17,41 +17,11 @@ declare(strict_types=1);
 
 namespace TYPO3\CMS\Core\Tests\Unit\Resource\Driver;
 
-use PHPUnit\Framework\MockObject\MockObject;
 use TYPO3\CMS\Core\Resource\Driver\AbstractHierarchicalFilesystemDriver;
-use TYPO3\CMS\Core\Tests\Unit\Resource\BaseTestCase;
-use TYPO3\TestingFramework\Core\AccessibleObjectInterface;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
-/**
- * Test case
- */
-class AbstractHierarchicalFilesystemDriverTest extends BaseTestCase
+class AbstractHierarchicalFilesystemDriverTest extends UnitTestCase
 {
-    /**
-     * @var AbstractHierarchicalFilesystemDriver|MockObject|AccessibleObjectInterface
-     */
-    protected $subject;
-
-    protected function setUp(): void
-    {
-        parent::setUp();
-        $this->subject = $this->getAccessibleMockForAbstractClass(AbstractHierarchicalFilesystemDriver::class, [], '', false);
-    }
-
-    /**
-     * @test
-     * @dataProvider canonicalizeAndCheckFileIdentifierCanonicalizesPathDataProvider
-     * @param string $expectedPath
-     * @param string $fileIdentifier
-     */
-    public function canonicalizeAndCheckFileIdentifierCanonicalizesPath(string $expectedPath, string $fileIdentifier): void
-    {
-        self::assertSame($expectedPath, $this->subject->_call('canonicalizeAndCheckFileIdentifier', $fileIdentifier));
-    }
-
-    /**
-     * @return array
-     */
     public function canonicalizeAndCheckFileIdentifierCanonicalizesPathDataProvider(): array
     {
         return [
@@ -92,18 +62,14 @@ class AbstractHierarchicalFilesystemDriverTest extends BaseTestCase
 
     /**
      * @test
-     * @dataProvider canonicalizeAndCheckFolderIdentifierCanonicalizesFolderIdentifierDataProvider
-     * @param string $expectedPath
-     * @param string $identifier
+     * @dataProvider canonicalizeAndCheckFileIdentifierCanonicalizesPathDataProvider
      */
-    public function canonicalizeAndCheckFolderIdentifierCanonicalizesFolderIdentifier(string $expectedPath, string $identifier): void
+    public function canonicalizeAndCheckFileIdentifierCanonicalizesPath(string $expectedPath, string $fileIdentifier): void
     {
-        self::assertSame($expectedPath, $this->subject->_call('canonicalizeAndCheckFolderIdentifier', $identifier));
+        $subject = $this->getAccessibleMockForAbstractClass(AbstractHierarchicalFilesystemDriver::class, [], '', false);
+        self::assertSame($expectedPath, $subject->_call('canonicalizeAndCheckFileIdentifier', $fileIdentifier));
     }
 
-    /**
-     * @return array
-     */
     public function canonicalizeAndCheckFolderIdentifierCanonicalizesFolderIdentifierDataProvider(): array
     {
         return [
@@ -136,5 +102,15 @@ class AbstractHierarchicalFilesystemDriverTest extends BaseTestCase
                 'foo/',
             ],
         ];
+    }
+
+    /**
+     * @test
+     * @dataProvider canonicalizeAndCheckFolderIdentifierCanonicalizesFolderIdentifierDataProvider
+     */
+    public function canonicalizeAndCheckFolderIdentifierCanonicalizesFolderIdentifier(string $expectedPath, string $identifier): void
+    {
+        $subject = $this->getAccessibleMockForAbstractClass(AbstractHierarchicalFilesystemDriver::class, [], '', false);
+        self::assertSame($expectedPath, $subject->_call('canonicalizeAndCheckFolderIdentifier', $identifier));
     }
 }

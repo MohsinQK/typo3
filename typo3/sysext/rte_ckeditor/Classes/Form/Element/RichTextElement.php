@@ -21,10 +21,12 @@ use Psr\EventDispatcher\EventDispatcherInterface;
 use TYPO3\CMS\Backend\Form\Element\AbstractFormElement;
 use TYPO3\CMS\Backend\Form\NodeFactory;
 use TYPO3\CMS\Backend\Routing\UriBuilder;
+use TYPO3\CMS\Core\Core\Environment;
 use TYPO3\CMS\Core\Localization\Locales;
 use TYPO3\CMS\Core\Page\JavaScriptModuleInstruction;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Core\Utility\PathUtility;
+use TYPO3\CMS\RteCKEditor\Controller\ResourceController;
 use TYPO3\CMS\RteCKEditor\Form\Element\Event\AfterGetExternalPluginsEvent;
 use TYPO3\CMS\RteCKEditor\Form\Element\Event\AfterPrepareConfigurationForEditorEvent;
 use TYPO3\CMS\RteCKEditor\Form\Element\Event\BeforeGetExternalPluginsEvent;
@@ -125,12 +127,37 @@ class RichTextElement extends AbstractFormElement
         $fieldWizardHtml = $fieldWizardResult['html'];
         $resultArray = $this->mergeChildReturnIntoExistingResult($resultArray, $fieldWizardResult, false);
 
-        $attributes = [
-            'style' => 'display:none',
-            'data-formengine-validation-rules' => $this->getValidationDataAsJsonString($config),
-            'id' => $fieldId,
-            'name' => htmlspecialchars($itemFormElementName),
-        ];
+        $this->rteConfiguration = $config['richtextConfiguration']['editor'] ?? [];
+        $ckeditorConfiguration = $this->resolveCkEditorConfiguration();
+
+        $styleSrc = (string)($ckeditorConfiguration['options']['contentsCss'] ?? '');
+        if ($styleSrc !== '') {
+            $styleSrcParams = json_encode([
+                'styleSrc' => $styleSrc,
+                'cssPrefix' => sprintf('#%sckeditor5 .ck-content', $fieldId),
+            ]);
+            // Prefixes custom stylesheets with id of the container element and a required `.ck-content` selector
+            // see https://ckeditor.com/docs/ckeditor5/latest/installation/advanced/content-styles.html
+            $styleSrcLoader = GeneralUtility::makeInstance(UriBuilder::class)->buildUriFromRoute(
+                'rteckeditor_resource_stylesheet',
+                [
+                'params' => $styleSrcParams,
+                'hmac' => GeneralUtility::makeInstance(ResourceController::class)->hmac($styleSrcParams, 'stylesheet'),
+            ]
+            ) . '#' . sha1_file(Environment::getPublicPath() . $styleSrc);
+            $resultArray['stylesheetFiles'][] = $styleSrcLoader;
+        }
+
+        $ckeditorAttributes = GeneralUtility::implodeAttributes([
+            'id' => $fieldId . 'ckeditor5',
+            'options' => GeneralUtility::jsonEncodeForHtmlAttribute($ckeditorConfiguration['options'], false),
+            'form-engine' => GeneralUtility::jsonEncodeForHtmlAttribute([
+                'id' => $fieldId,
+                'name' => $itemFormElementName,
+                'value' => $value,
+                'validationRules' => $this->getValidationDataAsJsonString($config),
+            ], false),
+        ], true);
 
         $html = [];
         $html[] = '<div class="formengine-field-item t3js-formengine-field-item">';
@@ -138,9 +165,8 @@ class RichTextElement extends AbstractFormElement
         $html[] =   '<div class="form-control-wrap">';
         $html[] =       '<div class="form-wizards-wrap">';
         $html[] =           '<div class="form-wizards-element">';
-        $html[] =               '<textarea ' . GeneralUtility::implodeAttributes($attributes, true) . '>';
-        $html[] =                   htmlspecialchars($value);
-        $html[] =               '</textarea>';
+        $html[] =               '<typo3-rte-ckeditor-ckeditor5 ' . $ckeditorAttributes . '>';
+        $html[] =               '</typo3-rte-ckeditor-ckeditor5>';
         $html[] =           '</div>';
         if (!empty($fieldControlHtml)) {
             $html[] =           '<div class="form-wizards-items-aside form-wizards-items-aside--field-control">';
@@ -159,9 +185,7 @@ class RichTextElement extends AbstractFormElement
         $html[] = '</div>';
 
         $resultArray['html'] = implode(LF, $html);
-
-        $this->rteConfiguration = $config['richtextConfiguration']['editor'] ?? [];
-        $resultArray['requireJsModules'][] = $this->loadCkEditorRequireJsModule($fieldId);
+        $resultArray['javaScriptModules'][] = JavaScriptModuleInstruction::create('@typo3/rte-ckeditor/ckeditor5.js');
 
         return $resultArray;
     }
@@ -196,13 +220,22 @@ class RichTextElement extends AbstractFormElement
     }
 
     /**
-     * Gets the JavaScript code for CKEditor module
-     * Compiles the configuration, and then adds plugins
-     *
-     * @param string $fieldId
-     * @return JavaScriptModuleInstruction
+     * Determine the language direction
      */
-    protected function loadCkEditorRequireJsModule(string $fieldId): JavaScriptModuleInstruction
+    protected function getLanguageDirectionOfContent(): string
+    {
+        $currentLanguageUid = ($this->data['databaseRow']['sys_language_uid'] ?? 0);
+        if (is_array($currentLanguageUid)) {
+            $currentLanguageUid = $currentLanguageUid[0];
+        }
+        $contentLanguageUid = (int)max($currentLanguageUid, 0);
+        return $this->data['systemLanguageRows'][$contentLanguageUid]['direction'] ?? '';
+    }
+
+    /**
+     * @return array{options: array, externalPlugins: array}
+     */
+    protected function resolveCkEditorConfiguration(): array
     {
         $configuration = $this->prepareConfigurationForEditor();
 
@@ -223,20 +256,13 @@ class RichTextElement extends AbstractFormElement
 
             $externalPlugins[] = [
                 'name' => $extraPluginName,
-                'resource' => $extraPluginConfig['resource'],
+                'resource' => $extraPluginConfig['resource'] ?? null,
             ];
         }
-
-        // Make a hash of the configuration and append it to CKEDITOR.timestamp
-        // This will mitigate browser caching issue when plugins are updated
-        $configurationHash = md5((string)json_encode($configuration));
-        return JavaScriptModuleInstruction::create('@typo3/rte-ckeditor/form-engine-initializer.js', 'FormEngineInitializer')
-            ->invoke('initializeCKEditor', [
-                'fieldId' => $fieldId,
-                'configuration' => $configuration,
-                'configurationHash' => $configurationHash,
-                'externalPlugins' => $externalPlugins,
-            ]);
+        return [
+            'options' => $configuration,
+            'externalPlugins' => $externalPlugins,
+        ];
     }
 
     /**
@@ -267,8 +293,10 @@ class RichTextElement extends AbstractFormElement
         foreach ($externalPlugins as $pluginName => $configuration) {
             $pluginConfiguration[$pluginName] = [
                 'configName' => $configuration['configName'] ?? $pluginName,
-                'resource' => $this->resolveUrlPath($configuration['resource']),
             ];
+            if ($configuration['resource'] ?? null) {
+                $configuration['resource'] = $this->resolveUrlPath($configuration['resource']);
+            }
             unset($configuration['configName']);
             unset($configuration['resource']);
 
@@ -361,9 +389,14 @@ class RichTextElement extends AbstractFormElement
         // Set the UI language of the editor if not hard-coded by the existing configuration
         if (empty($configuration['language'])) {
             $userLang = (string)($this->getBackendUser()->user['lang'] ?: 'en');
-            $configuration['language'] = $userLang === 'default' ? 'en' : $userLang;
+            $configuration['language']['ui'] = $userLang === 'default' ? 'en' : $userLang;
+        } elseif (!is_array($configuration['language'])) {
+            $configuration['language'] = [
+                'ui' => $configuration['language'],
+            ];
         }
-        $configuration['contentsLanguage'] = $this->getLanguageIsoCodeOfContent();
+        $configuration['language']['content'] = $this->getLanguageIsoCodeOfContent();
+        //$configuration['contentsLangDirection'] = $this->getLanguageDirectionOfContent();
 
         // Replace all label references
         $configuration = $this->replaceLanguageFileReferences($configuration);
@@ -374,11 +407,21 @@ class RichTextElement extends AbstractFormElement
         if (is_array($configuration['extraPlugins'] ?? null)) {
             $configuration['extraPlugins'] = implode(',', $configuration['extraPlugins']);
         }
-        if (is_array($configuration['removePlugins'] ?? null)) {
-            $configuration['removePlugins'] = implode(',', $configuration['removePlugins']);
-        }
         if (is_array($configuration['removeButtons'] ?? null)) {
             $configuration['removeButtons'] = implode(',', $configuration['removeButtons']);
+        }
+
+        // The removePlugins option needs to be assigned as an array in CKEditor5.
+        // While we recommended passing the option already as an array, CKEditor4
+        // needed a comma-separated string. The conversion was only handled if the
+        // Integrator passed an array, which means if someone already provided a
+        // comma-separated string the option was simply passed as is to the Editor.
+        // To avoid javascript errors we are going to migrate it to array for now.
+        // The possibility to pass the option as a string is deprecated and will be
+        // removed with version 13.
+        if (isset($configuration['removePlugins']) && !is_array($configuration['removePlugins'])) {
+            trigger_error('Passing the CKEditor removePlugins option as string is deprecated, use an array instead. Support for passing the option as string will be removed in TYPO3 v13.0.', E_USER_DEPRECATED);
+            $configuration['removePlugins'] = explode(',', $configuration['removePlugins']);
         }
 
         $configuration = $this->eventDispatcher

@@ -1,5 +1,7 @@
 .. include:: /Includes.rst.txt
 
+.. _feature-97193:
+
 =======================================
 Feature: #97193 - New TCA type "number"
 =======================================
@@ -41,7 +43,7 @@ The TCA type :php:`number` features the following column configuration:
 - :php:`slider`: :php:`step`, :php:`width`
 - :php:`valuePicker`: :php:`items`, :php:`mode`
 
-The following column configuration can be overwritten by Page TSconfig:
+The following column configuration can be overwritten by page TSconfig:
 
 - :typoscript:`readOnly`
 - :typoscript:`size`
@@ -51,7 +53,7 @@ which can be set to :php:`decimal` or :php:`integer`, which is the default.
 
 .. note::
 
-   The :php:`slider` option allows to define a visual slider element,
+   The :php:`slider` option allows to define a visual slider element
    next to the input field. The steps can be defined with the :php:`step`
    option. The minimum and maximum value can be configured with the
    :php:`range[lower]` and :php:`range[upper]` options.
@@ -67,14 +69,13 @@ which can be set to :php:`decimal` or :php:`integer`, which is the default.
     The options :php:`range`, :php:`slider` as well as :php:`eval=double2`
     are no longer evaluated for TCA type :php:`input`.
 
-
 Migration
 ---------
 
 The migration from :php:`eval='int'` to :php:`type=number`
 is done like following:
 
-.. code-block:: php
+..  code-block:: php
 
     // Before
 
@@ -98,7 +99,7 @@ is done like following:
 The migration from :php:`eval=double2` to :php:`type=number`
 is done like following:
 
-.. code-block:: php
+..  code-block:: php
 
     // Before
 

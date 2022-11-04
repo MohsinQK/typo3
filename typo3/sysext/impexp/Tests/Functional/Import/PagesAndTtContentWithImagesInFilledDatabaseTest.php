@@ -42,7 +42,7 @@ class PagesAndTtContentWithImagesInFilledDatabaseTest extends AbstractImportExpo
         $this->importCSVDataSet(__DIR__ . '/../Fixtures/DatabaseImports/sys_file.csv');
         $this->importCSVDataSet(__DIR__ . '/../Fixtures/DatabaseImports/sys_file_metadata.csv');
         $this->importCSVDataSet(__DIR__ . '/../Fixtures/DatabaseImports/sys_file_reference.csv');
-        $this->importDataSet(__DIR__ . '/../Fixtures/DatabaseImports/sys_file_storage.xml');
+        $this->importCSVDataSet(__DIR__ . '/../Fixtures/DatabaseImports/sys_file_storage.csv');
 
         $subject = GeneralUtility::makeInstance(Import::class);
         $subject->setPid(0);
@@ -70,7 +70,7 @@ class PagesAndTtContentWithImagesInFilledDatabaseTest extends AbstractImportExpo
         $this->importCSVDataSet(__DIR__ . '/../Fixtures/DatabaseImports/sys_file.csv');
         $this->importCSVDataSet(__DIR__ . '/../Fixtures/DatabaseImports/sys_file_metadata.csv');
         $this->importCSVDataSet(__DIR__ . '/../Fixtures/DatabaseImports/sys_file_reference.csv');
-        $this->importDataSet(__DIR__ . '/../Fixtures/DatabaseImports/sys_file_storage.xml');
+        $this->importCSVDataSet(__DIR__ . '/../Fixtures/DatabaseImports/sys_file_storage.csv');
 
         $subject = GeneralUtility::makeInstance(Import::class);
         try {
@@ -107,7 +107,7 @@ class PagesAndTtContentWithImagesInFilledDatabaseTest extends AbstractImportExpo
         $this->importCSVDataSet(__DIR__ . '/../Fixtures/DatabaseImports/sys_file.csv');
         $this->importCSVDataSet(__DIR__ . '/../Fixtures/DatabaseImports/sys_file_metadata.csv');
         $this->importCSVDataSet(__DIR__ . '/../Fixtures/DatabaseImports/sys_file_reference.csv');
-        $this->importDataSet(__DIR__ . '/../Fixtures/DatabaseImports/sys_file_storage.xml');
+        $this->importCSVDataSet(__DIR__ . '/../Fixtures/DatabaseImports/sys_file_storage.csv');
 
         $subject = GeneralUtility::makeInstance(Import::class);
         try {
@@ -148,7 +148,7 @@ class PagesAndTtContentWithImagesInFilledDatabaseTest extends AbstractImportExpo
         $this->importCSVDataSet(__DIR__ . '/../Fixtures/DatabaseImports/sys_file.csv');
         $this->importCSVDataSet(__DIR__ . '/../Fixtures/DatabaseImports/sys_file_metadata.csv');
         $this->importCSVDataSet(__DIR__ . '/../Fixtures/DatabaseImports/sys_file_reference.csv');
-        $this->importDataSet(__DIR__ . '/../Fixtures/DatabaseImports/sys_file_storage.xml');
+        $this->importCSVDataSet(__DIR__ . '/../Fixtures/DatabaseImports/sys_file_storage.csv');
 
         $subject = GeneralUtility::makeInstance(Import::class);
         try {
@@ -184,7 +184,7 @@ class PagesAndTtContentWithImagesInFilledDatabaseTest extends AbstractImportExpo
         $this->importCSVDataSet(__DIR__ . '/../Fixtures/DatabaseImports/sys_file.csv');
         $this->importCSVDataSet(__DIR__ . '/../Fixtures/DatabaseImports/sys_file_metadata.csv');
         $this->importCSVDataSet(__DIR__ . '/../Fixtures/DatabaseImports/sys_file_reference.csv');
-        $this->importDataSet(__DIR__ . '/../Fixtures/DatabaseImports/sys_file_storage.xml');
+        $this->importCSVDataSet(__DIR__ . '/../Fixtures/DatabaseImports/sys_file_storage.csv');
 
         $subject = GeneralUtility::makeInstance(Import::class);
         $subject->setPid(0);
@@ -227,7 +227,7 @@ class PagesAndTtContentWithImagesInFilledDatabaseTest extends AbstractImportExpo
     {
         // Have a single sys_file entry with uid 1
         $this->importCSVDataSet(__DIR__ . '/../Fixtures/DatabaseImports/sys_file_single_image.csv');
-        $this->importDataSet(__DIR__ . '/../Fixtures/DatabaseImports/sys_file_storage.xml');
+        $this->importCSVDataSet(__DIR__ . '/../Fixtures/DatabaseImports/sys_file_storage.csv');
 
         $subject = GeneralUtility::makeInstance(Import::class);
         $subject->setPid(0);
@@ -278,16 +278,14 @@ class PagesAndTtContentWithImagesInFilledDatabaseTest extends AbstractImportExpo
         <type>array</type>
         <el>
             <flexFormRelation>
-                <TCEforms>
-                    <label>FlexForm relation</label>
-                    <config>
-                        <type>group</type>
-                        <allowed>pages</allowed>
-                        <size>1</size>
-                        <maxitems>1</maxitems>
-                        <minitems>0</minitems>
-                    </config>
-                </TCEforms>
+                <label>FlexForm relation</label>
+                <config>
+                    <type>group</type>
+                    <allowed>pages</allowed>
+                    <size>1</size>
+                    <maxitems>1</maxitems>
+                    <minitems>0</minitems>
+                </config>
             </flexFormRelation>
         </el>
     </ROOT>
@@ -307,7 +305,7 @@ class PagesAndTtContentWithImagesInFilledDatabaseTest extends AbstractImportExpo
             ->from('tt_content')
             ->where($queryBuilder->expr()->like(
                 'pi_flexform',
-                $queryBuilder->createNamedParameter('%<value index="vDEF">4</value>%', \PDO::PARAM_STR)
+                $queryBuilder->createNamedParameter('%<value index="vDEF">4</value>%')
             ))
             ->executeQuery()
             ->fetchOne();
@@ -409,14 +407,12 @@ class PagesAndTtContentWithImagesInFilledDatabaseTest extends AbstractImportExpo
                 <type>array</type>
                 <el>
                     <settings.persistenceIdentifier>
-                        <TCEforms>
-                            <label>FlexForm soft reference</label>
-                            <config>
-                                <type>select</type>
-                                <renderType>selectSingle</renderType>
-                                <softref>formPersistenceIdentifier</softref>
-                            </config>
-                        </TCEforms>
+                        <label>FlexForm soft reference</label>
+                        <config>
+                            <type>select</type>
+                            <renderType>selectSingle</renderType>
+                            <softref>formPersistenceIdentifier</softref>
+                        </config>
                     </settings.persistenceIdentifier>
                 </el>
             </ROOT>

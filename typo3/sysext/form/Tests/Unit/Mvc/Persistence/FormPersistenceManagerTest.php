@@ -17,8 +17,6 @@ declare(strict_types=1);
 
 namespace TYPO3\CMS\Form\Tests\Unit\Mvc\Persistence;
 
-use Prophecy\Argument;
-use Prophecy\PhpUnit\ProphecyTrait;
 use TYPO3\CMS\Core\Cache\Frontend\VariableFrontend;
 use TYPO3\CMS\Core\Resource\File;
 use TYPO3\CMS\Core\Resource\Folder;
@@ -32,13 +30,8 @@ use TYPO3\CMS\Form\Mvc\Persistence\Exception\PersistenceManagerException;
 use TYPO3\CMS\Form\Mvc\Persistence\FormPersistenceManager;
 use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
-/**
- * Test case
- */
 class FormPersistenceManagerTest extends UnitTestCase
 {
-    use ProphecyTrait;
-
     /**
      * @test
      */
@@ -677,11 +670,10 @@ class FormPersistenceManagerTest extends UnitTestCase
             'dummy',
         ], [], '', false);
 
-        $typoScriptServiceProphecy = $this->prophesize(TypoScriptService::class);
-        GeneralUtility::addInstance(TypoScriptService::class, $typoScriptServiceProphecy->reveal());
-        $typoScriptServiceProphecy
-            ->resolvePossibleTypoScriptConfiguration(Argument::cetera())
+        $typoScriptServiceMock = $this->createMock(TypoScriptService::class);
+        $typoScriptServiceMock->method('resolvePossibleTypoScriptConfiguration')->with(self::anything())
             ->willReturnArgument(0);
+        GeneralUtility::addInstance(TypoScriptService::class, $typoScriptServiceMock);
 
         $mockController->_set('typoScriptSettings', [
             'formDefinitionOverrides' => [

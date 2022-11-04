@@ -50,7 +50,7 @@ class ReferenceIndexUpdateCommand extends Command
      * @param OutputInterface $output
      * @return int
      */
-    protected function execute(InputInterface $input, OutputInterface $output)
+    protected function execute(InputInterface $input, OutputInterface $output): int
     {
         Bootstrap::initializeBackendAuthentication();
         $io = new SymfonyStyle($input, $output);
@@ -66,6 +66,6 @@ class ReferenceIndexUpdateCommand extends Command
             $io->section('Reference Index is now being updated');
         }
         $referenceIndex->updateIndex($isTestOnly, $progressListener);
-        return 0;
+        return Command::SUCCESS;
     }
 }

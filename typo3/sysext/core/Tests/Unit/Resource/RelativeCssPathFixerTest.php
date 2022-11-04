@@ -18,17 +18,10 @@ declare(strict_types=1);
 namespace TYPO3\CMS\Core\Tests\Unit\Resource;
 
 use TYPO3\CMS\Core\Resource\RelativeCssPathFixer;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
-/**
- * Testcase for the RelativeCssPathFixer class
- */
-class RelativeCssPathFixerTest extends BaseTestCase
+class RelativeCssPathFixerTest extends UnitTestCase
 {
-    protected bool $backupEnvironment = true;
-
-    /**
-     * @return array
-     */
     public function fixRelativeUrlPathsDataProvider(): array
     {
         return [
@@ -79,9 +72,6 @@ class RelativeCssPathFixerTest extends BaseTestCase
     /**
      * @test
      * @dataProvider fixRelativeUrlPathsDataProvider
-     * @param string $css css input
-     * @param string $newDir new Directory of css file
-     * @param string $expected expected adjusted import path
      */
     public function fixRelativeUrlPaths(string $css, string $newDir, string $expected): void
     {

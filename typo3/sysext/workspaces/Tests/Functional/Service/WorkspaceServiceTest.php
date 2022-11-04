@@ -34,7 +34,8 @@ class WorkspaceServiceTest extends FunctionalTestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->setUpBackendUserFromFixture(1);
+        $this->importCSVDataSet(__DIR__ . '/../Fixtures/be_users.csv');
+        $this->setUpBackendUser(1);
         Bootstrap::initializeLanguageObject();
         $this->importCSVDataSet(__DIR__ . '/../Fixtures/sys_workspace.csv');
     }
@@ -160,7 +161,6 @@ class WorkspaceServiceTest extends FunctionalTestCase
             'sys_file_metadata' => [],
             'sys_file_reference' => [],
             'backend_layout' => [],
-            'sys_template' => [],
             'tt_content' => [
                 1 => true,
                 7 => true,

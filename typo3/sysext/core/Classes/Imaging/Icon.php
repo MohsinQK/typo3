@@ -25,25 +25,30 @@ use TYPO3\CMS\Core\Utility\GeneralUtility;
 class Icon
 {
     /**
+     * @var string the default size
+     */
+    public const SIZE_DEFAULT = 'default'; // 1em
+
+    /**
      * @var string the small size
      */
-    const SIZE_SMALL = 'small'; // 16
+    public const SIZE_SMALL = 'small'; // 16px
 
     /**
      * @var string the default size
      */
-    const SIZE_DEFAULT = 'default'; // 32
+    public const SIZE_MEDIUM = 'medium'; // 32px
 
     /**
      * @var string the large size
      */
-    const SIZE_LARGE = 'large'; // 48
+    public const SIZE_LARGE = 'large'; // 48px
 
     /**
      * @internal
      * @var string the overlay size, which depends on icon size
      */
-    const SIZE_OVERLAY = 'overlay';
+    public const SIZE_OVERLAY = 'overlay';
 
     /**
      * The identifier which the PHP code that calls the IconFactory hands over

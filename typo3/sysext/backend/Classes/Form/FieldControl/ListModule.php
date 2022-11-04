@@ -91,7 +91,6 @@ class ListModule extends AbstractNode
 
         $id = StringUtility::getUniqueId('t3js-formengine-fieldcontrol-');
 
-        /** @var \TYPO3\CMS\Backend\Routing\UriBuilder $uriBuilder */
         $uriBuilder = GeneralUtility::makeInstance(UriBuilder::class);
 
         return [
@@ -101,7 +100,7 @@ class ListModule extends AbstractNode
                 'id' => htmlspecialchars($id),
                 'href' => (string)$uriBuilder->buildUriFromRoute('wizard_list', $urlParameters),
             ],
-            'requireJsModules' => [
+            'javaScriptModules' => [
                 JavaScriptModuleInstruction::create('@typo3/backend/form-engine/field-control/list-module.js')->instance('#' . $id),
             ],
         ];

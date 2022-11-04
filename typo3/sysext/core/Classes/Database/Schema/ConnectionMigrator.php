@@ -320,8 +320,8 @@ class ConnectionMigrator
 
         $schemaConfig = new SchemaConfig();
         $schemaConfig->setName($this->connection->getDatabase());
-        if (isset($this->connection->getParams()['tableoptions'])) {
-            $schemaConfig->setDefaultTableOptions($this->connection->getParams()['tableoptions']);
+        if (isset($this->connection->getParams()['defaultTableOptions'])) {
+            $schemaConfig->setDefaultTableOptions($this->connection->getParams()['defaultTableOptions']);
         }
 
         return new Schema($tablesForConnection, [], $schemaConfig);
@@ -676,7 +676,6 @@ class ConnectionMigrator
             );
 
             $statements = $changedFieldDiff->toSql($this->connection->getDatabasePlatform());
-
             foreach ($statements as $statement) {
                 $updateSuggestions['change_table'][md5($statement)] = $statement;
             }
@@ -1111,7 +1110,7 @@ class ConnectionMigrator
      */
     protected function transformTablesForDatabasePlatform(array $tables, Connection $connection): array
     {
-        $defaultTableOptions = $connection->getParams()['tableoptions'] ?? [];
+        $defaultTableOptions = $connection->getParams()['defaultTableOptions'] ?? [];
         foreach ($tables as &$table) {
             $indexes = [];
             foreach ($table->getIndexes() as $key => $index) {
@@ -1202,11 +1201,11 @@ class ConnectionMigrator
             ->where(
                 $queryBuilder->expr()->eq(
                     'TABLE_TYPE',
-                    $queryBuilder->createNamedParameter('BASE TABLE', \PDO::PARAM_STR)
+                    $queryBuilder->createNamedParameter('BASE TABLE')
                 ),
                 $queryBuilder->expr()->eq(
                     'TABLE_SCHEMA',
-                    $queryBuilder->createNamedParameter($this->connection->getDatabase(), \PDO::PARAM_STR)
+                    $queryBuilder->createNamedParameter($this->connection->getDatabase())
                 )
             )
             ->executeQuery();

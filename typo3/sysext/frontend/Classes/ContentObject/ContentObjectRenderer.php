@@ -33,6 +33,7 @@ use TYPO3\CMS\Core\Database\Query\QueryHelper;
 use TYPO3\CMS\Core\Database\Query\Restriction\DocumentTypeExclusionRestriction;
 use TYPO3\CMS\Core\Database\Query\Restriction\FrontendRestrictionContainer;
 use TYPO3\CMS\Core\Domain\Repository\PageRepository;
+use TYPO3\CMS\Core\Html\HtmlCropper;
 use TYPO3\CMS\Core\Html\HtmlParser;
 use TYPO3\CMS\Core\Html\SanitizerBuilderFactory;
 use TYPO3\CMS\Core\Html\SanitizerInitiator;
@@ -50,10 +51,10 @@ use TYPO3\CMS\Core\Resource\Folder;
 use TYPO3\CMS\Core\Resource\ProcessedFile;
 use TYPO3\CMS\Core\Resource\ResourceFactory;
 use TYPO3\CMS\Core\Service\FlexFormService;
+use TYPO3\CMS\Core\Text\TextCropper;
 use TYPO3\CMS\Core\TimeTracker\TimeTracker;
 use TYPO3\CMS\Core\Type\BitSet;
 use TYPO3\CMS\Core\TypoScript\Parser\TypoScriptParser;
-use TYPO3\CMS\Core\TypoScript\TemplateService;
 use TYPO3\CMS\Core\TypoScript\TypoScriptService;
 use TYPO3\CMS\Core\Utility\ArrayUtility;
 use TYPO3\CMS\Core\Utility\DebugUtility;
@@ -71,8 +72,8 @@ use TYPO3\CMS\Frontend\Imaging\GifBuilder;
 use TYPO3\CMS\Frontend\Page\PageLayoutResolver;
 use TYPO3\CMS\Frontend\Resource\FilePathSanitizer;
 use TYPO3\CMS\Frontend\Typolink\EmailLinkBuilder;
-use TYPO3\CMS\Frontend\Typolink\HtmlLinkResult;
 use TYPO3\CMS\Frontend\Typolink\LinkFactory;
+use TYPO3\CMS\Frontend\Typolink\LinkResult;
 use TYPO3\CMS\Frontend\Typolink\LinkResultInterface;
 use TYPO3\CMS\Frontend\Typolink\UnableToLinkException;
 use TYPO3\HtmlSanitizer\Builder\BuilderInterface;
@@ -401,13 +402,13 @@ class ContentObjectRenderer implements LoggerAwareInterface
      *
      * @see ContentObjectRender::$userObjectType
      */
-    const OBJECTTYPE_USER_INT = 1;
+    public const OBJECTTYPE_USER_INT = 1;
     /**
      * Indicates that object type is USER.
      *
      * @see ContentObjectRender::$userObjectType
      */
-    const OBJECTTYPE_USER = 2;
+    public const OBJECTTYPE_USER = 2;
 
     /**
      * @param TypoScriptFrontendController $typoScriptFrontendController
@@ -635,7 +636,8 @@ class ContentObjectRenderer implements LoggerAwareInterface
             $cF = GeneralUtility::makeInstance(TypoScriptParser::class);
             // $name and $conf is loaded with the referenced values.
             $confOverride = is_array($conf) ? $conf : [];
-            [$name, $conf] = $cF->getVal($key, $this->getTypoScriptFrontendController()->tmpl->setup);
+            $typoScriptSetupArray = $this->getRequest()->getAttribute('frontend.typoscript')->getSetupArray();
+            [$name, $conf] = $cF->getVal($key, $typoScriptSetupArray);
             $conf = array_replace_recursive($conf, $confOverride);
             // Getting the cObject
             $timeTracker->incStackPointer();
@@ -1101,7 +1103,7 @@ class ContentObjectRenderer implements LoggerAwareInterface
         trigger_error('$cObj->getATagParams is deprecated in favor of the unified LinkFactory API for generating links. This method will be removed in TYPO3 v13.0.', E_USER_DEPRECATED);
         $aTagParams = $this->stdWrapValue('ATagParams', $conf ?? []);
         // Add the global config.ATagParams
-        $globalParams = $this->getTypoScriptFrontendController() ? trim($this->getTypoScriptFrontendController()->config['config']['ATagParams'] ?? ''): '';
+        $globalParams = $this->getTypoScriptFrontendController() ? trim($this->getTypoScriptFrontendController()->config['config']['ATagParams'] ?? '') : '';
         $aTagParams = ' ' . trim($globalParams . ' ' . $aTagParams);
         // Extend params
         $aTagParams = trim($aTagParams);
@@ -1960,7 +1962,7 @@ class ContentObjectRenderer implements LoggerAwareInterface
      */
     public function stdWrap_bytes($content = '', $conf = [])
     {
-        return GeneralUtility::formatSize((int)$content, $conf['bytes.']['labels'], $conf['bytes.']['base']);
+        return GeneralUtility::formatSize((int)$content, $conf['bytes.']['labels'] ?? '', $conf['bytes.']['base'] ?? 0);
     }
 
     /**
@@ -2784,34 +2786,22 @@ class ContentObjectRenderer implements LoggerAwareInterface
      * @param string $content The string to perform the operation on
      * @param string $options The parameters splitted by "|": First parameter is the max number of chars of the string. Negative value means cropping from end of string. Second parameter is the pre/postfix string to apply if cropping occurs. Third parameter is a boolean value. If set then crop will be applied at nearest space.
      * @return string The processed input value.
-     * @internal
      * @see stdWrap()
+     * @internal
      */
     public function crop($content, $options)
     {
         $options = explode('|', $options);
-        $chars = (int)$options[0];
-        $afterstring = trim($options[1] ?? '');
-        $crop2space = trim($options[2] ?? '');
-        if ($chars) {
-            if (mb_strlen($content, 'utf-8') > abs($chars)) {
-                $truncatePosition = false;
-                if ($chars < 0) {
-                    $content = mb_substr($content, $chars, null, 'utf-8');
-                    if ($crop2space) {
-                        $truncatePosition = strpos($content, ' ');
-                    }
-                    $content = $truncatePosition ? $afterstring . substr($content, $truncatePosition) : $afterstring . $content;
-                } else {
-                    $content = mb_substr($content, 0, $chars, 'utf-8');
-                    if ($crop2space) {
-                        $truncatePosition = strrpos($content, ' ');
-                    }
-                    $content = $truncatePosition ? substr($content, 0, $truncatePosition) . $afterstring : $content . $afterstring;
-                }
-            }
-        }
-        return $content;
+        $numberOfChars = (int)$options[0];
+        $replacementForEllipsis = trim($options[1] ?? '');
+        $cropToSpace = trim($options[2] ?? '') === '1';
+        return GeneralUtility::makeInstance(TextCropper::class)
+            ->crop(
+                content: $content,
+                numberOfChars: $numberOfChars,
+                replacementForEllipsis: $replacementForEllipsis,
+                cropToSpace: $cropToSpace
+            );
     }
 
     /**
@@ -2830,154 +2820,16 @@ class ContentObjectRenderer implements LoggerAwareInterface
     public function cropHTML(string $content, string $options): string
     {
         $options = explode('|', $options);
-        $chars = (int)$options[0];
-        $absChars = abs($chars);
+        $numberOfChars = (int)$options[0];
         $replacementForEllipsis = trim($options[1] ?? '');
-        $crop2space = trim($options[2] ?? '') === '1';
-        // Split $content into an array(even items in the array are outside the tags, odd numbers are tag-blocks).
-        $tags = 'a|abbr|address|area|article|aside|audio|b|bdi|bdo|blockquote|body|br|button|caption|cite|code|col|colgroup|data|datalist|dd|del|dfn|div|dl|dt|em|embed|fieldset|figcaption|figure|font|footer|form|h1|h2|h3|h4|h5|h6|header|hr|i|iframe|img|input|ins|kbd|keygen|label|legend|li|link|main|map|mark|meter|nav|object|ol|optgroup|option|output|p|param|pre|progress|q|rb|rp|rt|rtc|ruby|s|samp|section|select|small|source|span|strong|sub|sup|table|tbody|td|textarea|tfoot|th|thead|time|tr|track|u|ul|ut|var|video|wbr';
-        $tagsRegEx = '
-			(
-				(?:
-					<!--.*?-->					# a comment
-					|
-					<canvas[^>]*>.*?</canvas>   # a canvas tag
-					|
-					<script[^>]*>.*?</script>   # a script tag
-					|
-					<noscript[^>]*>.*?</noscript> # a noscript tag
-					|
-					<template[^>]*>.*?</template> # a template tag
-				)
-				|
-				</?(?:' . $tags . ')+			# opening tag (\'<tag\') or closing tag (\'</tag\')
-				(?:
-					(?:
-						(?:
-							\\s+\\w[\\w-]*		# EITHER spaces, followed by attribute names
-							(?:
-								\\s*=?\\s*		# equals
-								(?>
-									".*?"		# attribute values in double-quotes
-									|
-									\'.*?\'		# attribute values in single-quotes
-									|
-									[^\'">\\s]+	# plain attribute values
-								)
-							)?
-						)
-						|						# OR a single dash (for TYPO3 link tag)
-						(?:
-							\\s+-
-						)
-					)+\\s*
-					|							# OR only spaces
-					\\s*
-				)
-				/?>								# closing the tag with \'>\' or \'/>\'
-			)';
-        $splittedContent = preg_split('%' . $tagsRegEx . '%xs', $content, -1, PREG_SPLIT_DELIM_CAPTURE);
-        if ($splittedContent === false) {
-            $this->logger->debug('Unable to split "{content}" into tags.', ['content' => $content]);
-            $splittedContent = [];
-        }
-        // Reverse array if we are cropping from right.
-        if ($chars < 0) {
-            $splittedContent = array_reverse($splittedContent);
-        }
-        // Crop the text (chars of tag-blocks are not counted).
-        $strLen = 0;
-        // This is the offset of the content item which was cropped.
-        $croppedOffset = null;
-        $countSplittedContent = count($splittedContent);
-        // @todo $maxCroppingLength of 962 was determined by hand as the highest
-        //       value to not lead to internal error (Compilation failed: regular
-        //       expression is too large ). Still questionable if we really can
-        //       rely on a fixed value here, or better to say need to be understood
-        //       why the value has to be this value to avoid regular expression
-        //       compilation error.
-        $maxCroppingLength = 962;
-        for ($offset = 0; $offset < $countSplittedContent; $offset++) {
-            if ($offset % 2 === 0) {
-                $fullTempContent = $splittedContent[$offset];
-                $thisStrLen = mb_strlen(html_entity_decode($fullTempContent, ENT_COMPAT, 'UTF-8'), 'utf-8');
-                if ($strLen + $thisStrLen > $absChars) {
-                    $tempProcessedContent = '';
-                    $croppedOffset = $offset;
-                    $cropPosition = $absChars - $strLen;
-                    $cropEnd = ($cropPosition > $maxCroppingLength) ? $maxCroppingLength : $cropPosition;
-                    $processed = 0;
-                    // we need to crop in multiple steps to avoid regexp length compilation errors
-                    do {
-                        // remove already processed string part
-                        $tempContent = mb_substr($fullTempContent, mb_strlen($tempProcessedContent));
-                        $patternMatchEntityAsSingleChar = '(&[^&\\s;]{2,8};|.)';
-                        $cropRegEx = $chars < 0 ? '#' . $patternMatchEntityAsSingleChar . '{0,' . ($cropEnd + 1) . '}$#uis' : '#^' . $patternMatchEntityAsSingleChar . '{0,' . ($cropEnd + 1) . '}#uis';
-                        if (preg_match($cropRegEx, $tempContent, $croppedMatch)) {
-                            $tempContentPlusOneCharacter = $croppedMatch[0];
-                        } else {
-                            $tempContentPlusOneCharacter = false;
-                        }
-                        $cropRegEx = $chars < 0 ? '#' . $patternMatchEntityAsSingleChar . '{0,' . $cropEnd . '}$#uis' : '#^' . $patternMatchEntityAsSingleChar . '{0,' . $cropEnd . '}#uis';
-                        if (preg_match($cropRegEx, $tempContent, $croppedMatch)) {
-                            $tempContent = $croppedMatch[0];
-                            if ($crop2space && $tempContentPlusOneCharacter !== false) {
-                                $cropRegEx = $chars < 0 ? '#(?<=\\s)' . $patternMatchEntityAsSingleChar . '{0,' . $cropEnd . '}$#uis' : '#^' . $patternMatchEntityAsSingleChar . '{0,' . $cropEnd . '}(?=\\s)#uis';
-                                if (preg_match($cropRegEx, $tempContentPlusOneCharacter, $croppedMatch)) {
-                                    $tempContent = $croppedMatch[0];
-                                }
-                            }
-                        }
-                        $tempProcessedContent .= $tempContent;
-                        $processed += $cropEnd;
-                        $cropEnd = ($processed + $maxCroppingLength > $cropPosition ? ($cropPosition - $processed) : $maxCroppingLength);
-                    } while ($cropEnd > 0 && $cropEnd < $cropPosition);
-                    $splittedContent[$offset] = $tempProcessedContent;
-                    break;
-                }
-                $strLen += $thisStrLen;
-            }
-        }
-        // Close cropped tags.
-        $closingTags = [];
-        if ($croppedOffset !== null) {
-            $openingTagRegEx = '#^<(\\w+)(?:\\s|>)#';
-            $closingTagRegEx = '#^</(\\w+)(?:\\s|>)#';
-            for ($offset = $croppedOffset - 1; $offset >= 0; $offset = $offset - 2) {
-                if (substr($splittedContent[$offset], -2) === '/>') {
-                    // Ignore empty element tags (e.g. <br />).
-                    continue;
-                }
-                preg_match($chars < 0 ? $closingTagRegEx : $openingTagRegEx, $splittedContent[$offset], $matches);
-                $tagName = $matches[1] ?? null;
-                if ($tagName !== null) {
-                    // Seek for the closing (or opening) tag.
-                    $countSplittedContent = count($splittedContent);
-                    for ($seekingOffset = $offset + 2; $seekingOffset < $countSplittedContent; $seekingOffset = $seekingOffset + 2) {
-                        preg_match($chars < 0 ? $openingTagRegEx : $closingTagRegEx, $splittedContent[$seekingOffset], $matches);
-                        $seekingTagName = $matches[1] ?? null;
-                        if ($tagName === $seekingTagName) {
-                            // We found a matching tag.
-                            // Add closing tag only if it occurs after the cropped content item.
-                            if ($seekingOffset > $croppedOffset) {
-                                $closingTags[] = $splittedContent[$seekingOffset];
-                            }
-                            break;
-                        }
-                    }
-                }
-            }
-            // Drop the cropped items of the content array. The $closingTags will be added later on again.
-            array_splice($splittedContent, $croppedOffset + 1);
-        }
-        $splittedContent = array_merge($splittedContent, [
-            $croppedOffset !== null ? $replacementForEllipsis : '',
-        ], $closingTags);
-        // Reverse array once again if we are cropping from the end.
-        if ($chars < 0) {
-            $splittedContent = array_reverse($splittedContent);
-        }
-        return implode('', $splittedContent);
+        $cropToSpace = trim($options[2] ?? '') === '1';
+        return GeneralUtility::makeInstance(HtmlCropper::class)
+            ->crop(
+                content: $content,
+                numberOfChars: $numberOfChars,
+                replacementForEllipsis: $replacementForEllipsis,
+                cropToSpace: $cropToSpace
+            );
     }
 
     /**
@@ -3276,6 +3128,9 @@ class ContentObjectRenderer implements LoggerAwareInterface
                     $parts[$k - 1] = preg_replace('/' . CR . '?' . LF . '[ ]*$/', '', $parts[$k - 1]);
                 }
                 if (($cfg['stripNLnext'] ?? false) || ($cfg['stripNL'] ?? false)) {
+                    if (!isset($parts[$k + 1])) {
+                        $parts[$k + 1] = '';
+                    }
                     $parts[$k + 1] = preg_replace('/^[ ]*' . CR . '?' . LF . '/', '', $parts[$k + 1]);
                 }
             }
@@ -3412,8 +3267,12 @@ class ContentObjectRenderer implements LoggerAwareInterface
                     // These operations should only be performed on code outside the tags...
                     if (!is_array($currentTag)) {
                         // Constants
-                        $tsfe = $this->getTypoScriptFrontendController();
-                        $tmpConstants = $tsfe->tmpl->setup['constants.'] ?? null;
+                        $typoScriptSetupArray = [];
+                        $frontendTypoScript = $this->getRequest()->getAttribute('frontend.typoscript');
+                        if ($frontendTypoScript && $frontendTypoScript->hasSetup()) {
+                            $typoScriptSetupArray = $frontendTypoScript->getSetupArray();
+                        }
+                        $tmpConstants = $typoScriptSetupArray['constants.'] ?? null;
                         if (!empty($conf['constants']) && is_array($tmpConstants)) {
                             foreach ($tmpConstants as $key => $val) {
                                 if (is_string($val)) {
@@ -3597,7 +3456,6 @@ class ContentObjectRenderer implements LoggerAwareInterface
         }
 
         $encapTags = GeneralUtility::trimExplode(',', strtolower($conf['encapsTagList'] ?? ''), true);
-        $nonWrappedTag = $conf['nonWrappedTag'];
         $defaultAlign = trim((string)$this->stdWrapValue('defaultAlign', $conf ?? []));
 
         $str_content = '';
@@ -3633,7 +3491,7 @@ class ContentObjectRenderer implements LoggerAwareInterface
                 $uTagName = strtoupper($tagName);
                 $uTagName = strtoupper($conf['remapTag.'][$uTagName] ?? $uTagName);
             } else {
-                $uTagName = strtoupper($nonWrappedTag);
+                $uTagName = strtoupper($conf['nonWrappedTag'] ?? '');
                 // The line will be wrapped: $uTagName should not be an empty tag
                 $emptyTag = false;
                 $str_content = $lParts[$k];
@@ -3819,13 +3677,14 @@ class ContentObjectRenderer implements LoggerAwareInterface
         $imageResource = null;
         if ($file === 'GIFBUILDER') {
             $gifCreator = GeneralUtility::makeInstance(GifBuilder::class);
-            $theImage = '';
             if ($GLOBALS['TYPO3_CONF_VARS']['GFX']['gdlib']) {
                 $gifCreator->start($fileArray, $this->data);
                 $theImage = $gifCreator->gifBuild();
+                if ($theImage !== '') {
+                    $imageResource = $gifCreator->getImageDimensions(Environment::getPublicPath() . '/' . $theImage);
+                    $imageResource['origFile'] = $theImage;
+                }
             }
-            $imageResource = $gifCreator->getImageDimensions($theImage);
-            $imageResource['origFile'] = $theImage;
         } else {
             if ($file instanceof File) {
                 $fileObject = $file;
@@ -3909,7 +3768,7 @@ class ContentObjectRenderer implements LoggerAwareInterface
                             0 => (int)$processedFileObject->getProperty('width'),
                             1 => (int)$processedFileObject->getProperty('height'),
                             2 => $processedFileObject->getExtension(),
-                            3 => $processedFileObject->getPublicUrl(),
+                            3 => Environment::getPublicPath() . '/' . $processedFileObject->getPublicUrl(),
                             'origFile' => $fileObject->getPublicUrl(),
                             'origFile_mtime' => $fileObject->getModificationTime(),
                             // This is needed by \TYPO3\CMS\Frontend\Imaging\GifBuilder,
@@ -3929,7 +3788,7 @@ class ContentObjectRenderer implements LoggerAwareInterface
                 $info = GeneralUtility::makeInstance(GifBuilder::class)->imageMagickConvert($theImage, 'WEB');
                 $info['origFile'] = $theImage;
                 // This is needed by \TYPO3\CMS\Frontend\Imaging\GifBuilder, ln 100ff in order for the setup-array to create a unique filename hash.
-                $info['origFile_mtime'] = @filemtime($theImage);
+                $info['origFile_mtime'] = @filemtime(Environment::getPublicPath() . '/' . $theImage);
                 $imageResource = $info;
             } catch (Exception $e) {
                 // do nothing in case the file path is invalid
@@ -3989,7 +3848,7 @@ class ContentObjectRenderer implements LoggerAwareInterface
         $cropArea = null;
         // Resolve TypoScript configured cropping.
         $cropSettings = isset($fileArray['crop.'])
-            ? $this->stdWrap($fileArray['crop'], $fileArray['crop.'])
+            ? $this->stdWrap($fileArray['crop'] ?? '', $fileArray['crop.'])
             : ($fileArray['crop'] ?? null);
 
         if (is_string($cropSettings)) {
@@ -4114,14 +3973,14 @@ class ContentObjectRenderer implements LoggerAwareInterface
                         $retVal = $this->getGlobal($key);
                         break;
                     case 'level':
-                        $retVal = count($tsfe->tmpl->rootLine) - 1;
+                        $retVal = count($tsfe->config['rootLine'] ?? []) - 1;
                         break;
                     case 'leveltitle':
                         $keyParts = GeneralUtility::trimExplode(',', $key);
                         $pointer = (int)($keyParts[0] ?? 0);
                         $slide = (string)($keyParts[1] ?? '');
 
-                        $numericKey = $this->getKey($pointer, $tsfe->tmpl->rootLine);
+                        $numericKey = $this->getKey($pointer, $tsfe->config['rootLine'] ?? []);
                         $retVal = $this->rootLineValue($numericKey, 'title', strtolower($slide) === 'slide');
                         break;
                     case 'levelmedia':
@@ -4129,11 +3988,11 @@ class ContentObjectRenderer implements LoggerAwareInterface
                         $pointer = (int)($keyParts[0] ?? 0);
                         $slide = (string)($keyParts[1] ?? '');
 
-                        $numericKey = $this->getKey($pointer, $tsfe->tmpl->rootLine);
+                        $numericKey = $this->getKey($pointer, $tsfe->config['rootLine'] ?? []);
                         $retVal = $this->rootLineValue($numericKey, 'media', strtolower($slide) === 'slide');
                         break;
                     case 'leveluid':
-                        $numericKey = $this->getKey((int)$key, $tsfe->tmpl->rootLine);
+                        $numericKey = $this->getKey((int)$key, $tsfe->config['rootLine'] ?? []);
                         $retVal = $this->rootLineValue($numericKey, 'uid');
                         break;
                     case 'levelfield':
@@ -4142,7 +4001,7 @@ class ContentObjectRenderer implements LoggerAwareInterface
                         $field = (string)($keyParts[1] ?? '');
                         $slide = (string)($keyParts[2] ?? '');
 
-                        $numericKey = $this->getKey($pointer, $tsfe->tmpl->rootLine);
+                        $numericKey = $this->getKey($pointer, $tsfe->config['rootLine'] ?? []);
                         $retVal = $this->rootLineValue($numericKey, $field, strtolower($slide) === 'slide');
                         break;
                     case 'fullrootline':
@@ -4151,7 +4010,7 @@ class ContentObjectRenderer implements LoggerAwareInterface
                         $field = (string)($keyParts[1] ?? '');
                         $slide = (string)($keyParts[2] ?? '');
 
-                        $fullKey = (int)($pointer - count($tsfe->tmpl->rootLine) + count($tsfe->rootLine));
+                        $fullKey = (int)($pointer - count($tsfe->config['rootLine'] ?? []) + count($tsfe->rootLine));
                         if ($fullKey >= 0) {
                             $retVal = $this->rootLineValue($fullKey, $field, stristr($slide, 'slide') !== false, $tsfe->rootLine);
                         }
@@ -4200,7 +4059,7 @@ class ContentObjectRenderer implements LoggerAwareInterface
                     case 'debug':
                         switch ($key) {
                             case 'rootLine':
-                                $retVal = DebugUtility::viewArray($tsfe->tmpl->rootLine);
+                                $retVal = DebugUtility::viewArray($tsfe->config['rootLine'] ?? []);
                                 break;
                             case 'fullRootLine':
                                 $retVal = DebugUtility::viewArray($tsfe->rootLine);
@@ -4309,7 +4168,6 @@ class ContentObjectRenderer implements LoggerAwareInterface
             if ($fileUidOrCurrentKeyword === 'current') {
                 $fileObject = $this->getCurrentFile();
             } elseif (MathUtility::canBeInterpretedAsInteger($fileUidOrCurrentKeyword)) {
-                /** @var ResourceFactory $fileFactory */
                 $fileFactory = GeneralUtility::makeInstance(ResourceFactory::class);
                 $fileObject = $fileFactory->getFileObject($fileUidOrCurrentKeyword);
             } else {
@@ -4358,7 +4216,7 @@ class ContentObjectRenderer implements LoggerAwareInterface
     }
 
     /**
-     * Returns a value from the current rootline (site) from $GLOBALS['TSFE']->tmpl->rootLine;
+     * Returns a value from the current rootline (site) from $GLOBALS['TSFE']->config['rootLine'];
      *
      * @param int $key Which level in the root line
      * @param string $field The field in the rootline record to return (a field from the pages table)
@@ -4370,7 +4228,7 @@ class ContentObjectRenderer implements LoggerAwareInterface
      */
     public function rootLineValue($key, $field, $slideBack = false, $altRootLine = '')
     {
-        $rootLine = is_array($altRootLine) ? $altRootLine : $this->getTypoScriptFrontendController()->tmpl->rootLine;
+        $rootLine = is_array($altRootLine) ? $altRootLine : ($this->getTypoScriptFrontendController()->config['rootLine'] ?? []);
         if (!$slideBack) {
             return $rootLine[$key][$field] ?? '';
         }
@@ -4461,7 +4319,7 @@ class ContentObjectRenderer implements LoggerAwareInterface
      *
      * @param string $linkText The string (text) to link
      * @param array $conf TypoScript configuration (see link below)
-     * @return string A link-wrapped string.
+     * @return string|LinkResult A link-wrapped string.
      * @see stdWrap()
      */
     public function typoLink(string $linkText, array $conf)
@@ -4473,22 +4331,23 @@ class ContentObjectRenderer implements LoggerAwareInterface
         }
 
         // If flag "returnLast" set, then just return the latest URL / url / target that was built.
-        // This returns the information without being wrapped in a "HtmlLinkResult" object.
+        // This returns the information without being wrapped in a "LinkResult" object.
         switch ($conf['returnLast'] ?? null) {
             case 'url':
                 return $linkResult->getUrl();
             case 'target':
                 return $linkResult->getTarget();
             case 'result':
-                return $linkResult;
+                // kept for backwards-compatibility, as this was added in TYPO3 v11
+                return LinkResult::adapt($linkResult, LinkResult::STRING_CAST_JSON);
         }
 
         $wrap = (string)$this->stdWrapValue('wrap', $conf ?? []);
         if ($conf['ATagBeforeWrap'] ?? false) {
             $linkResult = $linkResult->withLinkText($this->wrap((string)$linkResult->getLinkText(), $wrap));
-            return (string)(new HtmlLinkResult($linkResult));
+            return LinkResult::adapt($linkResult)->getHtml();
         }
-        $result = (string)(new HtmlLinkResult($linkResult));
+        $result = LinkResult::adapt($linkResult)->getHtml();
         return $this->wrap($result, $wrap);
     }
 
@@ -4496,7 +4355,7 @@ class ContentObjectRenderer implements LoggerAwareInterface
      * Similar to ->typoLink(), however it does not evaluate the .wrap and .ATagBeforeWrap
      * functionality.
      *
-     * For this reason, it also does not consider the HtmlLinkResult functionality,
+     * For this reason, it also does not consider the LinkResult functionality,
      * and "returnLast" logic, as the whole LinkResult object is available.
      *
      * It is recommended to use this method when working with PHP and wanting to create
@@ -4673,9 +4532,11 @@ class ContentObjectRenderer implements LoggerAwareInterface
      *
      * @param array $conf Configuration
      * @return string The URL query part (starting with a &)
+     * @deprecated will be removed in TYPO3 v13.0
      */
     public function getQueryArguments($conf)
     {
+        trigger_error('Calling ContentObjectRenderer->getQueryArguments() will be removed in TYPO3 v13.0. Use LinkFactory directly to create links', E_USER_DEPRECATED);
         $currentQueryArray = $this->getRequest()->getQueryParams();
         if ($conf['exclude'] ?? false) {
             $excludeString = str_replace(',', '&', $conf['exclude']);
@@ -4921,12 +4782,9 @@ class ContentObjectRenderer implements LoggerAwareInterface
             // $name and $conf is loaded with the referenced values.
             $old_conf = $confArr[$prop . '.'] ?? null;
             $setupArray = [];
-            $tsfe = $this->getTypoScriptFrontendController();
-            if ($tsfe instanceof TypoScriptFrontendController
-                && $tsfe->tmpl instanceof TemplateService
-                && is_array($tsfe->tmpl->setup)
-            ) {
-                $setupArray = $tsfe->tmpl->setup;
+            $frontendTypoScript = $this->getRequest()->getAttribute('frontend.typoscript');
+            if ($frontendTypoScript && $frontendTypoScript->hasSetup()) {
+                $setupArray = $frontendTypoScript->getSetupArray();
             }
             $conf = $cF->getVal($key, $setupArray)[1];
             if (is_array($old_conf) && !empty($old_conf)) {
@@ -5212,7 +5070,7 @@ class ContentObjectRenderer implements LoggerAwareInterface
         $error = false;
         if (($conf['max'] ?? false) || ($conf['begin'] ?? false)) {
             // Finding the total number of records, if used:
-            if (str_contains(strtolower(($conf['begin'] ?? '') . $conf['max']), 'total')) {
+            if (str_contains(strtolower(($conf['begin'] ?? '') . ($conf['max'] ?? '')), 'total')) {
                 $countQueryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable($table);
                 $countQueryBuilder->getRestrictions()->removeAll();
                 $countQueryBuilder->count('*')

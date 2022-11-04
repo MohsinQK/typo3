@@ -17,12 +17,13 @@ declare(strict_types=1);
 
 namespace TYPO3\CMS\Backend\View\BackendLayout\Grid;
 
+use Psr\EventDispatcher\EventDispatcherInterface;
 use TYPO3\CMS\Backend\Preview\StandardPreviewRendererResolver;
 use TYPO3\CMS\Backend\Routing\UriBuilder;
 use TYPO3\CMS\Backend\Utility\BackendUtility;
+use TYPO3\CMS\Backend\View\Event\PageContentPreviewRenderingEvent;
 use TYPO3\CMS\Backend\View\PageLayoutContext;
-use TYPO3\CMS\Backend\View\PageLayoutView;
-use TYPO3\CMS\Backend\View\PageLayoutViewDrawItemHookInterface;
+use TYPO3\CMS\Core\Database\ReferenceIndex;
 use TYPO3\CMS\Core\Imaging\Icon;
 use TYPO3\CMS\Core\Site\Entity\SiteLanguage;
 use TYPO3\CMS\Core\Type\Bitmask\Permission;
@@ -80,22 +81,11 @@ class GridColumnItem extends AbstractGridObject
             );
         $previewHeader = $previewRenderer->renderPageModulePreviewHeader($this);
 
-        $drawItem = true;
-        $previewContent = '';
-        // Hook: Render an own preview of a record
-        if (!empty($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['cms/layout/class.tx_cms_layout.php']['tt_content_drawItem'])) {
-            $pageLayoutView = PageLayoutView::createFromPageLayoutContext($this->getContext());
-            foreach ($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['cms/layout/class.tx_cms_layout.php']['tt_content_drawItem'] ?? [] as $className) {
-                $hookObject = GeneralUtility::makeInstance($className);
-                if (!$hookObject instanceof PageLayoutViewDrawItemHookInterface) {
-                    throw new \UnexpectedValueException($className . ' must implement interface ' . PageLayoutViewDrawItemHookInterface::class, 1582574553);
-                }
-                $hookObject->preProcess($pageLayoutView, $drawItem, $previewHeader, $previewContent, $record);
-            }
-            $this->setRecord($record);
-        }
+        $event = new PageContentPreviewRenderingEvent('tt_content', $this->record, $this->context);
+        GeneralUtility::makeInstance(EventDispatcherInterface::class)->dispatch($event);
 
-        if ($drawItem) {
+        $previewContent = $event->getPreviewContent();
+        if ($previewContent === null) {
             $previewContent = $previewRenderer->renderPageModulePreviewContent($this);
         }
 
@@ -128,6 +118,27 @@ class GridColumnItem extends AbstractGridObject
     {
         $params = '&cmd[tt_content][' . $this->record['uid'] . '][delete]=1';
         return BackendUtility::getLinkToDataHandlerAction($params);
+    }
+
+    public function getDeleteMessage(): string
+    {
+        $recordInfo = $this->record['header'] ?? '';
+        if ($this->getBackendUser()->shallDisplayDebugInformation()) {
+            $recordInfo .= ' [tt:content:' . $this->record['uid'] . ']';
+        }
+
+        $refCountMsg = BackendUtility::referenceCount(
+            'tt_content',
+            $this->record['uid'],
+            LF . $this->getLanguageService()->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.referencesToRecord'),
+            (string)$this->getReferenceCount($this->record['uid'])
+        ) . BackendUtility::translationCount(
+            'tt_content',
+            $this->record['uid'],
+            LF . $this->getLanguageService()->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.translationsOfRecord')
+        );
+
+        return sprintf($this->getLanguageService()->sL('LLL:EXT:backend/Resources/Private/Language/locallang_layout.xlf:deleteWarning'), trim($recordInfo)) . $refCountMsg;
     }
 
     public function getFooterInfo(): string
@@ -165,12 +176,7 @@ class GridColumnItem extends AbstractGridObject
 
         if ($lockInfo = BackendUtility::isRecordLocked('tt_content', $row['uid'])) {
             $icons[] = '<a href="#" data-bs-toggle="tooltip" title="' . htmlspecialchars($lockInfo['msg']) . '">'
-                . $this->iconFactory->getIcon('warning-in-use', Icon::SIZE_SMALL)->render() . '</a>';
-        }
-
-        $_params = ['tt_content', $row['uid'], &$row];
-        foreach ($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['GLOBAL']['recStatInfoHooks'] ?? [] as $_funcRef) {
-            $icons[] = GeneralUtility::callUserFunction($_funcRef, $_params, $this);
+                . $this->iconFactory->getIcon('status-user-backend', Icon::SIZE_SMALL, 'overlay-edit')->render() . '</a>';
         }
         return implode(' ', $icons);
     }
@@ -255,29 +261,13 @@ class GridColumnItem extends AbstractGridObject
         $uriBuilder = GeneralUtility::makeInstance(UriBuilder::class);
         $pageId = $this->context->getPageId();
 
-        if ($this->context->getDrawingConfiguration()->getShowNewContentWizard()) {
-            $urlParameters = [
-                'id' => $pageId,
-                'sys_language_uid' => $this->context->getSiteLanguage()->getLanguageId(),
-                'colPos' => $this->column->getColumnNumber(),
-                'uid_pid' => -$this->record['uid'],
-                'returnUrl' => $GLOBALS['TYPO3_REQUEST']->getAttribute('normalizedParams')->getRequestUri(),
-            ];
-            $routeName = BackendUtility::getPagesTSconfig($pageId)['mod.']['newContentElementWizard.']['override']
-                ?? 'new_content_element_wizard';
-        } else {
-            $urlParameters = [
-                'edit' => [
-                    'tt_content' => [
-                        -$this->record['uid'] => 'new',
-                    ],
-                ],
-                'returnUrl' => $GLOBALS['TYPO3_REQUEST']->getAttribute('normalizedParams')->getRequestUri(),
-            ];
-            $routeName = 'record_edit';
-        }
-
-        return (string)$uriBuilder->buildUriFromRoute($routeName, $urlParameters);
+        return (string)$uriBuilder->buildUriFromRoute('new_content_element_wizard', [
+            'id' => $pageId,
+            'sys_language_uid' => $this->context->getSiteLanguage()->getLanguageId(),
+            'colPos' => $this->column->getColumnNumber(),
+            'uid_pid' => -$this->record['uid'],
+            'returnUrl' => $GLOBALS['TYPO3_REQUEST']->getAttribute('normalizedParams')->getRequestUri(),
+        ]);
     }
 
     public function getVisibilityToggleUrl(): string
@@ -328,5 +318,17 @@ class GridColumnItem extends AbstractGridObject
         ];
         $uriBuilder = GeneralUtility::makeInstance(UriBuilder::class);
         return (string)$uriBuilder->buildUriFromRoute('record_edit', $urlParameters) . '#element-tt_content-' . $this->record['uid'];
+    }
+
+    /**
+     * Gets the number of records referencing the record with the UID $uid in
+     * the table tt_content.
+     *
+     * @param int $uid
+     * @return int The number of references to record $uid in table
+     */
+    protected function getReferenceCount(int $uid): int
+    {
+        return GeneralUtility::makeInstance(ReferenceIndex::class)->getNumberOfReferencedRecords('tt_content', $uid);
     }
 }

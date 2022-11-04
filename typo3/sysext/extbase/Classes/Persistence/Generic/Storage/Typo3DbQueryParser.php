@@ -18,6 +18,7 @@ namespace TYPO3\CMS\Extbase\Persistence\Generic\Storage;
 use Psr\Http\Message\ServerRequestInterface;
 use TYPO3\CMS\Backend\Utility\BackendUtility;
 use TYPO3\CMS\Core\Context\Context;
+use TYPO3\CMS\Core\Context\LanguageAspect;
 use TYPO3\CMS\Core\Database\Connection;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Database\Query\Expression\CompositeExpression;
@@ -466,7 +467,7 @@ class Typo3DbQueryParser
                 $expr = $exprBuilder->comparison($fieldName, $exprBuilder::GTE, $placeHolder);
                 break;
             case QueryInterface::OPERATOR_LIKE:
-                $placeHolder = $this->createTypedNamedParameter($value, \PDO::PARAM_STR);
+                $placeHolder = $this->createTypedNamedParameter($value, Connection::PARAM_STR);
                 $expr = $exprBuilder->comparison($fieldName, 'LIKE', $placeHolder);
                 break;
             default:
@@ -491,9 +492,9 @@ class Typo3DbQueryParser
         $parameterType = gettype($value);
         switch ($parameterType) {
             case 'integer':
-                return \PDO::PARAM_INT;
+                return Connection::PARAM_INT;
             case 'string':
-                return \PDO::PARAM_STR;
+                return Connection::PARAM_STR;
             default:
                 throw new \InvalidArgumentException(
                     'Unsupported parameter type encountered. Expected integer or string, ' . $parameterType . ' given.',
@@ -768,19 +769,20 @@ class Typo3DbQueryParser
         // They will be removed by \TYPO3\CMS\Core\Domain\Repository\PageRepository::getRecordOverlay if not matching overlay mode
         $languageField = $GLOBALS['TCA'][$tableName]['ctrl']['languageField'];
 
+        $languageAspect = $querySettings->getLanguageAspect();
+
         $transOrigPointerField = $GLOBALS['TCA'][$tableName]['ctrl']['transOrigPointerField'] ?? '';
-        if (!$transOrigPointerField || !$querySettings->getLanguageUid()) {
+        if (!$transOrigPointerField || !$languageAspect->getContentId()) {
             return $this->queryBuilder->expr()->in(
                 $tableAlias . '.' . $languageField,
-                [(int)$querySettings->getLanguageUid(), -1]
+                [(int)$languageAspect->getContentId(), -1]
             );
         }
 
-        $mode = $querySettings->getLanguageOverlayMode();
-        if (!$mode) {
+        if (!$languageAspect->doOverlays()) {
             return $this->queryBuilder->expr()->in(
                 $tableAlias . '.' . $languageField,
-                [(int)$querySettings->getLanguageUid(), -1]
+                [(int)$languageAspect->getContentId(), -1]
             );
         }
 
@@ -801,15 +803,14 @@ class Typo3DbQueryParser
         $andConditions[] = $this->queryBuilder->expr()->eq($tableAlias . '.' . $languageField, -1);
         // translated records where a default language exists
         $andConditions[] = $this->queryBuilder->expr()->and(
-            $this->queryBuilder->expr()->eq($tableAlias . '.' . $languageField, (int)$querySettings->getLanguageUid()),
+            $this->queryBuilder->expr()->eq($tableAlias . '.' . $languageField, $languageAspect->getContentId()),
             $this->queryBuilder->expr()->in(
                 $tableAlias . '.' . $transOrigPointerField,
                 $defaultLanguageRecordsSubSelect->getSQL()
             )
         );
-        if ($mode !== 'hideNonTranslated') {
-            // $mode = TRUE
-            // returns records from current language which have default language
+        if ($languageAspect->getOverlayType() === LanguageAspect::OVERLAYS_MIXED) {
+            // returns records from current language which have a default language
             // together with not translated default language records
             $translatedOnlyTableAlias = $tableAlias . '_to';
             $queryBuilderForSubselect = $this->queryBuilder->getConnection()->createQueryBuilder();
@@ -819,7 +820,7 @@ class Typo3DbQueryParser
                 ->where(
                     $queryBuilderForSubselect->expr()->and(
                         $queryBuilderForSubselect->expr()->gt($translatedOnlyTableAlias . '.' . $transOrigPointerField, 0),
-                        $queryBuilderForSubselect->expr()->eq($translatedOnlyTableAlias . '.' . $languageField, (int)$querySettings->getLanguageUid())
+                        $queryBuilderForSubselect->expr()->eq($translatedOnlyTableAlias . '.' . $languageField, $languageAspect->getContentId())
                     )
                 );
             // records in default language, which do not have a translation
@@ -856,7 +857,7 @@ class Typo3DbQueryParser
             case 1:
                 $storagePageIds = [0];
                 break;
-            // Pid 0 and pagetree
+                // Pid 0 and pagetree
             case -1:
                 if (empty($storagePageIds)) {
                     $storagePageIds = [0];
@@ -864,13 +865,13 @@ class Typo3DbQueryParser
                     $storagePageIds[] = 0;
                 }
                 break;
-            // Only pagetree or not set
+                // Only pagetree or not set
             case 0:
                 if (empty($storagePageIds)) {
                     throw new InconsistentQuerySettingsException('Missing storage page ids.', 1365779762);
                 }
                 break;
-            // Invalid configuration
+                // Invalid configuration
             default:
                 return '';
         }
@@ -1073,7 +1074,6 @@ class Typo3DbQueryParser
     protected function replaceTableNameWithAlias($statement, $tableName, $tableAlias)
     {
         if ($tableAlias !== $tableName) {
-            /** @var Connection $connection */
             $connection = GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable($tableName);
             $quotedTableName = $connection->quoteIdentifier($tableName);
             $quotedTableAlias = $connection->quoteIdentifier($tableAlias);

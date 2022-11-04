@@ -23,7 +23,6 @@ use Symfony\Component\Mime\Address;
 use TYPO3\CMS\Core\Context\Context;
 use TYPO3\CMS\Core\Crypto\Random;
 use TYPO3\CMS\Extbase\Configuration\ConfigurationManager;
-use TYPO3\CMS\Extbase\Configuration\Exception\InvalidConfigurationTypeException;
 use TYPO3\CMS\Extbase\Security\Cryptography\HashService;
 use TYPO3\CMS\Fluid\View\TemplatePaths;
 
@@ -34,57 +33,19 @@ class RecoveryConfiguration implements LoggerAwareInterface
 {
     use LoggerAwareTrait;
 
-    /**
-     * @var Context
-     */
-    protected $context;
+    protected string $forgotHash;
+    protected ?Address $replyTo = null;
+    protected Address $sender;
+    protected array $settings;
+    protected string $mailTemplateName = '';
+    protected ?int $timestamp = null;
 
-    /**
-     * @var string
-     */
-    protected $forgotHash;
-
-    /**
-     * @var Address|null
-     */
-    protected $replyTo;
-
-    /**
-     * @var Address
-     */
-    protected $sender;
-
-    /**
-     * @var array
-     */
-    protected $settings;
-
-    /**
-     * @var string
-     */
-    protected $mailTemplateName;
-
-    /**
-     * @var int
-     */
-    protected $timestamp;
-
-    /**
-     * @param Context $context
-     * @param ConfigurationManager $configurationManager
-     * @param Random $random
-     * @param HashService $hashService
-     *
-     * @throws IncompleteConfigurationException
-     * @throws InvalidConfigurationTypeException
-     */
     public function __construct(
-        Context $context,
+        protected Context $context,
         ConfigurationManager $configurationManager,
         Random $random,
         HashService $hashService
     ) {
-        $this->context = $context;
         $this->settings = $configurationManager->getConfiguration(ConfigurationManager::CONFIGURATION_TYPE_SETTINGS);
         $this->forgotHash = $this->getLifeTimeTimestamp() . '|' . $this->generateHash($random, $hashService);
         $this->resolveFromTypoScript();
@@ -92,8 +53,6 @@ class RecoveryConfiguration implements LoggerAwareInterface
 
     /**
      * Returns the forgot hash.
-     *
-     * @return string
      */
     public function getForgotHash(): string
     {
@@ -103,8 +62,6 @@ class RecoveryConfiguration implements LoggerAwareInterface
     /**
      * Returns an instance of TemplatePaths with paths configured in felogin TypoScript and
      * paths configured in $GLOBALS['TYPO3_CONF_VARS']['MAIL'].
-     *
-     * @return TemplatePaths
      */
     public function getMailTemplatePaths(): TemplatePaths
     {
@@ -126,8 +83,6 @@ class RecoveryConfiguration implements LoggerAwareInterface
 
     /**
      * Returns email template name configured in TypoScript
-     *
-     * @return string
      */
     public function getMailTemplateName(): string
     {
@@ -136,8 +91,6 @@ class RecoveryConfiguration implements LoggerAwareInterface
 
     /**
      * Returns TTL timestamp of the forgot hash
-     *
-     * @return int
      */
     public function getLifeTimeTimestamp(): int
     {
@@ -152,8 +105,6 @@ class RecoveryConfiguration implements LoggerAwareInterface
 
     /**
      * Returns reply-to address if configured otherwise null.
-     *
-     * @return Address|null
      */
     public function getReplyTo(): ?Address
     {
@@ -162,8 +113,6 @@ class RecoveryConfiguration implements LoggerAwareInterface
 
     /**
      * Returns the sender. Normally the current typo3 installation.
-     *
-     * @return Address
      */
     public function getSender(): Address
     {
@@ -206,7 +155,7 @@ class RecoveryConfiguration implements LoggerAwareInterface
                 );
             }
         }
-        $this->mailTemplateName = $this->settings['email']['templateName'];
+        $this->mailTemplateName = (string)$this->settings['email']['templateName'];
         if (empty($this->mailTemplateName)) {
             throw new IncompleteConfigurationException(
                 'Key "plugin.tx_felogin_login.settings.email.templateName" cannot be empty!',

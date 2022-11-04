@@ -22,6 +22,7 @@ use TYPO3\CMS\Frontend\ContentObject\ContentObjectFactory;
 use TYPO3\CMS\Frontend\ContentObject\ContentObjectRenderer;
 use TYPO3\CMS\Frontend\ContentObject\DataProcessorInterface;
 use TYPO3\CMS\Frontend\Controller\TypoScriptFrontendController;
+use TYPO3\CMS\Frontend\Typolink\LinkResultInterface;
 
 /**
  * This menu processor utilizes HMENU to generate a json encoded menu
@@ -61,8 +62,8 @@ use TYPO3\CMS\Frontend\Controller\TypoScriptFrontendController;
  */
 class MenuProcessor implements DataProcessorInterface
 {
-    const LINK_PLACEHOLDER = '###LINKPLACEHOLDER###';
-    const TARGET_PLACEHOLDER = '###TARGETPLACEHOLDER###';
+    public const LINK_PLACEHOLDER = '###LINKPLACEHOLDER###';
+    public const TARGET_PLACEHOLDER = '###TARGETPLACEHOLDER###';
 
     /**
      * The content object renderer
@@ -484,11 +485,10 @@ class MenuProcessor implements DataProcessorInterface
             }
         }
         $request = $this->cObj->getRequest();
-        /** @var ContentObjectRenderer $recordContentObjectRenderer */
         $recordContentObjectRenderer = GeneralUtility::makeInstance(ContentObjectRenderer::class);
-        $recordContentObjectRenderer->start($page['data'], 'pages', $request);
-        $processedPage = $this->contentDataProcessor->process($recordContentObjectRenderer, $processorConfiguration, $page);
-        return $processedPage;
+        $recordContentObjectRenderer->start($page['data'] ?? [], 'pages', $request);
+
+        return $this->contentDataProcessor->process($recordContentObjectRenderer, $processorConfiguration, $page);
     }
 
     /**
@@ -534,8 +534,8 @@ class MenuProcessor implements DataProcessorInterface
      */
     public function replacePlaceholderInRenderedMenuItem($menuItem, $conf)
     {
-        $link = $this->jsonEncode($menuItem['linkHREF']['href'] ?? '');
-        $target = $this->jsonEncode($menuItem['linkHREF']['target'] ?? '');
+        $link = $this->jsonEncode($menuItem['linkHREF'] instanceof LinkResultInterface ? $menuItem['linkHREF']->getUrl() : '');
+        $target = $this->jsonEncode($menuItem['linkHREF'] instanceof LinkResultInterface ? $menuItem['linkHREF']->getTarget() : '');
 
         $menuItem['parts']['title'] = str_replace(self::LINK_PLACEHOLDER, $link, $menuItem['parts']['title']);
         $menuItem['parts']['title'] = str_replace(self::TARGET_PLACEHOLDER, $target, $menuItem['parts']['title']);

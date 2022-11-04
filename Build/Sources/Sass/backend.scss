@@ -5,11 +5,6 @@
 //
 
 //
-// Load global Variables
-//
-@import "variables/main";
-
-//
 // Load minimal Setup including variables
 //
 @import "minimal";
@@ -51,41 +46,36 @@
 @import "component/datetimepicker";
 @import "component/svgtree";
 @import "component/elementbrowser";
+@import "component/media";
 @import "component/modal";
 @import "component/note";
 @import "component/card";
+@import "component/contextmenu";
+@import "component/livesearch";
 
 //
 // TYPO3 Backend Components
 //
-@import "typo3/element_badges";
 @import "typo3/element_animation";
 @import "typo3/element_cropper";
-@import "typo3/element_contextmenu";
-@import "typo3/element_docheader";
-@import "typo3/element_message";
 @import "typo3/element_slider";
 @import "typo3/element_tab";
 @import "typo3/element_table";
 @import "typo3/element_tooltip";
-@import "typo3/element_panel";
 @import "typo3/element_popover";
 @import "typo3/element_tceforms";
 @import "typo3/element_tree";
 @import "typo3/element_uiblock";
 @import "typo3/element_pagination";
-@import "typo3/element_buttons";
 @import "typo3/element_draguploader";
 @import "typo3/install";
 @import "typo3/main_type";
-@import "typo3/icons";
 @import "typo3/history";
 @import "typo3/login_screen";
 @import "typo3/main_content";
 @import "typo3/main_backend_layout_wizard";
 @import "typo3/main_form";
 @import "typo3/main_new_content_element_wizard";
-@import "typo3/debugconsole";
 @import "typo3/wizard_localization";
 @import "typo3/structure/module_web_list";
 @import "typo3/structure/module_file_filelist";

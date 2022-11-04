@@ -61,10 +61,6 @@ services:
     shared: false
     public: true
 
-  TYPO3\CMS\Backend\View\PageLayoutView:
-    shared: false
-    public: true
-
   TYPO3\CMS\Backend\History\RecordHistoryRollback:
     public: true
 
@@ -74,8 +70,17 @@ services:
   TYPO3\CMS\Backend\View\AuthenticationStyleInformation:
     public: true
 
-  TYPO3\CMS\Backend\Search\LiveSearch\LiveSearch:
-    public: true
+  TYPO3\CMS\Backend\Search\LiveSearch\SearchProviderRegistry:
+    arguments:
+      - !tagged_iterator livesearch.provider
+
+  TYPO3\CMS\Backend\Search\LiveSearch\DatabaseRecordProvider:
+    tags:
+      - { name: 'livesearch.provider', priority: 50 }
+
+  TYPO3\CMS\Backend\Search\LiveSearch\PageRecordProvider:
+    tags:
+      - { name: 'livesearch.provider', priority: 60 }
 
   TYPO3\CMS\Backend\Controller\BackendController:
     tags: ['backend.controller']
@@ -92,16 +97,28 @@ services:
   TYPO3\CMS\Backend\Controller\EditDocumentController:
     tags: ['backend.controller']
 
+  TYPO3\CMS\Backend\Controller\ElementBrowserController:
+    tags: ['backend.controller']
+
+  TYPO3\CMS\Backend\Controller\FormFilesAjaxController:
+    tags: ['backend.controller']
+
   TYPO3\CMS\Backend\Controller\FormSlugAjaxController:
+    tags: ['backend.controller']
+
+  TYPO3\CMS\Backend\Controller\LiveSearchController:
     tags: ['backend.controller']
 
   TYPO3\CMS\Backend\Controller\LoginController:
     tags: ['backend.controller']
 
-  TYPO3\CMS\Backend\Controller\ResetPasswordController:
+  TYPO3\CMS\Backend\Controller\AjaxLoginController:
     tags: ['backend.controller']
 
-  TYPO3\CMS\Backend\Controller\HelpController:
+  TYPO3\CMS\Backend\Controller\LogoutController:
+    tags: ['backend.controller']
+
+  TYPO3\CMS\Backend\Controller\ResetPasswordController:
     tags: ['backend.controller']
 
   TYPO3\CMS\Backend\Controller\MfaConfigurationController:
@@ -117,6 +134,12 @@ services:
     tags: ['backend.controller']
 
   TYPO3\CMS\Backend\Controller\NewRecordController:
+    tags: ['backend.controller']
+
+  TYPO3\CMS\Backend\Controller\RecordListController:
+    tags: ['backend.controller']
+
+  TYPO3\CMS\Backend\Controller\RecordListDownloadController:
     tags: ['backend.controller']
 
   TYPO3\CMS\Backend\Controller\SiteConfigurationController:
@@ -164,9 +187,26 @@ services:
   TYPO3\CMS\Backend\Form\FormDataProvider\SiteDatabaseEditRow:
     public: true
 
+  TYPO3\CMS\Backend\RecordList\DatabaseRecordList:
+    shared: false
+    public: true
+
   TYPO3\CMS\Backend\RecordList\ElementBrowserRecordList:
     shared: false
     public: true
+
+  TYPO3\CMS\Backend\ElementBrowser\DatabaseBrowser:
+    shared: false
+
+  TYPO3\CMS\Backend\ElementBrowser\FileBrowser:
+    shared: false
+
+  TYPO3\CMS\Backend\ElementBrowser\FolderBrowser:
+    shared: false
+
+  TYPO3\CMS\Backend\ElementBrowser\ElementBrowserRegistry:
+    arguments:
+      - !tagged_iterator recordlist.elementbrowser
 
   TYPO3\CMS\Backend\Resource\PublicUrlPrefixer:
     public: true
@@ -178,6 +218,18 @@ services:
     public: true
 
   TYPO3\CMS\Backend\Backend\ToolbarItems\SystemInformationToolbarItem:
+    public: true
+
+  TYPO3\CMS\Recordlist\LinkHandler\RecordLinkHandler:
+    alias: TYPO3\CMS\Backend\LinkHandler\RecordLinkHandler
+    public: true
+    deprecated:
+      package: 'typo3/cms-backend'
+      version: '12.0'
+      message: 'Usage of "%alias_id%" is deprecated. Please use "TYPO3\CMS\Backend\LinkHandler\RecordLinkHandler" instead.'
+
+  TYPO3\CMS\Backend\LinkHandler\RecordLinkHandler:
+    shared: false
     public: true
 
   TYPO3\CMS\Backend\Tree\View\ContentCreationPagePositionMap:
@@ -198,6 +250,15 @@ services:
     tags:
       - name: event.listener
         identifier: 'backend-empty-colpos'
+
+  TYPO3\CMS\Backend\EventListener\AfterBackendPageRenderEventListener:
+    tags:
+      - name: event.listener
+        event: TYPO3\CMS\Backend\Controller\Event\AfterBackendPageRenderEvent
+
+  TYPO3\CMS\Backend\View\RecordSearchBoxComponent:
+    shared: false
+    public: true
 
   # Toolbar registry
   TYPO3\CMS\Backend\Toolbar\ToolbarItemsRegistry:

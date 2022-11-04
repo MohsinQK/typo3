@@ -50,7 +50,6 @@ class TcaFlexPrepare implements FormDataProviderInterface
             }
             $result = $this->initializeDataStructure($result, $fieldName);
             $result = $this->initializeDataValues($result, $fieldName);
-            $result = $this->removeTceFormsArrayKeyFromDataStructureElements($result, $fieldName);
             $result = $this->migrateFlexformTcaDataStructureElements($result, $fieldName);
         }
 
@@ -70,11 +69,10 @@ class TcaFlexPrepare implements FormDataProviderInterface
      */
     protected function initializeDataStructure(array $result, $fieldName)
     {
+        $flexFormTools = GeneralUtility::makeInstance(FlexFormTools::class);
         if (!isset($result['processedTca']['columns'][$fieldName]['config']['dataStructureIdentifier'])) {
-            $flexFormTools = GeneralUtility::makeInstance(FlexFormTools::class);
-
-            $dataStructureArray = ['sheets' => ['sDEF' => []]];
             $dataStructureIdentifier = null;
+            $dataStructureArray = ['sheets' => ['sDEF' => []]];
 
             try {
                 $dataStructureIdentifier = $flexFormTools->getDataStructureIdentifier(
@@ -93,6 +91,7 @@ class TcaFlexPrepare implements FormDataProviderInterface
         } else {
             // Assume the data structure has been given from outside if the data structure identifier is already set.
             $dataStructureArray = $result['processedTca']['columns'][$fieldName]['config']['ds'];
+            $dataStructureArray = $flexFormTools->removeElementTceFormsRecursive($dataStructureArray);
         }
         if (!isset($dataStructureArray['meta']) || !is_array($dataStructureArray['meta'])) {
             $dataStructureArray['meta'] = [];
@@ -137,58 +136,6 @@ class TcaFlexPrepare implements FormDataProviderInterface
     }
 
     /**
-     * Remove "TCEforms" key from all elements in data structure to simplify further parsing.
-     *
-     * Example config:
-     * ['config']['ds']['sheets']['sDEF']['ROOT']['el']['anElement']['TCEforms']['label'] becomes
-     * ['config']['ds']['sheets']['sDEF']['ROOT']['el']['anElement']['label']
-     *
-     * @param array $result Result array
-     * @param string $fieldName Currently handled field name
-     * @return array Modified result
-     */
-    protected function removeTceFormsArrayKeyFromDataStructureElements(array $result, $fieldName)
-    {
-        $modifiedDataStructure = $result['processedTca']['columns'][$fieldName]['config']['ds'];
-        $modifiedDataStructure = $this->removeElementTceFormsRecursive($modifiedDataStructure);
-        $result['processedTca']['columns'][$fieldName]['config']['ds'] = $modifiedDataStructure;
-        return $result;
-    }
-
-    /**
-     * Moves ['el']['something']['TCEforms'] to ['el']['something'] and ['ROOT']['TCEforms'] to ['ROOT'] recursive
-     *
-     * @param array $structure Given hierarchy
-     * @return array Modified hierarchy
-     */
-    protected function removeElementTceFormsRecursive(array $structure)
-    {
-        $newStructure = [];
-        foreach ($structure as $key => $value) {
-            if ($key === 'ROOT' && is_array($value) && isset($value['TCEforms'])) {
-                $value = array_merge($value, $value['TCEforms']);
-                unset($value['TCEforms']);
-            }
-            if ($key === 'el' && is_array($value)) {
-                $newSubStructure = [];
-                foreach ($value as $subKey => $subValue) {
-                    if (is_array($subValue) && count($subValue) === 1 && isset($subValue['TCEforms'])) {
-                        $newSubStructure[$subKey] = $subValue['TCEforms'];
-                    } else {
-                        $newSubStructure[$subKey] = $subValue;
-                    }
-                }
-                $value = $newSubStructure;
-            }
-            if (is_array($value)) {
-                $value = $this->removeElementTceFormsRecursive($value);
-            }
-            $newStructure[$key] = $value;
-        }
-        return $newStructure;
-    }
-
-    /**
      * On-the-fly migration for flex form "TCA"
      *
      * @param array $result Result array
@@ -205,6 +152,11 @@ class TcaFlexPrepare implements FormDataProviderInterface
 
     /**
      * Recursively migrate flex form TCA
+     *
+     * @todo This is already partially done in FlexFormTools and should be harmonized. Therefore,
+     *       all migration / preparation should go into FlexFormTools, because DataHandler also
+     *       needs the migrated / prepared config and does not call this FormEngine specific
+     *       FormDataProvider.
      *
      * @param array $structure Given hierarchy
      * @param string $table

@@ -25,13 +25,13 @@ use TYPO3\CMS\Backend\Toolbar\Enumeration\InformationStatus;
 use TYPO3\CMS\Core\Core\Environment;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\FormProtection\FormProtectionFactory;
-use TYPO3\CMS\Core\FormProtection\InstallToolFormProtection;
 use TYPO3\CMS\Core\Http\JsonResponse;
 use TYPO3\CMS\Core\Imaging\GraphicalFunctions;
 use TYPO3\CMS\Core\Mail\FluidEmail;
-use TYPO3\CMS\Core\Mail\Mailer;
+use TYPO3\CMS\Core\Mail\MailerInterface;
 use TYPO3\CMS\Core\Messaging\FlashMessage;
 use TYPO3\CMS\Core\Messaging\FlashMessageQueue;
+use TYPO3\CMS\Core\Type\ContextualFeedbackSeverity;
 use TYPO3\CMS\Core\Utility\CommandUtility;
 use TYPO3\CMS\Core\Utility\ExtensionManagementUtility;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
@@ -54,15 +54,10 @@ class EnvironmentController extends AbstractController
     private const IMAGE_FILE_EXT = ['gif', 'jpg', 'png', 'tif', 'ai', 'pdf', 'webp'];
     private const TEST_REFERENCE_PATH = __DIR__ . '/../../Resources/Public/Images/TestReference';
 
-    /**
-     * @var LateBootService
-     */
-    private $lateBootService;
-
     public function __construct(
-        LateBootService $lateBootService
+        private readonly LateBootService $lateBootService,
+        private readonly FormProtectionFactory $formProtectionFactory,
     ) {
-        $this->lateBootService = $lateBootService;
     }
 
     /**
@@ -146,11 +141,11 @@ class EnvironmentController extends AbstractController
         return new JsonResponse([
             'success' => true,
             'status' => [
-                'error' => $messageQueue->getAllMessages(FlashMessage::ERROR),
-                'warning' => $messageQueue->getAllMessages(FlashMessage::WARNING),
-                'ok' => $messageQueue->getAllMessages(FlashMessage::OK),
-                'information' => $messageQueue->getAllMessages(FlashMessage::INFO),
-                'notice' => $messageQueue->getAllMessages(FlashMessage::NOTICE),
+                'error' => $messageQueue->getAllMessages(ContextualFeedbackSeverity::ERROR),
+                'warning' => $messageQueue->getAllMessages(ContextualFeedbackSeverity::WARNING),
+                'ok' => $messageQueue->getAllMessages(ContextualFeedbackSeverity::OK),
+                'information' => $messageQueue->getAllMessages(ContextualFeedbackSeverity::INFO),
+                'notice' => $messageQueue->getAllMessages(ContextualFeedbackSeverity::NOTICE),
             ],
             'html' => $view->render('Environment/EnvironmentCheck'),
             'buttons' => [
@@ -178,8 +173,8 @@ class EnvironmentController extends AbstractController
         $errorQueue = new FlashMessageQueue('install');
         $okQueue = new FlashMessageQueue('install');
         foreach ($structureMessages as $message) {
-            if ($message->getSeverity() === FlashMessage::ERROR
-                || $message->getSeverity() === FlashMessage::WARNING
+            if ($message->getSeverity() === ContextualFeedbackSeverity::ERROR
+                || $message->getSeverity() === ContextualFeedbackSeverity::WARNING
             ) {
                 $errorQueue->enqueue($message);
             } else {
@@ -235,7 +230,7 @@ class EnvironmentController extends AbstractController
     public function mailTestGetDataAction(ServerRequestInterface $request): ResponseInterface
     {
         $view = $this->initializeView($request);
-        $formProtection = FormProtectionFactory::get(InstallToolFormProtection::class);
+        $formProtection = $this->formProtectionFactory->createFromRequest($request);
         $view->assignMultiple([
             'mailTestToken' => $formProtection->generateToken('installTool', 'mailTest'),
             'mailTestSenderAddress' => $this->getSenderEmailAddress(),
@@ -268,7 +263,7 @@ class EnvironmentController extends AbstractController
             $messages->enqueue(new FlashMessage(
                 'Given address is not a valid email address.',
                 'Mail not sent',
-                FlashMessage::ERROR
+                ContextualFeedbackSeverity::ERROR
             ));
         } else {
             try {
@@ -285,7 +280,8 @@ class EnvironmentController extends AbstractController
                     ->setRequest($request)
                     ->assignMultiple($variables);
 
-                GeneralUtility::makeInstance(Mailer::class)->send($mailMessage);
+                // TODO: DI should be used to inject the MailerInterface
+                GeneralUtility::makeInstance(MailerInterface::class)->send($mailMessage);
                 $messages->enqueue(new FlashMessage(
                     'Recipient: ' . $recipient,
                     'Test mail sent'
@@ -295,14 +291,14 @@ class EnvironmentController extends AbstractController
                     'Please verify $GLOBALS[\'TYPO3_CONF_VARS\'][\'MAIL\'][\'defaultMailFromAddress\'] is a valid mail address.'
                     . ' Error message: ' . $exception->getMessage(),
                     'RFC compliance problem',
-                    FlashMessage::ERROR
+                    ContextualFeedbackSeverity::ERROR
                 ));
             } catch (\Throwable $throwable) {
                 $messages->enqueue(new FlashMessage(
                     'Please verify $GLOBALS[\'TYPO3_CONF_VARS\'][\'MAIL\'][*] settings are valid.'
                     . ' Error message: ' . $throwable->getMessage(),
                     'Could not deliver mail',
-                    FlashMessage::ERROR
+                    ContextualFeedbackSeverity::ERROR
                 ));
             }
         }
@@ -469,13 +465,13 @@ class EnvironmentController extends AbstractController
                     'Method used by compress: ' . $methodUsed . LF
                     . ' Previous filesize: ' . $previousSize . '. Current filesize:' . $compressedSize,
                     'Compressed gif',
-                    FlashMessage::INFO
+                    ContextualFeedbackSeverity::INFO
                 ));
             } else {
                 $messages->enqueue(new FlashMessage(
                     '',
                     'Gif compression not enabled by [GFX][gif_compress]',
-                    FlashMessage::INFO
+                    ContextualFeedbackSeverity::INFO
                 ));
             }
             $result = [
@@ -1024,7 +1020,7 @@ class EnvironmentController extends AbstractController
                     new FlashMessage(
                         'Handling format ' . $inputFormat . ' must be enabled in TYPO3_CONF_VARS[\'GFX\'][\'imagefile_ext\']',
                         'Skipped test',
-                        FlashMessage::WARNING
+                        ContextualFeedbackSeverity::WARNING
                     ),
                 ],
             ]);
@@ -1183,9 +1179,9 @@ class EnvironmentController extends AbstractController
         return new FlashMessage(
             'ImageMagick / GraphicsMagick handling is enabled, but the execute'
             . ' command returned an error. Please check your settings, especially'
-            . ' [\'GFX\'][\'processor_path\'] and [\'GFX\'][\'processor_path_lzw\'] and ensure Ghostscript is installed on your server.',
+            . ' [\'GFX\'][\'processor_path\'] and ensure Ghostscript is installed on your server.',
             'Image generation failed',
-            FlashMessage::ERROR
+            ContextualFeedbackSeverity::ERROR
         );
     }
 
@@ -1211,7 +1207,7 @@ class EnvironmentController extends AbstractController
         return new FlashMessage(
             'ImageMagick / GraphicsMagick handling is disabled or not configured correctly.',
             'Tests not executed',
-            FlashMessage::ERROR
+            ContextualFeedbackSeverity::ERROR
         );
     }
 

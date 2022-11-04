@@ -21,6 +21,7 @@ use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
+use TYPO3\CMS\Core\Database\Connection;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 
 /**
@@ -54,7 +55,7 @@ class CleanupPreviewLinksCommand extends Command
      * @param OutputInterface $output
      * @return int
      */
-    protected function execute(InputInterface $input, OutputInterface $output)
+    protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $io = new SymfonyStyle($input, $output);
 
@@ -65,7 +66,7 @@ class CleanupPreviewLinksCommand extends Command
             ->where(
                 $queryBuilder->expr()->lt(
                     'endtime',
-                    $queryBuilder->createNamedParameter($GLOBALS['EXEC_TIME'], \PDO::PARAM_INT)
+                    $queryBuilder->createNamedParameter($GLOBALS['EXEC_TIME'], Connection::PARAM_INT)
                 )
             )
             ->executeStatement();
@@ -75,6 +76,6 @@ class CleanupPreviewLinksCommand extends Command
         } else {
             $io->note('No expired preview links found. All done.');
         }
-        return 0;
+        return Command::SUCCESS;
     }
 }

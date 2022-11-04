@@ -66,18 +66,11 @@ use TYPO3\CMS\Frontend\Resource\PublicUrlPrefixer;
  */
 class RequestHandler implements RequestHandlerInterface
 {
-    protected TimeTracker $timeTracker;
-
-    protected EventDispatcherInterface $eventDispatcher;
-
-    private ListenerProvider $listenerProvider;
-
     public function __construct(
-        EventDispatcherInterface $eventDispatcher,
-        ListenerProvider $listenerProvider
+        private readonly EventDispatcherInterface $eventDispatcher,
+        private readonly ListenerProvider $listenerProvider,
+        private readonly TimeTracker $timeTracker,
     ) {
-        $this->eventDispatcher = $eventDispatcher;
-        $this->listenerProvider = $listenerProvider;
     }
 
     /**
@@ -114,10 +107,7 @@ class RequestHandler implements RequestHandlerInterface
      */
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
-        // Fetch the initialized time tracker object
-        $this->timeTracker = GeneralUtility::makeInstance(TimeTracker::class);
-        /** @var TypoScriptFrontendController $controller */
-        $controller = $GLOBALS['TSFE'];
+        $controller = $request->getAttribute('frontend.controller');
 
         $this->resetGlobalsToCurrentRequest($request);
 
@@ -136,14 +126,14 @@ class RequestHandler implements RequestHandlerInterface
 
             // Content generation
             $this->timeTracker->incStackPointer();
-            $this->timeTracker->push($controller->sPre, 'PAGE');
+            $this->timeTracker->push('Page generation PAGE object');
 
             $controller->content = $this->generatePageContent($controller, $request);
 
             $this->timeTracker->pull($this->timeTracker->LR ? $controller->content : '');
             $this->timeTracker->decStackPointer();
 
-            $controller->generatePage_postProcessing();
+            $controller->generatePage_postProcessing($request);
             $this->timeTracker->pull();
         }
         $controller->releaseLocks();
@@ -151,7 +141,7 @@ class RequestHandler implements RequestHandlerInterface
         // Render non-cached page parts by replacing placeholders which are taken from cache or added during page generation
         if ($controller->isINTincScript()) {
             if (!$controller->isGeneratePage()) {
-                // When page was generated, this was already called. Avoid calling this twice.
+                // When the page was generated, this was already called. Avoid calling this twice.
                 $controller->preparePageContentGeneration($request);
 
                 // Make sure all FAL resources are prefixed with absPrefPrefix
@@ -202,7 +192,7 @@ class RequestHandler implements RequestHandlerInterface
             // Store the serialized AssetCollector state in configuration
             $controller->config['INTincScript_ext']['assetCollectorState'] = serialize(GeneralUtility::makeInstance(AssetCollector::class)->getState());
             // Render complete page, keep placeholders for JavaScript and CSS
-            return $pageRenderer->renderPageWithUncachedObjects($controller->config['INTincScript_ext']['divKey']);
+            return $pageRenderer->renderPageWithUncachedObjects($controller->config['INTincScript_ext']['divKey'] ?? '');
         }
         // Render complete page
         return $pageRenderer->render();
@@ -351,18 +341,13 @@ class RequestHandler implements RequestHandlerInterface
         if ($controller->xhtmlVersion || $doctype === 'html5' && $xmlDocument) {
             // We add this to HTML5 to achieve a slightly better backwards compatibility
             $htmlTagAttributes['xmlns'] = 'http://www.w3.org/1999/xhtml';
-            if (is_array($controller->config['config']['namespaces.'])) {
+            if (is_array($controller->config['config']['namespaces.'] ?? null)) {
                 foreach ($controller->config['config']['namespaces.'] as $prefix => $uri) {
                     // $uri gets htmlspecialchared later
                     $htmlTagAttributes['xmlns:' . htmlspecialchars($prefix)] = $uri;
                 }
             }
         }
-        // Swap XML and doctype order around (for MSIE / Opera standards compliance)
-        if ($controller->config['config']['doctypeSwitch'] ?? false) {
-            $docTypeParts = array_reverse($docTypeParts);
-        }
-        // Adding doctype parts:
         if (!empty($docTypeParts)) {
             $pageRenderer->setXmlPrologAndDocType(implode(LF, $docTypeParts));
         }
@@ -376,8 +361,9 @@ class RequestHandler implements RequestHandlerInterface
         }
         $pageRenderer->setHeadTag($headTag);
         $pageRenderer->addInlineComment(GeneralUtility::makeInstance(Typo3Information::class)->getInlineHeaderComment());
-        if ($controller->baseUrl) {
-            $pageRenderer->setBaseUrl($controller->baseUrl);
+        $baseUrl = $controller->config['config']['baseURL'] ?? '';
+        if ($baseUrl) {
+            $pageRenderer->setBaseUrl($baseUrl);
         }
         if ($controller->pSetup['shortcutIcon'] ?? false) {
             try {
@@ -396,9 +382,10 @@ class RequestHandler implements RequestHandlerInterface
             }
         }
         // Including CSS files
-        if (is_array($controller->tmpl->setup['plugin.'] ?? null)) {
+        $typoScriptSetupArray = $request->getAttribute('frontend.typoscript')->getSetupArray();
+        if (is_array($typoScriptSetupArray['plugin.'] ?? null)) {
             $stylesFromPlugins = '';
-            foreach ($controller->tmpl->setup['plugin.'] as $key => $iCSScode) {
+            foreach ($typoScriptSetupArray['plugin.'] as $key => $iCSScode) {
                 if (is_array($iCSScode)) {
                     if (($iCSScode['_CSS_DEFAULT_STYLE'] ?? false) && empty($controller->config['config']['removeDefaultCss'])) {
                         $cssDefaultStyle = $controller->cObj->stdWrapValue('_CSS_DEFAULT_STYLE', $iCSScode ?? []);
@@ -438,6 +425,20 @@ class RequestHandler implements RequestHandlerInterface
                         }
                     }
                     if ($ss) {
+                        $additionalAttributes = $cssFileConfig ?? [];
+                        unset(
+                            $additionalAttributes['if.'],
+                            $additionalAttributes['alternate'],
+                            $additionalAttributes['media'],
+                            $additionalAttributes['title'],
+                            $additionalAttributes['external'],
+                            $additionalAttributes['inline'],
+                            $additionalAttributes['disableCompression'],
+                            $additionalAttributes['excludeFromConcatenation'],
+                            $additionalAttributes['allWrap'],
+                            $additionalAttributes['allWrap.'],
+                            $additionalAttributes['forceOnTop'],
+                        );
                         $pageRenderer->addCssFile(
                             $ss,
                             ($cssFileConfig['alternate'] ?? false) ? 'alternate stylesheet' : 'stylesheet',
@@ -448,7 +449,8 @@ class RequestHandler implements RequestHandlerInterface
                             $cssFileConfig['allWrap'] ?? '',
                             ($cssFileConfig['excludeFromConcatenation'] ?? false) || ($cssFileConfig['inline'] ?? false),
                             $cssFileConfig['allWrap.']['splitChar'] ?? '|',
-                            (bool)($cssFileConfig['inline'] ?? false)
+                            (bool)($cssFileConfig['inline'] ?? false),
+                            $additionalAttributes
                         );
                     }
                     unset($cssFileConfig);
@@ -472,6 +474,20 @@ class RequestHandler implements RequestHandlerInterface
                         }
                     }
                     if ($ss) {
+                        $additionalAttributes = $cssFileConfig ?? [];
+                        unset(
+                            $additionalAttributes['if.'],
+                            $additionalAttributes['alternate'],
+                            $additionalAttributes['media'],
+                            $additionalAttributes['title'],
+                            $additionalAttributes['external'],
+                            $additionalAttributes['internal'],
+                            $additionalAttributes['disableCompression'],
+                            $additionalAttributes['excludeFromConcatenation'],
+                            $additionalAttributes['allWrap'],
+                            $additionalAttributes['allWrap.'],
+                            $additionalAttributes['forceOnTop'],
+                        );
                         $pageRenderer->addCssLibrary(
                             $ss,
                             ($cssFileConfig['alternate'] ?? false) ? 'alternate stylesheet' : 'stylesheet',
@@ -482,7 +498,8 @@ class RequestHandler implements RequestHandlerInterface
                             $cssFileConfig['allWrap'] ?? '',
                             ($cssFileConfig['excludeFromConcatenation'] ?? false) || ($cssFileConfig['inline'] ?? false),
                             $cssFileConfig['allWrap.']['splitChar'] ?? '|',
-                            (bool)($cssFileConfig['inline'] ?? false)
+                            (bool)($cssFileConfig['inline'] ?? false),
+                            $additionalAttributes
                         );
                     }
                     unset($cssFileConfig);
@@ -490,9 +507,7 @@ class RequestHandler implements RequestHandlerInterface
             }
         }
 
-        // CSS_inlineStyle from TS
-        $style = trim($controller->pSetup['CSS_inlineStyle'] ?? '');
-        $style .= $controller->cObj->cObjGet($controller->pSetup['cssInline.'] ?? null, 'cssInline.');
+        $style = $controller->cObj->cObjGet($controller->pSetup['cssInline.'] ?? null, 'cssInline.');
         if (trim($style)) {
             $this->addCssToPageRenderer($controller, $style, true, 'additionalTSFEInlineStyle');
         }
@@ -514,11 +529,26 @@ class RequestHandler implements RequestHandlerInterface
                     }
                     if ($ss) {
                         $jsFileConfig = &$controller->pSetup['includeJSLibs.'][$key . '.'];
+                        $additionalAttributes = $jsFileConfig ?? [];
                         $type = $jsFileConfig['type'] ?? $defaultTypeAttributeForJavaScript;
                         $crossOrigin = (string)($jsFileConfig['crossorigin'] ?? '');
                         if ($crossOrigin === '' && ($jsFileConfig['integrity'] ?? false) && ($jsFileConfig['external'] ?? false)) {
                             $crossOrigin = 'anonymous';
                         }
+                        unset(
+                            $additionalAttributes['if.'],
+                            $additionalAttributes['type'],
+                            $additionalAttributes['crossorigin'],
+                            $additionalAttributes['integrity'],
+                            $additionalAttributes['external'],
+                            $additionalAttributes['allWrap'],
+                            $additionalAttributes['allWrap.'],
+                            $additionalAttributes['disableCompression'],
+                            $additionalAttributes['excludeFromConcatenation'],
+                            $additionalAttributes['integrity'],
+                            $additionalAttributes['defer'],
+                            $additionalAttributes['nomodule'],
+                        );
                         $pageRenderer->addJsLibrary(
                             $key,
                             $ss,
@@ -532,7 +562,8 @@ class RequestHandler implements RequestHandlerInterface
                             $jsFileConfig['integrity'] ?? '',
                             (bool)($jsFileConfig['defer'] ?? false),
                             $crossOrigin,
-                            (bool)($jsFileConfig['nomodule'] ?? false)
+                            (bool)($jsFileConfig['nomodule'] ?? false),
+                            $additionalAttributes
                         );
                         unset($jsFileConfig);
                     }
@@ -556,11 +587,26 @@ class RequestHandler implements RequestHandlerInterface
                     }
                     if ($ss) {
                         $jsFileConfig = &$controller->pSetup['includeJSFooterlibs.'][$key . '.'];
+                        $additionalAttributes = $jsFileConfig ?? [];
                         $type = $jsFileConfig['type'] ?? $defaultTypeAttributeForJavaScript;
                         $crossOrigin = (string)($jsFileConfig['crossorigin'] ?? '');
                         if ($crossOrigin === '' && ($jsFileConfig['integrity'] ?? false) && ($jsFileConfig['external'] ?? false)) {
                             $crossOrigin = 'anonymous';
                         }
+                        unset(
+                            $additionalAttributes['if.'],
+                            $additionalAttributes['type'],
+                            $additionalAttributes['crossorigin'],
+                            $additionalAttributes['integrity'],
+                            $additionalAttributes['external'],
+                            $additionalAttributes['allWrap'],
+                            $additionalAttributes['allWrap.'],
+                            $additionalAttributes['disableCompression'],
+                            $additionalAttributes['excludeFromConcatenation'],
+                            $additionalAttributes['integrity'],
+                            $additionalAttributes['defer'],
+                            $additionalAttributes['nomodule'],
+                        );
                         $pageRenderer->addJsFooterLibrary(
                             $key,
                             $ss,
@@ -574,7 +620,8 @@ class RequestHandler implements RequestHandlerInterface
                             $jsFileConfig['integrity'] ?? '',
                             (bool)($jsFileConfig['defer'] ?? false),
                             $crossOrigin,
-                            (bool)($jsFileConfig['nomodule'] ?? false)
+                            (bool)($jsFileConfig['nomodule'] ?? false),
+                            $additionalAttributes
                         );
                         unset($jsFileConfig);
                     }
@@ -616,7 +663,8 @@ class RequestHandler implements RequestHandlerInterface
                             $jsConfig['integrity'] ?? '',
                             (bool)($jsConfig['defer'] ?? false),
                             $crossOrigin,
-                            (bool)($jsConfig['nomodule'] ?? false)
+                            (bool)($jsConfig['nomodule'] ?? false),
+                            $jsConfig['data.'] ?? []
                         );
                         unset($jsConfig);
                     }
@@ -657,7 +705,8 @@ class RequestHandler implements RequestHandlerInterface
                             $jsConfig['integrity'] ?? '',
                             (bool)($jsConfig['defer'] ?? false),
                             $crossOrigin,
-                            (bool)($jsConfig['nomodule'] ?? false)
+                            (bool)($jsConfig['nomodule'] ?? false),
+                            $jsConfig['data.'] ?? []
                         );
                         unset($jsConfig);
                     }
@@ -775,7 +824,7 @@ class RequestHandler implements RequestHandlerInterface
             $bodyTag = '';
         } else {
             $defBT = (isset($controller->pSetup['bodyTagCObject']) && $controller->pSetup['bodyTagCObject'])
-                ? $controller->cObj->cObjGetSingle($controller->pSetup['bodyTagCObject'], $controller->pSetup['bodyTagCObject.'], 'bodyTagCObject')
+                ? $controller->cObj->cObjGetSingle($controller->pSetup['bodyTagCObject'], $controller->pSetup['bodyTagCObject.'] ?? [], 'bodyTagCObject')
                 : '<body>';
             $bodyTag = (isset($controller->pSetup['bodyTag']) && $controller->pSetup['bodyTag'])
                 ? $controller->pSetup['bodyTag']

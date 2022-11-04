@@ -79,7 +79,7 @@ class ActivateExtensionCommand extends Command
     /**
      * Installs an extension
      */
-    protected function execute(InputInterface $input, OutputInterface $output)
+    protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $io = new SymfonyStyle($input, $output);
         $extensionKey = $input->getArgument('extensionkey');
@@ -94,6 +94,6 @@ class ActivateExtensionCommand extends Command
         $this->installUtility->install($extensionKey);
 
         $io->success('Activated extension ' . $extensionKey . ' successfully.');
-        return 0;
+        return Command::SUCCESS;
     }
 }

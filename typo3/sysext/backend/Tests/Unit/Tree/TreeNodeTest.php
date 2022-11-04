@@ -22,9 +22,6 @@ use TYPO3\CMS\Backend\Tree\TreeNodeCollection;
 use TYPO3\CMS\Backend\Tree\TreeRepresentationNode;
 use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
-/**
- * Test case
- */
 class TreeNodeTest extends UnitTestCase
 {
     /**
@@ -56,7 +53,7 @@ class TreeNodeTest extends UnitTestCase
             $nodeCollection->append($node);
         }
         $fixture->setChildNodes($nodeCollection);
-        $serializedString = trim($fixture->serialize());
+        $serializedString = trim(serialize($fixture));
         self::assertSame($expected, $serializedString);
     }
 
@@ -66,9 +63,8 @@ class TreeNodeTest extends UnitTestCase
     public function deserializeFixture(): void
     {
         $source = trim(file_get_contents(__DIR__ . '/Fixtures/serialized.txt'));
-        $node = new TreeNode();
-        $node->unserialize($source);
-        $serializedString = $node->serialize();
+        $node = unserialize($source);
+        $serializedString = serialize($node);
         self::assertSame($source, $serializedString);
     }
 

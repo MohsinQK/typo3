@@ -84,7 +84,6 @@ class SelectSingleElement extends AbstractFormElement
         $classList = ['form-select', 'form-control-adapt'];
 
         // Check against inline uniqueness
-        /** @var InlineStackProcessor $inlineStackProcessor */
         $inlineStackProcessor = GeneralUtility::makeInstance(InlineStackProcessor::class);
         $inlineStackProcessor->initializeByGivenStructure($this->data['inlineStructure']);
         $uniqueIds = [];
@@ -256,7 +255,7 @@ class SelectSingleElement extends AbstractFormElement
         $html[] = '</div>';
 
         $onFieldChangeItems = $this->getOnFieldChangeItems($parameterArray['fieldChangeFunc'] ?? []);
-        $resultArray['requireJsModules']['selectSingleElement'] = JavaScriptModuleInstruction::create(
+        $resultArray['javaScriptModules']['selectSingleElement'] = JavaScriptModuleInstruction::create(
             '@typo3/backend/form-engine/element/select-single-element.js'
         )->invoke('initializeOnReady', '#' . $selectId, ['onChange' => $onFieldChangeItems]);
 

@@ -24,9 +24,19 @@ use TYPO3\CMS\Extbase\Utility\LocalizationUtility;
 
 /**
  * User file inline label service
+ *
+ * @deprecated since v12, will be removed in v13.
  */
 class UserFileInlineLabelService
 {
+    public function __construct()
+    {
+        trigger_error(
+            'Class ' . __CLASS__ . ' has been deprecated in v12 and will be removed with v13.',
+            E_USER_DEPRECATED
+        );
+    }
+
     /**
      * Get the user function label for the file_reference table
      *
@@ -45,7 +55,13 @@ class UserFileInlineLabelService
         }
 
         // In case of a group field uid_local is a resolved array
-        $fileRecord = $params['row']['uid_local'][0]['row'];
+        $fileRecord = $params['row']['uid_local'][0]['row'] ?? null;
+
+        if ($fileRecord === null) {
+            // no file record so nothing more to do
+            $params['title'] = $params['row']['uid'];
+            return;
+        }
 
         // Configuration
         $title = '';
@@ -82,7 +98,7 @@ class UserFileInlineLabelService
             $labelText = (string)LocalizationUtility::translate('LLL:EXT:core/Resources/Private/Language/locallang_tca.xlf:sys_file.' . $field);
             $title = '<dt class="col text-truncate">' . htmlspecialchars($labelText) . '</dt><dd class="col">' . $value . '</dd>';
             // In debug mode, add the table name to the record title
-            if (($GLOBALS['TYPO3_CONF_VARS']['BE']['debug'] ?? false) && $this->getBackendUserAuthentication()->isAdmin()) {
+            if ($this->getBackendUserAuthentication()->shallDisplayDebugInformation()) {
                 $title .= '<div class="col"><code class="m-0">[' . htmlspecialchars($params['table']) . ']</code></div>';
             }
         }

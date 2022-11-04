@@ -33,7 +33,6 @@ use TYPO3\CMS\Core\Utility\MathUtility;
  */
 class LegacyLinkNotationConverter
 {
-
     /**
      * @var ResourceFactory
      */
@@ -104,7 +103,7 @@ class LegacyLinkNotationConverter
 
             $isIdOrAlias = MathUtility::canBeInterpretedAsInteger($linkParameter);
             $matches = [];
-            // capture old RTE links relative to TYPO3_mainDir
+            // capture old RTE links relative to TYPO3 Backend /typo3/
             if (preg_match('#../(?:index\\.php)?\\?id=([^&]+)#', $linkParameter, $matches)) {
                 $linkParameter = $matches[1];
                 $isIdOrAlias = true;
@@ -135,7 +134,7 @@ class LegacyLinkNotationConverter
             // url (external): If doubleSlash or if a '.' comes before a '/'.
             if (!$isIdOrAlias && $isLocalFile !== 1 && $urlChar && (!$containsSlash || $urlChar < $fileChar)) {
                 $result['type'] = LinkService::TYPE_URL;
-                $result['url'] = 'http://' . $linkParameter;
+                $result['url'] = UrlLinkHandler::getDefaultScheme() . '://' . $linkParameter;
             // file (internal) or folder
             } elseif ($containsSlash || $isLocalFile) {
                 $result = $this->getFileOrFolderObjectFromMixedIdentifier($linkParameter);

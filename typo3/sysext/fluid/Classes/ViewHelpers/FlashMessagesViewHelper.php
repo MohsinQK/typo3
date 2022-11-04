@@ -22,6 +22,7 @@ use TYPO3\CMS\Core\Messaging\FlashMessageService;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Extbase\Mvc\RequestInterface;
 use TYPO3\CMS\Extbase\Service\ExtensionService;
+use TYPO3\CMS\Fluid\Core\Rendering\RenderingContext;
 use TYPO3Fluid\Fluid\Core\Rendering\RenderingContextInterface;
 use TYPO3Fluid\Fluid\Core\ViewHelper\AbstractViewHelper;
 use TYPO3Fluid\Fluid\Core\ViewHelper\Traits\CompileWithRenderStatic;
@@ -56,9 +57,12 @@ use TYPO3Fluid\Fluid\Core\ViewHelper\Traits\CompileWithRenderStatic;
  *       <div class="alert alert-info">
  *          <div class="media">
  *             <div class="media-left">
- *                <span class="fa-stack fa-lg">
- *                   <i class="fa fa-circle fa-stack-2x"></i>
- *                   <i class="fa fa-info fa-stack-1x"></i>
+ *                <span class="icon-emphasized">
+ *                   <span class="t3js-icon icon icon-size-small icon-state-default icon-actions-info" data-identifier="actions-info">
+ *                      <span class="icon-markup">
+ *                         <svg class="icon-color"><use xlink:href="/typo3/sysext/core/Resources/Public/Icons/T3Icons/sprites/actions.svg#actions-info"></use></svg>
+ *                      </span>
+ *                   </span>
  *                </span>
  *             </div>
  *             <div class="media-body">
@@ -131,6 +135,7 @@ final class FlashMessagesViewHelper extends AbstractViewHelper
         $queueIdentifier = $arguments['queueIdentifier'];
 
         if ($queueIdentifier === null) {
+            /** @var RenderingContext $renderingContext */
             $request = $renderingContext->getRequest();
             if (!$request instanceof RequestInterface) {
                 // Throw if not an extbase request

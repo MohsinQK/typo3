@@ -58,7 +58,11 @@ class LinkFactory implements LoggerAwareInterface
         if (isset($linkConfiguration['parameter.'])) {
             // Evaluate "parameter." stdWrap but keep additional information (like target, class and title)
             $linkParameterParts = $this->typoLinkCodecService->decode($linkConfiguration['parameter'] ?? '');
-            $linkParameterParts['url'] = $contentObjectRenderer->stdWrap($linkParameterParts['url'], $linkConfiguration['parameter.']);
+            $modifiedLinkParameterString = $contentObjectRenderer->stdWrap($linkParameterParts['url'], $linkConfiguration['parameter.']);
+            // As the stdWrap result might contain target etc. as well again (".field = header_link")
+            // the result is then taken from the stdWrap and overridden if the value is not empty.
+            $modifiedLinkParameterParts = $this->typoLinkCodecService->decode($modifiedLinkParameterString);
+            $linkParameterParts = array_replace($linkParameterParts, array_filter($modifiedLinkParameterParts, 'trim'));
             $linkParameter = $this->typoLinkCodecService->encode($linkParameterParts);
         } else {
             $linkParameter = trim((string)($linkConfiguration['parameter'] ?? ''));
@@ -102,6 +106,26 @@ class LinkFactory implements LoggerAwareInterface
         $event = new AfterLinkIsGeneratedEvent($linkResult, $contentObjectRenderer, $linkConfiguration);
         $event = $this->eventDispatcher->dispatch($event);
         return $event->getLinkResult();
+    }
+
+    /**
+     * Creates a link result for a given URL (usually something like "19 _blank css-class "testtitle with whitespace" &X=y").
+     * Helpful if you want to create any kind of URL (also possible in TYPO3 Backend).
+     */
+    public function createUri(string $urlParameter, ContentObjectRenderer $contentObjectRenderer = null): LinkResultInterface
+    {
+        $contentObjectRenderer = $contentObjectRenderer ?? GeneralUtility::makeInstance(ContentObjectRenderer::class);
+        return $this->create('', ['parameter' => $urlParameter], $contentObjectRenderer);
+    }
+
+    /**
+     * Legacy method, use createUri() instead.
+     * @deprecated will be removed in TYPO3 v13.0.
+     */
+    public function createFromUriString(string $urlParameter): LinkResultInterface
+    {
+        trigger_error('LinkFactory->createFromUriString() will be removed in TYPO3 v13.0. Use createUri() instead.', E_USER_DEPRECATED);
+        return $this->createUri($urlParameter);
     }
 
     /**
@@ -253,7 +277,7 @@ class LinkFactory implements LoggerAwareInterface
     {
         $aTagParams = $contentObjectRenderer->stdWrapValue('ATagParams', $linkConfiguration);
         // Add the global config.ATagParams
-        $globalParams = $contentObjectRenderer->getTypoScriptFrontendController() ? trim($contentObjectRenderer->getTypoScriptFrontendController()->config['config']['ATagParams'] ?? ''): '';
+        $globalParams = $contentObjectRenderer->getTypoScriptFrontendController() ? trim($contentObjectRenderer->getTypoScriptFrontendController()->config['config']['ATagParams'] ?? '') : '';
         $aTagParams = trim($globalParams . ' ' . $aTagParams);
         if (!empty($aTagParams)) {
             // Decode entities here, as they are doubly escaped again when using HTML output

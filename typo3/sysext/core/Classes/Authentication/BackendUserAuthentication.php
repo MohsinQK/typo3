@@ -37,6 +37,7 @@ use TYPO3\CMS\Core\Resource\Folder;
 use TYPO3\CMS\Core\Resource\ResourceFactory;
 use TYPO3\CMS\Core\Resource\ResourceStorage;
 use TYPO3\CMS\Core\Resource\StorageRepository;
+use TYPO3\CMS\Core\Routing\BackendEntryPointResolver;
 use TYPO3\CMS\Core\SysLog\Action as SystemLogGenericAction;
 use TYPO3\CMS\Core\SysLog\Error as SystemLogErrorClassification;
 use TYPO3\CMS\Core\SysLog\Type;
@@ -101,9 +102,8 @@ class BackendUserAuthentication extends AbstractUserAuthentication
      * -99 is ERROR (none available)
      * 0 is online
      * >0 is custom workspaces
-     * @var int
      */
-    public $workspace = -99;
+    public int $workspace = -99;
 
     /**
      * Custom workspace record if any
@@ -174,6 +174,7 @@ class BackendUserAuthentication extends AbstractUserAuthentication
     public $lastLogin_column = 'lastlogin';
 
     /**
+     * Enable field columns of user table
      * @var array
      */
     public $enablecolumns = [
@@ -231,7 +232,6 @@ class BackendUserAuthentication extends AbstractUserAuthentication
      * @internal should only be used from within TYPO3 Core
      */
     public $uc_default = [
-        'interfaceSetup' => '',
         // serialized content that is used to store interface pane and menu positions. Set by the logout.php-script
         'moduleData' => [],
         // user-data for the modules
@@ -593,7 +593,6 @@ class BackendUserAuthentication extends AbstractUserAuthentication
      * Returns TRUE if the $value is found in the list in a $this->groupData[] index pointed to by $type (array key).
      * Can thus be users to check for modules, exclude-fields, select/modify permissions for tables etc.
      * If user is admin TRUE is also returned
-     * Please see the document Inside TYPO3 for examples.
      *
      * @param string $type The type value; "webmounts", "filemounts", "pagetypes_select", "tables_select", "tables_modify", "non_exclude_fields", "modules", "available_widgets", "mfa_providers"
      * @param string $value String to search for in the groupData-list
@@ -679,13 +678,13 @@ class BackendUserAuthentication extends AbstractUserAuthentication
             $queryBuilder->getRestrictions()
                 ->removeAll()
                 ->add(GeneralUtility::makeInstance(DeletedRestriction::class))
-                ->add(GeneralUtility::makeInstance(WorkspaceRestriction::class, (int)$this->workspace));
+                ->add(GeneralUtility::makeInstance(WorkspaceRestriction::class, $this->workspace));
             $recordLocalizations = $queryBuilder->select('*')
                 ->from($table)
                 ->where(
                     $queryBuilder->expr()->eq(
                         $pointerField,
-                        $queryBuilder->createNamedParameter($pointerValue, \PDO::PARAM_INT)
+                        $queryBuilder->createNamedParameter($pointerValue, Connection::PARAM_INT)
                     )
                 )
                 ->executeQuery()
@@ -1004,7 +1003,7 @@ class BackendUserAuthentication extends AbstractUserAuthentication
             return;
         }
         if ($append) {
-            $currentWebMounts = GeneralUtility::intExplode(',', $this->groupData['webmounts']);
+            $currentWebMounts = GeneralUtility::intExplode(',', (string)($this->groupData['webmounts'] ?? ''));
             $mountPointUids = array_merge($currentWebMounts, $mountPointUids);
         }
         $this->groupData['webmounts'] = implode(',', array_unique($mountPointUids));
@@ -1089,7 +1088,7 @@ class BackendUserAuthentication extends AbstractUserAuthentication
             $this->groupData['file_permissions'] = $this->user['file_permissions'] ?? '';
 
             // Get the groups and accumulate their permission settings
-            $mountOptions = new BackendGroupMountOption($this->user['options']);
+            $mountOptions = new BackendGroupMountOption((int)($this->user['options'] ?? 0));
             $groupResolver = GeneralUtility::makeInstance(GroupResolver::class);
             $resolvedGroups = $groupResolver->resolveGroupsForUser($this->user, $this->usergroup_table);
             foreach ($resolvedGroups as $groupInfo) {
@@ -1118,7 +1117,7 @@ class BackendUserAuthentication extends AbstractUserAuthentication
                     $this->groupData['webmounts'] .= ',' . $groupInfo['db_mountpoints'];
                 }
                 // Mount group file-mounts
-                if ($mountOptions->shouldUserIncludePageMountsFromAssociatedGroups()) {
+                if ($mountOptions->shouldUserIncludeFileMountsFromAssociatedGroups()) {
                     $this->groupData['filemounts'] .= ',' . $groupInfo['file_mountpoints'];
                 }
                 // Gather permission detail fields
@@ -1269,7 +1268,6 @@ TCAdefaults.sys_note.email = ' . $this->user['email'];
     protected function initializeFileStorages()
     {
         $this->fileStorages = [];
-        /** @var \TYPO3\CMS\Core\Resource\StorageRepository $storageRepository */
         $storageRepository = GeneralUtility::makeInstance(StorageRepository::class);
         // Admin users have all file storages visible, without any filters
         if ($this->isAdmin()) {
@@ -1281,8 +1279,10 @@ TCAdefaults.sys_note.email = ' . $this->user['email'];
             // Regular users only have storages that are defined in their filemounts
             // Permissions and file mounts for the storage are added in StoragePermissionAspect
             foreach ($this->getFileMountRecords() as $row) {
-                if (!array_key_exists((int)$row['base'], $this->fileStorages)) {
-                    $storageObject = $storageRepository->findByUid($row['base']);
+                [$base] = GeneralUtility::trimExplode(':', $row['identifier'], true);
+                $base = (int)$base;
+                if (!array_key_exists($base, $this->fileStorages)) {
+                    $storageObject = $storageRepository->findByUid($base);
                     if ($storageObject) {
                         $this->fileStorages[$storageObject->getUid()] = $storageObject;
                     }
@@ -1345,11 +1345,11 @@ TCAdefaults.sys_note.email = ' . $this->user['email'];
         $connectionPool = GeneralUtility::makeInstance(ConnectionPool::class);
 
         // Processing file mounts (both from the user and the groups)
-        $fileMounts = array_unique(GeneralUtility::intExplode(',', $this->groupData['filemounts'] ?? '', true));
+        $fileMounts = array_unique(GeneralUtility::intExplode(',', (string)($this->groupData['filemounts'] ?? ''), true));
 
         // Limit file mounts if set in workspace record
         if ($this->workspace > 0 && !empty($this->workspaceRec['file_mountpoints'])) {
-            $workspaceFileMounts = GeneralUtility::intExplode(',', $this->workspaceRec['file_mountpoints'], true);
+            $workspaceFileMounts = GeneralUtility::intExplode(',', (string)$this->workspaceRec['file_mountpoints'], true);
             $fileMounts = array_intersect($fileMounts, $workspaceFileMounts);
         }
 
@@ -1376,7 +1376,7 @@ TCAdefaults.sys_note.email = ' . $this->user['email'];
             $fileMountRecords = $queryBuilder->executeQuery()->fetchAllAssociative();
             if ($fileMountRecords !== false) {
                 foreach ($fileMountRecords as $fileMount) {
-                    $fileMountRecordCache[$fileMount['base'] . $fileMount['path']] = $fileMount;
+                    $fileMountRecordCache[$fileMount['identifier']] = $fileMount;
                 }
             }
         }
@@ -1390,7 +1390,7 @@ TCAdefaults.sys_note.email = ' . $this->user['email'];
             $defaultStorageRow = $queryBuilder->select('uid')
                 ->from('sys_file_storage')
                 ->where(
-                    $queryBuilder->expr()->eq('is_default', $queryBuilder->createNamedParameter(1, \PDO::PARAM_INT))
+                    $queryBuilder->expr()->eq('is_default', $queryBuilder->createNamedParameter(1, Connection::PARAM_INT))
                 )
                 ->setMaxResults(1)
                 ->executeQuery()
@@ -1450,7 +1450,7 @@ TCAdefaults.sys_note.email = ' . $this->user['email'];
             }
 
             // Mount group home-dirs
-            $mountOptions = new BackendGroupMountOption((int)$this->user['options']);
+            $mountOptions = new BackendGroupMountOption((int)($this->user['options'] ?? 0));
             if ($GLOBALS['TYPO3_CONF_VARS']['BE']['groupHomePath'] !== '' && $mountOptions->shouldUserIncludeFileMountsFromAssociatedGroups()) {
                 // If groupHomePath is set, we attempt to mount it
                 [$groupHomeStorageUid, $groupHomeFilter] = explode(':', $GLOBALS['TYPO3_CONF_VARS']['BE']['groupHomePath'], 2);
@@ -1757,7 +1757,7 @@ TCAdefaults.sys_note.email = ' . $this->user['email'];
             // but make sure they match against the users' DB mounts
 
             $workspaceWebMounts = GeneralUtility::intExplode(',', $dbMountpoints);
-            $webMountsOfUser = GeneralUtility::intExplode(',', $this->groupData['webmounts']);
+            $webMountsOfUser = GeneralUtility::intExplode(',', (string)($this->groupData['webmounts'] ?? ''));
             $webMountsOfUser = array_combine($webMountsOfUser, $webMountsOfUser) ?: [];
 
             $entryPointRootLineUids = [];
@@ -1811,7 +1811,7 @@ TCAdefaults.sys_note.email = ' . $this->user['email'];
                     ->from('sys_workspace')
                     ->where($queryBuilder->expr()->eq(
                         'uid',
-                        $queryBuilder->createNamedParameter($wsRec, \PDO::PARAM_INT)
+                        $queryBuilder->createNamedParameter($wsRec, Connection::PARAM_INT)
                     ))
                     ->executeQuery()
                     ->fetchAssociative();
@@ -1826,7 +1826,7 @@ TCAdefaults.sys_note.email = ' . $this->user['email'];
         }
         // User is in live, and be_groups.workspace_perms has bitmask=1 included
         if ($wsRec['uid'] === 0) {
-            return (($this->groupData['workspace_perms'] ?? 0) & 1)
+            return $this->hasEditAccessToLiveWorkspace()
                 ? array_merge($wsRec, ['_ACCESS' => 'online'])
                 : false;
         }
@@ -1851,6 +1851,15 @@ TCAdefaults.sys_note.email = ' . $this->user['email'];
             }
         }
         return false;
+    }
+
+    /**
+     * Checks if the user (or the group) has the workspace_perms set to 1 in order to allow
+     * editing records in live workspace.
+     */
+    protected function hasEditAccessToLiveWorkspace(): bool
+    {
+        return (bool)(($this->groupData['workspace_perms'] ?? 0) & 1);
     }
 
     /**
@@ -2017,22 +2026,22 @@ TCAdefaults.sys_note.email = ' . $this->user['email'];
             'sys_log',
             $fields,
             [
-                \PDO::PARAM_INT,
-                \PDO::PARAM_INT,
-                \PDO::PARAM_STR,
-                \PDO::PARAM_STR,
-                \PDO::PARAM_INT,
-                \PDO::PARAM_INT,
-                \PDO::PARAM_INT,
-                \PDO::PARAM_STR,
-                \PDO::PARAM_STR,
-                \PDO::PARAM_STR,
-                \PDO::PARAM_INT,
-                \PDO::PARAM_STR,
-                \PDO::PARAM_INT,
-                \PDO::PARAM_INT,
-                \PDO::PARAM_STR,
-                \PDO::PARAM_STR,
+                Connection::PARAM_INT,
+                Connection::PARAM_INT,
+                Connection::PARAM_STR,
+                Connection::PARAM_STR,
+                Connection::PARAM_INT,
+                Connection::PARAM_INT,
+                Connection::PARAM_INT,
+                Connection::PARAM_STR,
+                Connection::PARAM_STR,
+                Connection::PARAM_STR,
+                Connection::PARAM_INT,
+                Connection::PARAM_STR,
+                Connection::PARAM_INT,
+                Connection::PARAM_INT,
+                Connection::PARAM_STR,
+                Connection::PARAM_STR,
             ]
         );
 
@@ -2067,7 +2076,8 @@ TCAdefaults.sys_note.email = ' . $this->user['email'];
     {
         if (empty($this->user['uid'])) {
             // @todo: throw a proper AccessDeniedException in TYPO3 v12.0. and handle this functionality in the calling code
-            $url = $GLOBALS['TYPO3_REQUEST']->getAttribute('normalizedParams')->getSiteUrl() . TYPO3_mainDir;
+            $entryPointResolver = GeneralUtility::makeInstance(BackendEntryPointResolver::class);
+            $url = $entryPointResolver->getUriFromRequest($GLOBALS['TYPO3_REQUEST']);
             throw new ImmediateResponseException(new RedirectResponse($url, 303), 1607271747);
         }
         if ($this->isUserAllowedToLogin()) {
@@ -2186,9 +2196,9 @@ TCAdefaults.sys_note.email = ' . $this->user['email'];
                 ->where(
                     $queryBuilder->expr()->eq(
                         'uid',
-                        $queryBuilder->createNamedParameter($backUserId, \PDO::PARAM_INT)
+                        $queryBuilder->createNamedParameter($backUserId, Connection::PARAM_INT)
                     ),
-                    $queryBuilder->expr()->eq('admin', $queryBuilder->createNamedParameter(1, \PDO::PARAM_INT))
+                    $queryBuilder->expr()->eq('admin', $queryBuilder->createNamedParameter(1, Connection::PARAM_INT))
                 )
                 ->executeQuery()
                 ->fetchOne();
@@ -2205,7 +2215,7 @@ TCAdefaults.sys_note.email = ' . $this->user['email'];
             && $GLOBALS['BE_USER'] instanceof self
             && isset($GLOBALS['BE_USER']->user['uid'])
         ) {
-            FormProtectionFactory::get()->clean();
+            GeneralUtility::makeInstance(FormProtectionFactory::class)->createForType('backend')->clean();
             // Release the locked records
             $this->releaseLockedRecords((int)$GLOBALS['BE_USER']->user['uid']);
 
@@ -2289,5 +2299,37 @@ TCAdefaults.sys_note.email = ' . $this->user['email'];
         return ($globalConfig === 2 && !$isAdmin)
             || ($globalConfig === 3 && $isAdmin)
             || ($globalConfig === 4 && $this->isSystemMaintainer());
+    }
+
+    /**
+     * Returns if import functionality is available for current user
+     *
+     * @internal
+     */
+    public function isImportEnabled(): bool
+    {
+        return $this->isAdmin()
+            || ($this->getTSConfig()['options.']['impexp.']['enableImportForNonAdminUser'] ?? false);
+    }
+
+    /**
+     * Returns if export functionality is available for current user
+     *
+     * @internal
+     */
+    public function isExportEnabled(): bool
+    {
+        return $this->isAdmin()
+            || ($this->getTSConfig()['options.']['impexp.']['enableExportForNonAdminUser'] ?? false);
+    }
+
+    /**
+     * Returns whether debug information shall be displayed to the user
+     *
+     * @internal
+     */
+    public function shallDisplayDebugInformation(): bool
+    {
+        return ($GLOBALS['TYPO3_CONF_VARS']['BE']['debug'] ?? false) && $this->isAdmin();
     }
 }

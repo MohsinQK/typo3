@@ -23,12 +23,12 @@ use TYPO3\CMS\Core\Cache\CacheManager;
 use TYPO3\CMS\Core\Cache\Frontend\FrontendInterface;
 use TYPO3\CMS\Core\Configuration\Event\AfterTcaCompilationEvent;
 use TYPO3\CMS\Core\Core\Environment;
+use TYPO3\CMS\Core\DataHandling\PageDoktypeRegistry;
 use TYPO3\CMS\Core\Migrations\TcaMigration;
 use TYPO3\CMS\Core\Package\Cache\PackageDependentCacheIdentifier;
 use TYPO3\CMS\Core\Package\Exception as PackageException;
 use TYPO3\CMS\Core\Package\PackageManager;
 use TYPO3\CMS\Core\Preparations\TcaPreparation;
-use TYPO3\CMS\Core\Resource\Filter\FileExtensionFilter;
 
 /**
  * Extension Management functions
@@ -534,57 +534,19 @@ class ExtensionManagementUtility
      * @param string $disallowedFileExtensions Comma-separated list of disallowed file extensions (e.g. "doc,docx")
      *
      * @return array
+     * @deprecated since TYPO3 v12.0. Use the TCA type "file" directly
      */
     public static function getFileFieldTCAConfig(string $fieldName, array $customSettingOverride = [], string $allowedFileExtensions = '', string $disallowedFileExtensions = ''): array
     {
-        $fileFieldTCAConfig = [
-            'type' => 'inline',
-            'foreign_table' => 'sys_file_reference',
-            'foreign_field' => 'uid_foreign',
-            'foreign_sortby' => 'sorting_foreign',
-            'foreign_table_field' => 'tablenames',
-            'foreign_match_fields' => [
-                'fieldname' => $fieldName,
-            ],
-            'foreign_label' => 'uid_local',
-            'foreign_selector' => 'uid_local',
-            'overrideChildTca' => [
-                'columns' => [
-                    'uid_local' => [
-                        'config' => [
-                            'appearance' => [
-                                'elementBrowserType' => 'file',
-                                'elementBrowserAllowed' => $allowedFileExtensions,
-                            ],
-                        ],
-                    ],
-                ],
-            ],
-            'filter' => [
-                [
-                    'userFunc' => FileExtensionFilter::class . '->filterInlineChildren',
-                    'parameters' => [
-                        'allowedFileExtensions' => $allowedFileExtensions,
-                        'disallowedFileExtensions' => $disallowedFileExtensions,
-                    ],
-                ],
-            ],
-            'appearance' => [
-                'useSortable' => true,
-                'headerThumbnail' => [
-                    'field' => 'uid_local',
-                    'height' => '45m',
-                ],
+        trigger_error(
+            'ExtensionManagementUtility::getFileFieldTCAConfig() will be removed in TYPO3 v13.0. Use TCA type "file" directly instead.',
+            E_USER_DEPRECATED
+        );
 
-                'enabledControls' => [
-                    'info' => true,
-                    'new' => false,
-                    'dragdrop' => true,
-                    'sort' => false,
-                    'hide' => true,
-                    'delete' => true,
-                ],
-            ],
+        $fileFieldTCAConfig = [
+            'type' => 'file',
+            'allowed' => $allowedFileExtensions,
+            'disallowed'=> $disallowedFileExtensions,
         ];
         ArrayUtility::mergeRecursiveWithOverrule($fileFieldTCAConfig, $customSettingOverride);
         return $fileFieldTCAConfig;
@@ -715,11 +677,20 @@ class ExtensionManagementUtility
      * FOR USE IN ext_tables.php FILES
      *
      * @param string $table Table name
+     * @deprecated will be removed in TYPO3 v13.0. Use $GLOBALS['TCA'][$table]['ctrl']['security']['ignorePageTypeRestriction'] instead.
      */
     public static function allowTableOnStandardPages(string $table): void
     {
-        $GLOBALS['PAGES_TYPES']['default']['allowedTables'] ??= '';
-        $GLOBALS['PAGES_TYPES']['default']['allowedTables'] .= ',' . $table;
+        if ($table === '') {
+            return;
+        }
+        $registry = GeneralUtility::makeInstance(PageDoktypeRegistry::class);
+        $tables = explode(',', $table);
+        foreach ($tables as $singleTable) {
+            if (!$registry->isRecordTypeAllowedForDoktype($singleTable, null)) {
+                $registry->addAllowedRecordTypes(explode(',', $singleTable));
+            }
+        }
     }
 
     /**
@@ -737,9 +708,8 @@ class ExtensionManagementUtility
     }
 
     /**
-     * Adds a "Function menu module" ('third level module') to an existing function menu for some other backend module
-     * The arguments values are generally determined by which function menu this is supposed to interact with
-     * See Inside TYPO3 for information on how to use this function.
+     * Adds a "Function menu module" ('third level module') to an existing function menu of some other backend module.
+     *
      * FOR USE IN ext_tables.php FILES
      *
      * @param string $modname Module name
@@ -960,7 +930,7 @@ class ExtensionManagementUtility
     public static function isServiceAvailable(string $serviceType, string $serviceKey, array $serviceDetails): bool
     {
         // If the service depends on external programs - check if they exists
-        if (trim($serviceDetails['exec'])) {
+        if (trim($serviceDetails['exec'] ?? '')) {
             $executables = GeneralUtility::trimExplode(',', $serviceDetails['exec'], true);
             foreach ($executables as $executable) {
                 // If at least one executable file is not available, exit early returning FALSE
@@ -999,7 +969,7 @@ class ExtensionManagementUtility
      *
      * FOR USE IN files in Configuration/TCA/Overrides/*.php Use in ext_tables.php FILES may break the frontend.
      *
-     * @param array $itemArray Numerical array: [0] => Plugin label, [1] => Plugin identifier / plugin key, ideally prefixed with an extension-specific name (e.g. "events2_list"), [2] => Path to plugin icon, [3] => an optional "group" ID, falls back to "default"
+     * @param array $itemArray Numerical array: [0] => Plugin label, [1] => Plugin identifier / plugin key, ideally prefixed with an extension-specific name (e.g. "events2_list"), [2] => Icon identifier or path to plugin icon, [3] => an optional "group" ID, falls back to "default"
      * @param string $type Type (eg. "list_type") - basically a field from "tt_content" table
      * @param string|null $extensionKey The extension key
      * @throws \RuntimeException
@@ -1083,7 +1053,6 @@ class ExtensionManagementUtility
      * $type determines the type of frontend plugin:
      * + list_type (default) - the good old "Insert plugin" entry
      * + CType - a new content element type
-     * + header_layout - an additional header type (added to the selection of layout1-5)
      * + includeLib - just includes the library for manual use somewhere in TypoScript.
      * (Remember that your $type definition should correspond to the column/items array in $GLOBALS['TCA'][tt_content] where you added the selector item for the element! See addPlugin() function)
      * FOR USE IN ext_localconf.php FILES
@@ -1118,9 +1087,6 @@ tt_content.' . $key . $suffix . ' {
     20 =< plugin.' . $cN . $suffix . '
 }
 ');
-                break;
-            case 'header_layout':
-                $addLine = 'lib.stdheader.10.' . $key . $suffix . ' = < plugin.' . $cN . $suffix;
                 break;
             case 'includeLib':
                 $addLine = 'page.1000 = < plugin.' . $cN . $suffix;
@@ -1193,31 +1159,35 @@ tt_content.' . $key . $suffix . ' {
     }
 
     /**
-     * Adds $content to the default TypoScript setup code as set in $GLOBALS['TYPO3_CONF_VARS'][FE]['defaultTypoScript_setup']
-     * Prefixed with a [GLOBAL] line
+     * Adds $content to the default TypoScript setup code as set in $GLOBALS['TYPO3_CONF_VARS'][FE]['defaultTypoScript_setup'].
+     * NOT prefixed with a [GLOBAL] line, other calls MUST properly close their conditions!
      * FOR USE IN ext_localconf.php FILES
      *
      * @param string $content TypoScript Setup string
      */
     public static function addTypoScriptSetup(string $content): void
     {
-        $GLOBALS['TYPO3_CONF_VARS']['FE']['defaultTypoScript_setup'] .= '
-[GLOBAL]
-' . $content;
+        $GLOBALS['TYPO3_CONF_VARS']['FE']['defaultTypoScript_setup'] ??= '';
+        if (!empty($GLOBALS['TYPO3_CONF_VARS']['FE']['defaultTypoScript_setup'])) {
+            $GLOBALS['TYPO3_CONF_VARS']['FE']['defaultTypoScript_setup'] .= LF;
+        }
+        $GLOBALS['TYPO3_CONF_VARS']['FE']['defaultTypoScript_setup'] .= $content;
     }
 
     /**
      * Adds $content to the default TypoScript constants code as set in $GLOBALS['TYPO3_CONF_VARS'][FE]['defaultTypoScript_constants']
-     * Prefixed with a [GLOBAL] line
+     * NOT prefixed with a [GLOBAL] line, other calls MUST properly close their conditions!
      * FOR USE IN ext_localconf.php FILES
      *
      * @param string $content TypoScript Constants string
      */
     public static function addTypoScriptConstants(string $content): void
     {
-        $GLOBALS['TYPO3_CONF_VARS']['FE']['defaultTypoScript_constants'] .= '
-[GLOBAL]
-' . $content;
+        $GLOBALS['TYPO3_CONF_VARS']['FE']['defaultTypoScript_constants'] ??= '';
+        if (!empty($GLOBALS['TYPO3_CONF_VARS']['FE']['defaultTypoScript_constants'])) {
+            $GLOBALS['TYPO3_CONF_VARS']['FE']['defaultTypoScript_constants'] .= LF;
+        }
+        $GLOBALS['TYPO3_CONF_VARS']['FE']['defaultTypoScript_constants'] .= $content;
     }
 
     /**
@@ -1251,23 +1221,18 @@ tt_content.' . $key . $suffix . ' {
 
 ' . $content;
         if ($afterStaticUid) {
-            // If 'content (default)' is targeted (static uid 43),
-            // the content is added after typoscript of type contentRendering, eg. fluid_styled_content, see EXT:frontend/TemplateService for more information on how the code is parsed
+            // If 'defaultContentRendering' is targeted (formerly static uid 43),
+            // the content is added after TypoScript of type contentRendering, e.g. fluid_styled_content, see
+            // EXT:core/Classes/TypoScript/TemplateService.php for more information on how the code is parsed.
             if ($afterStaticUid === 'defaultContentRendering' || $afterStaticUid == 43) {
-                if (!isset($GLOBALS['TYPO3_CONF_VARS']['FE']['defaultTypoScript_' . $type . '.']['defaultContentRendering'])) {
-                    $GLOBALS['TYPO3_CONF_VARS']['FE']['defaultTypoScript_' . $type . '.']['defaultContentRendering'] = '';
-                }
+                $GLOBALS['TYPO3_CONF_VARS']['FE']['defaultTypoScript_' . $type . '.']['defaultContentRendering'] ??= '';
                 $GLOBALS['TYPO3_CONF_VARS']['FE']['defaultTypoScript_' . $type . '.']['defaultContentRendering'] .= $content;
             } else {
-                if (!isset($GLOBALS['TYPO3_CONF_VARS']['FE']['defaultTypoScript_' . $type . '.'][$afterStaticUid])) {
-                    $GLOBALS['TYPO3_CONF_VARS']['FE']['defaultTypoScript_' . $type . '.'][$afterStaticUid] = '';
-                }
+                $GLOBALS['TYPO3_CONF_VARS']['FE']['defaultTypoScript_' . $type . '.'][$afterStaticUid] ??= '';
                 $GLOBALS['TYPO3_CONF_VARS']['FE']['defaultTypoScript_' . $type . '.'][$afterStaticUid] .= $content;
             }
         } else {
-            if (!isset($GLOBALS['TYPO3_CONF_VARS']['FE']['defaultTypoScript_' . $type])) {
-                $GLOBALS['TYPO3_CONF_VARS']['FE']['defaultTypoScript_' . $type] = '';
-            }
+            $GLOBALS['TYPO3_CONF_VARS']['FE']['defaultTypoScript_' . $type] ??= '';
             $GLOBALS['TYPO3_CONF_VARS']['FE']['defaultTypoScript_' . $type] .= $content;
         }
     }
@@ -1421,6 +1386,14 @@ tt_content.' . $key . $suffix . ' {
         } else {
             static::buildBaseTcaFromSingleFiles();
         }
+
+        $allowedRecordTypesForDefault = [];
+        foreach ($GLOBALS['TCA'] as $table => $tableConfiguration) {
+            if ($tableConfiguration['ctrl']['security']['ignorePageTypeRestriction'] ?? false) {
+                $allowedRecordTypesForDefault[] = $table;
+            }
+        }
+        GeneralUtility::makeInstance(PageDoktypeRegistry::class)->addAllowedRecordTypes($allowedRecordTypesForDefault);
     }
 
     /**
@@ -1629,9 +1602,6 @@ tt_content.' . $key . $suffix . ' {
     /**
      * Loads given extension
      *
-     * Warning: This method only works if the upgrade wizard to transform
-     * localconf.php to LocalConfiguration.php was already run
-     *
      * @param string $extensionKey Extension key to load
      * @throws \RuntimeException
      */
@@ -1645,9 +1615,6 @@ tt_content.' . $key . $suffix . ' {
 
     /**
      * Unloads given extension
-     *
-     * Warning: This method only works if the upgrade wizard to transform
-     * localconf.php to LocalConfiguration.php was already run
      *
      * @throws \RuntimeException
      */

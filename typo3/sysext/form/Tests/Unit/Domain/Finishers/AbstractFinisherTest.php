@@ -18,6 +18,7 @@ declare(strict_types=1);
 namespace TYPO3\CMS\Form\Tests\Unit\Domain\Finishers;
 
 use Prophecy\Argument;
+use Prophecy\PhpUnit\ProphecyTrait;
 use Prophecy\Prophecy\ObjectProphecy;
 use TYPO3\CMS\Form\Domain\Finishers\AbstractFinisher;
 use TYPO3\CMS\Form\Domain\Finishers\Exception\FinisherException;
@@ -28,12 +29,10 @@ use TYPO3\CMS\Form\Domain\Model\FormElements\StringableFormElementInterface;
 use TYPO3\CMS\Form\Domain\Runtime\FormRuntime;
 use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
-/**
- * Test case
- */
 class AbstractFinisherTest extends UnitTestCase
 {
-    use \Prophecy\PhpUnit\ProphecyTrait;
+    use ProphecyTrait;
+
     /**
      * @test
      */
@@ -495,7 +494,7 @@ class AbstractFinisherTest extends UnitTestCase
             'date-1' => $date,
         ]);
 
-        $stringableElement = new class() implements StringableFormElementInterface {
+        $stringableElement = new class () implements StringableFormElementInterface {
             /**
              * @param \DateTimeInterface $value
              */
@@ -533,7 +532,6 @@ class AbstractFinisherTest extends UnitTestCase
         ]);
 
         $formDefinitionProphecy = $this->prophesize(FormDefinition::class);
-        $formDefinitionProphecy->getElementByIdentifier('date-1')->willReturn($this->prophesize(FormElementInterface::class)->reveal());
         $formRuntimeProphecy->getFormDefinition()->willReturn($formDefinitionProphecy->reveal());
 
         $mockAbstractFinisher = $this->getAccessibleMockForAbstractClass(

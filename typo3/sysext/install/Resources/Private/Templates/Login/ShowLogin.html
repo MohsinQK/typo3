@@ -1,4 +1,4 @@
-<html xmlns:f="http://typo3.org/ns/TYPO3/CMS/Fluid/ViewHelpers" xmlns:i="http://typo3.org/ns/TYPO3/CMS/Install/ViewHelpers" data-namespace-typo3-fluid="true">
+<html xmlns:core="http://typo3.org/ns/TYPO3/CMS/Core/ViewHelpers" xmlns:f="http://typo3.org/ns/TYPO3/CMS/Fluid/ViewHelpers" xmlns:i="http://typo3.org/ns/TYPO3/CMS/Install/ViewHelpers" data-namespace-typo3-fluid="true">
 
 <div class="container">
     <div class="page-header">
@@ -9,7 +9,7 @@
     <div class="row justify-content-center">
         <div class="col-lg-8 col-xl-6">
             <div id="t3-install-box-body" class="mb-4">
-                <form method="post" class="row align-items-end" id="t3-install-form-login" data-login-token="{loginToken}">
+                <form method="post" class="row align-items-end" id="t3-install-form-login" data-login-token="{loginToken}" spellcheck="false">
                     <div class="col-12 col-md-auto mb-2 mb-md-0">
                         <label for="t3-install-form-password">Password</label>
                         <input id="t3-install-form-password" type="password" name="install[password]" class="t3-install-form-input-text form-control" autofocus="autofocus" />
@@ -21,8 +21,8 @@
                     </div>
                     <div class="col-8 col-md-auto ms-auto">
                         <f:if condition="!{installToolEnableFilePermanent}">
-                            <button type="button" class="btn btn-default btn-danger pull-right t3js-login-lockInstallTool">
-                                <i class="fa fa-lock"></i> Lock Install Tool again
+                            <button type="button" class="btn btn-default btn-danger float-end t3js-login-lockInstallTool">
+                                <core:icon identifier="actions-lock" size="small" /> Lock Install Tool again
                             </button>
                         </f:if>
                     </div>
@@ -52,7 +52,7 @@
                 <div class="callout-title">Important</div>
                 <div class="callout-body">
                     If you don't know the current password, you can set a new one by setting the value of
-                    <code>$GLOBALS['TYPO3_CONF_VARS']['BE']['installToolPassword']</code> in <code>typo3conf/LocalConfiguration.php</code> to
+                    <code>$GLOBALS['TYPO3_CONF_VARS']['BE']['installToolPassword']</code> in <code>typo3conf/system/settings.php</code> to
                     the hash value of the password you desire, which will be shown if you enter the desired password
                     in this form and submit it.
                     <br /><br />

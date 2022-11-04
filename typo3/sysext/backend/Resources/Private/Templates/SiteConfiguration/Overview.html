@@ -1,7 +1,6 @@
 <html
     xmlns:f="http://typo3.org/ns/TYPO3/CMS/Fluid/ViewHelpers"
     xmlns:core="http://typo3.org/ns/TYPO3/CMS/Core/ViewHelpers"
-    xmlns:em="http://typo3.org/ns/TYPO3/CMS/Extensionmanager/ViewHelpers"
     data-namespace-typo3-fluid="true"
 >
 
@@ -15,8 +14,6 @@
             1: '@typo3/backend/modal.js'
         }"
     />
-
-    <em:be.trigger triggers="{triggers}" />
 
     <h1><f:translate key="LLL:EXT:backend/Resources/Private/Language/locallang_siteconfiguration.xlf:overview.title" /></h1>
 
@@ -108,10 +105,10 @@
                                             <td>
                                                 <f:if condition="{siteLanguage.enabled}">
                                                     <f:then>
-                                                        <core:icon identifier="{siteLanguage.flagIdentifier}" /> {siteLanguage.title}
+                                                        <core:icon identifier="{siteLanguage.flagIdentifier}" /> {siteLanguage.title} <code class="m-0">[{siteLanguage.languageId}]</code>
                                                     </f:then>
                                                     <f:else>
-                                                        <core:icon identifier="{siteLanguage.flagIdentifier}" overlay="overlay-hidden" /> <span class="text-muted">{siteLanguage.title} (<f:translate key="LLL:EXT:core/Resources/Private/Language/locallang_common.xlf:disabled">disabled</f:translate>)</span>
+                                                        <core:icon identifier="{siteLanguage.flagIdentifier}" overlay="overlay-hidden" /> <span class="text-muted">{siteLanguage.title} (<f:translate key="LLL:EXT:core/Resources/Private/Language/locallang_common.xlf:disabled">disabled</f:translate>) <code class="m-0">[{siteLanguage.languageId}]</code></span>
                                                     </f:else>
                                                 </f:if>
                                             </td>
@@ -170,7 +167,7 @@
             <tbody>
             <f:for each="{unassignedSites}" as="unassignedSite">
                 <tr>
-                    <td>	<code>{unassignedSite.identifier}</code></td>
+                    <td><code>{unassignedSite.identifier}</code></td>
                     <td class="col-control nowrap">
                         <div class="btn-group">
                                 <f:be.link

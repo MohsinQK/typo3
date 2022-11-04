@@ -173,28 +173,28 @@ class SiteTest extends UnitTestCase
         $fluidProphecy = $this->prophesize(FluidPageErrorHandler::class);
         GeneralUtility::addInstance(FluidPageErrorHandler::class, $fluidProphecy->reveal());
 
-        $app = new class() extends Application {
+        $app = new class () extends Application {
             // This is ugly but php-cs-fixer insists.
             public function __construct()
             {
             }
         };
-        $link = new class() extends LinkService {
+        $link = new class () extends LinkService {
             // This is ugly but php-cs-fixer insists.
             public function __construct()
             {
             }
         };
-        $siteFinder = new class() extends SiteFinder {
+        $siteFinder = new class () extends SiteFinder {
             // This is ugly but php-cs-fixer insists.
             public function __construct()
             {
             }
         };
-        $cacheManager = new class() extends CacheManager {
+        $cacheManager = new class () extends CacheManager {
             public function getCache($identifier)
             {
-                return new class() extends PhpFrontend {
+                return new class () extends PhpFrontend {
                     // This is ugly but php-cs-fixer insists.
                     public function __construct()
                     {
@@ -268,5 +268,54 @@ class SiteTest extends UnitTestCase
             ],
         ]);
         $subject->getErrorHandler(404);
+    }
+
+    /**
+     * @test
+     */
+    public function getErrorHandlerUsesFallbackWhenNoErrorHandlerForStatusCodeIsConfigured(): void
+    {
+        $app = new class () extends Application {
+            // This is ugly but php-cs-fixer insists.
+            public function __construct()
+            {
+            }
+        };
+        $link = new class () extends LinkService {
+            // This is ugly but php-cs-fixer insists.
+            public function __construct()
+            {
+            }
+        };
+        $siteFinder = new class () extends SiteFinder {
+            // This is ugly but php-cs-fixer insists.
+            public function __construct()
+            {
+            }
+        };
+        $container = new Container();
+        $container->set(Application::class, $app);
+        $container->set(Features::class, new Features());
+        $container->set(RequestFactory::class, new RequestFactory(new GuzzleClientFactory()));
+        $container->set(ResponseFactoryInterface::class, new ResponseFactory());
+        $container->set(LinkService::class, $link);
+        $container->set(SiteFinder::class, $siteFinder);
+        GeneralUtility::setContainer($container);
+
+        $subject = new Site('aint-misbehaving', 13, [
+            'languages' => [],
+            'errorHandling' => [
+                [
+                    'errorCode' => 403,
+                    'errorHandler' => 'Does it really matter?',
+                ],
+                [
+                    'errorCode' => 0,
+                    'errorContentSource' => 123,
+                    'errorHandler' => 'Page',
+                ],
+            ],
+        ]);
+        self::assertInstanceOf(PageErrorHandlerInterface::class, $subject->getErrorHandler(404));
     }
 }

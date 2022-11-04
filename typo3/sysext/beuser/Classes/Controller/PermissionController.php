@@ -31,10 +31,10 @@ use TYPO3\CMS\Core\DataHandling\DataHandler;
 use TYPO3\CMS\Core\Imaging\Icon;
 use TYPO3\CMS\Core\Imaging\IconFactory;
 use TYPO3\CMS\Core\Localization\LanguageService;
-use TYPO3\CMS\Core\Messaging\AbstractMessage;
 use TYPO3\CMS\Core\Messaging\FlashMessage;
 use TYPO3\CMS\Core\Messaging\FlashMessageService;
 use TYPO3\CMS\Core\Page\PageRenderer;
+use TYPO3\CMS\Core\Type\ContextualFeedbackSeverity;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 
 /**
@@ -107,7 +107,7 @@ class PermissionController
             $this->addFlashMessage(
                 $lang->sL('LLL:EXT:beuser/Resources/Private/Language/locallang_mod_permission.xlf:WorkspaceWarningText'),
                 $lang->sL('LLL:EXT:beuser/Resources/Private/Language/locallang_mod_permission.xlf:WorkspaceWarning'),
-                AbstractMessage::WARNING
+                ContextualFeedbackSeverity::WARNING
             );
         }
         $this->registerDocHeaderButtons($view, $action);
@@ -351,18 +351,19 @@ class PermissionController
 
         $dataHandlerInput = [];
         // Prepare the input data for data handler
-        if (is_array($data['pages'] ?? false) && $data['pages'] !== []) {
-            foreach ($data['pages'] as $pageUid => $properties) {
+        $dataPages = $data['pages'] ?? null;
+        if (is_array($dataPages) && $dataPages !== []) {
+            foreach ($dataPages as $pageUid => $properties) {
                 // if the owner and group field shouldn't be touched, unset the option
-                if ((int)$properties['perms_userid'] === -1) {
+                if ((int)($properties['perms_userid'] ?? 0) === -1) {
                     unset($properties['perms_userid']);
                 }
-                if ((int)$properties['perms_groupid'] === -1) {
+                if ((int)($properties['perms_groupid'] ?? 0) === -1) {
                     unset($properties['perms_groupid']);
                 }
                 $dataHandlerInput[$pageUid] = $properties;
                 if (!empty($mirror['pages'][$pageUid])) {
-                    $mirrorPages = GeneralUtility::intExplode(',', $mirror['pages'][$pageUid]);
+                    $mirrorPages = GeneralUtility::intExplode(',', (string)$mirror['pages'][$pageUid]);
                     foreach ($mirrorPages as $mirrorPageUid) {
                         $dataHandlerInput[$mirrorPageUid] = $properties;
                     }
@@ -502,9 +503,9 @@ class PermissionController
      *
      * @param string $message
      * @param string $title
-     * @param int $severity
+     * @param ContextualFeedbackSeverity $severity
      */
-    protected function addFlashMessage(string $message, string $title = '', int $severity = AbstractMessage::INFO): void
+    protected function addFlashMessage(string $message, string $title = '', ContextualFeedbackSeverity $severity = ContextualFeedbackSeverity::INFO): void
     {
         $flashMessage = GeneralUtility::makeInstance(FlashMessage::class, $message, $title, $severity, true);
         $flashMessageService = GeneralUtility::makeInstance(FlashMessageService::class);

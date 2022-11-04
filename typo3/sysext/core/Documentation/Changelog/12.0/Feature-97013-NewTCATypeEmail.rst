@@ -1,5 +1,7 @@
 .. include:: /Includes.rst.txt
 
+.. _feature-97013:
+
 ======================================
 Feature: #97013 - New TCA type "email"
 ======================================
@@ -37,17 +39,17 @@ The TCA type :php:`email` features the following column configuration:
 
 .. note::
 
-    The softref definition :php:`softref=>email[subst]` is automatically applied
+    The soft reference definition :php:`softref=>email[subst]` is automatically applied
     to all :php:`email` fields.
 
-The following column configuration can be overwritten by Page TSconfig:
+The following column configuration can be overwritten by page TSconfig:
 
 - :typoscript:`readOnly`
 - :typoscript:`size`
 
 The migration from :php:`eval='email'` to :php:`type=email` is done like following:
 
-.. code-block:: php
+..  code-block:: php
 
     // Before
 

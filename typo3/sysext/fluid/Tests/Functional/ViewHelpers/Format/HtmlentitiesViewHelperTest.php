@@ -85,7 +85,7 @@ class HtmlentitiesViewHelperTest extends FunctionalTestCase
      */
     public function renderRespectsEncodingArgument(): void
     {
-        $source = utf8_decode('Some special characters: &©"\'');
+        $source = mb_convert_encoding('Some special characters: &©"\'', 'ISO-8859-1', 'UTF-8');
         $expectedResult = 'Some special characters: &amp;&copy;&quot;&#039;';
         $context = $this->get(RenderingContextFactory::class)->create();
         $context->getTemplatePaths()->setTemplateSource('<f:format.htmlentities encoding="ISO-8859-1">' . $source . '</f:format.htmlentities>');
@@ -121,7 +121,7 @@ class HtmlentitiesViewHelperTest extends FunctionalTestCase
      */
     public function renderEscapesObjectIfPossible(): void
     {
-        $toStringClass = new class() {
+        $toStringClass = new class () {
             public function __toString(): string
             {
                 return '<script>alert(\'"&xss"\')</script>';

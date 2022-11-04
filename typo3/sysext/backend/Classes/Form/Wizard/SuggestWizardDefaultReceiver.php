@@ -15,8 +15,9 @@
 
 namespace TYPO3\CMS\Backend\Form\Wizard;
 
-use TYPO3\CMS\Backend\Tree\View\PageTreeView;
+use TYPO3\CMS\Backend\Tree\Repository\PageTreeRepository;
 use TYPO3\CMS\Backend\Utility\BackendUtility;
+use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Database\Query\QueryBuilder;
 use TYPO3\CMS\Core\Database\Query\QueryHelper;
@@ -108,21 +109,19 @@ class SuggestWizardDefaultReceiver
         $this->config = $config;
         // get a list of all the pages that should be looked on
         if (isset($config['pidList'])) {
-            $pageIds = GeneralUtility::intExplode(',', $config['pidList'], true);
+            $pageIds = GeneralUtility::intExplode(',', (string)$config['pidList'], true);
             $depth = (int)($config['pidDepth'] ?? 0);
-            $availablePageIds = [];
-            foreach ($pageIds as $pageId) {
-                $availablePageIds[] = $this->getAvailablePageIds($pageId, $depth);
-            }
+            $availablePageIds = $this->getAvailablePageIds($pageIds, $depth);
             $this->allowedPages = array_unique(array_merge($this->allowedPages, ...$availablePageIds));
         }
         if (isset($config['maxItemsInResultList'])) {
             $this->maxItems = $config['maxItemsInResultList'];
         }
-        $GLOBALS['BE_USER']->initializeWebmountsForElementBrowser();
+        $backendUser = $this->getBackendUser();
+        $backendUser->initializeWebmountsForElementBrowser();
         if ($this->table === 'pages') {
             $this->queryBuilder->andWhere(
-                QueryHelper::stripLogicalOperatorPrefix($GLOBALS['BE_USER']->getPagePermsClause(Permission::PAGE_SHOW)),
+                QueryHelper::stripLogicalOperatorPrefix($backendUser->getPagePermsClause(Permission::PAGE_SHOW)),
                 $this->queryBuilder->expr()->eq('sys_language_uid', 0)
             );
         }
@@ -175,31 +174,19 @@ class SuggestWizardDefaultReceiver
                 if (!$this->checkRecordAccess($row, $row['uid'])) {
                     continue;
                 }
-                $spriteIcon = $this->iconFactory->getIconForRecord($this->table, $row, Icon::SIZE_SMALL)->render();
+                $icon = $this->iconFactory->getIconForRecord($this->table, $row, Icon::SIZE_SMALL);
                 $uid = ($row['t3ver_oid'] ?? 0) > 0 ? $row['t3ver_oid'] : $row['uid'];
                 $path = $this->getRecordPath($row, $uid);
-                if (mb_strlen($path, 'utf-8') > 30) {
-                    $croppedPath = '<abbr title="' . htmlspecialchars($path) . '">' .
-                        htmlspecialchars(
-                            mb_substr($path, 0, 10, 'utf-8')
-                                . '...'
-                                . mb_substr($path, -20, null, 'utf-8')
-                        ) .
-                        '</abbr>';
-                } else {
-                    $croppedPath = htmlspecialchars($path);
-                }
                 $label = $this->getLabel($row);
                 $entry = [
-                    'text' => '<span class="suggest-label">' . $label . '</span><span class="suggest-uid">[' . $uid . ']</span><br />
-								<span class="suggest-path">' . $croppedPath . '</span>',
                     'table' => $this->mmForeignTable ?: $this->table,
                     'label' => strip_tags($label),
                     'path' => $path,
                     'uid' => $uid,
-                    'style' => '',
-                    'class' => $this->config['cssClass'] ?? '',
-                    'sprite' => $spriteIcon,
+                    'icon' => [
+                        'identifier' => $icon->getIdentifier(),
+                        'overlay' => $icon->getOverlayIcon()?->getIdentifier(),
+                    ],
                 ];
                 $rows[$this->table . '_' . $uid] = $this->renderRecord($row, $entry);
             }
@@ -287,22 +274,22 @@ class SuggestWizardDefaultReceiver
     /**
      * Get array of page ids from given page id and depth
      *
-     * @param int $id Page id.
+     * @param array $entryPointPageIds List of possible page IDs.
      * @param int $depth Depth to go down.
      * @return array of all page ids
      */
-    protected function getAvailablePageIds(int $id, int $depth = 0): array
+    protected function getAvailablePageIds(array $entryPointPageIds, int $depth = 0): array
     {
         if ($depth === 0) {
-            return [$id];
+            return $entryPointPageIds;
         }
-        $tree = GeneralUtility::makeInstance(PageTreeView::class);
-        $tree->init();
-        $tree->getTree($id, $depth);
-        $tree->makeHTML = 0;
-        $tree->fieldArray = ['uid'];
-        $tree->ids[] = $id;
-        return $tree->ids;
+        $pageIds = [];
+        $repository = GeneralUtility::makeInstance(PageTreeRepository::class);
+        $pages = $repository->getFlattenedPages($entryPointPageIds, $depth);
+        foreach ($pages as $page) {
+            $pageIds[] = (int)$page['uid'];
+        }
+        return $pageIds;
     }
 
     /**
@@ -339,16 +326,17 @@ class SuggestWizardDefaultReceiver
      */
     protected function checkRecordAccess($row, $uid)
     {
+        $backendUser = $this->getBackendUser();
         $retValue = true;
         $table = $this->mmForeignTable ?: $this->table;
         if ($table === 'pages') {
-            if (!BackendUtility::readPageAccess($uid, $GLOBALS['BE_USER']->getPagePermsClause(Permission::PAGE_SHOW))) {
+            if (!BackendUtility::readPageAccess($uid, $backendUser->getPagePermsClause(Permission::PAGE_SHOW))) {
                 $retValue = false;
             }
         } elseif (isset($GLOBALS['TCA'][$table]['ctrl']['is_static']) && (bool)$GLOBALS['TCA'][$table]['ctrl']['is_static']) {
             $retValue = true;
         } else {
-            if (!is_array(BackendUtility::readPageAccess($row['pid'], $GLOBALS['BE_USER']->getPagePermsClause(Permission::PAGE_SHOW)))) {
+            if (!is_array(BackendUtility::readPageAccess($row['pid'], $backendUser->getPagePermsClause(Permission::PAGE_SHOW)))) {
                 $retValue = false;
             }
         }
@@ -363,7 +351,7 @@ class SuggestWizardDefaultReceiver
     protected function makeWorkspaceOverlay(&$row)
     {
         // Check for workspace-versions
-        if ($GLOBALS['BE_USER']->workspace != 0 && BackendUtility::isTableWorkspaceEnabled($this->table)) {
+        if ($this->getBackendUser()->workspace !== 0 && BackendUtility::isTableWorkspaceEnabled($this->table)) {
             BackendUtility::workspaceOL($this->mmForeignTable ?: $this->table, $row);
         }
     }
@@ -406,7 +394,7 @@ class SuggestWizardDefaultReceiver
     /**
      * Calls a user function for rendering the page.
      *
-     * This user function should manipulate $entry, especially $entry['text'].
+     * This user function should manipulate $entry
      *
      * @param array $row The row
      * @param array $entry The entry to render
@@ -430,6 +418,11 @@ class SuggestWizardDefaultReceiver
     protected function getLanguageService(): LanguageService
     {
         return $GLOBALS['LANG'];
+    }
+
+    public function getBackendUser(): BackendUserAuthentication
+    {
+        return $GLOBALS['BE_USER'];
     }
 
     /**

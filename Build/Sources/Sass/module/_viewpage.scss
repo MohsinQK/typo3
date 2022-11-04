@@ -30,37 +30,31 @@ $viewpage-topbar-height: 40px;
         }
     }
 
-    .ui-resizable-w {
+    .resizable-w,
+    .resizable-s,
+    .resizable-e {
+        position: absolute;
+        z-index: 90;
+    }
+
+    .resizable-w {
+        top: 0;
         left: -$viewpage-resizable-size;
         height: 100%;
         width: $viewpage-resizable-size;
     }
 
-    .ui-resizable-s {
+    .resizable-s {
         bottom: -$viewpage-resizable-size;
         height: $viewpage-resizable-size;
+        width: 100%;
     }
 
-    .ui-resizable-e {
+    .resizable-e {
+        top: 0;
         right: -$viewpage-resizable-size;
         height: 100%;
         width: $viewpage-resizable-size;
-    }
-
-    .ui-resizable-se,
-    .ui-resizable-sw {
-        height: $viewpage-resizable-size;
-        width: $viewpage-resizable-size;
-        background-image: none;
-        bottom: -$viewpage-resizable-size;
-    }
-
-    .ui-resizable-sw {
-        left: -$viewpage-resizable-size;
-    }
-
-    .ui-resizable-se {
-        right: -$viewpage-resizable-size;
     }
 }
 
@@ -71,12 +65,8 @@ $viewpage-topbar-height: 40px;
     position: relative;
     display: inline-block;
     background-color: $viewpage-item-bg;
-    box-shadow: 0 2px 0 rgba(0, 0, 0, 0.2);
+    box-shadow: 0 2px 0 rgba(0, 0, 0, .2);
     color: $viewpage-item-color;
-
-    a {
-        color: $viewpage-item-color;
-    }
 
     iframe {
         display: block;
@@ -89,7 +79,7 @@ $viewpage-topbar-height: 40px;
 .viewpage-topbar {
     height: $viewpage-topbar-height;
     flex-shrink: 0;
-    padding: 0.75em 1em;
+    padding: .75em 1em;
     display: flex;
     flex-direction: row;
     justify-content: space-between;
@@ -98,36 +88,12 @@ $viewpage-topbar-height: 40px;
 
 .viewpage-topbar-orientation {
     a {
-        opacity: 0.5;
-        transition: all 0.2s ease-in-out;
+        color: $viewpage-item-color;
+        opacity: .5;
+        transition: all .2s ease-in-out;
 
         &:hover {
             opacity: 1;
-        }
-    }
-}
-
-.viewpage-topbar-preset {
-    .dropdown-toggle {
-        color: $viewpage-item-color;
-        background-color: transparent;
-        border: none;
-
-        @include button-size($btn-padding-y, $btn-padding-x, $btn-font-size, 0);
-
-        &.show {
-            outline: 0;
-        }
-
-        &:not(.show):hover {
-            background-color: $dropdown-link-hover-bg;
-            outline: 0;
-        }
-
-        &:not(.show):not(:hover):focus {
-            outline: 0;
-            background: rgba(255, 255, 255, 0.05);
-            box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.25);
         }
     }
 }
@@ -138,9 +104,10 @@ $viewpage-topbar-height: 40px;
         padding-left: 0;
         padding-right: 0;
         border: 0;
-        border-bottom: 1px solid rgba($primary, 0.5);
-        transition: all 0.5s ease-in-out;
+        border-bottom: 1px solid rgba($primary, .5);
+        transition: all .5s ease-in-out;
         color: $viewpage-item-color;
+        color-scheme: dark;
 
         &:focus,
         &:hover {
@@ -155,24 +122,4 @@ $viewpage-topbar-height: 40px;
 //
 .viewpage-resizeable {
     background-color: #fafafa;
-}
-
-//
-// Preset Item
-//
-.viewpage-preset-item {
-    display: flex;
-}
-
-.viewpage-preset-item-icon {
-    padding-right: 0.5em;
-}
-
-.viewpage-preset-item-label {
-    flex: 1 1 auto;
-}
-
-.viewpage-preset-item-size {
-    padding-left: 1em;
-    opacity: 0.5;
 }

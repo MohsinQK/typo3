@@ -32,58 +32,23 @@ use TYPO3\CMS\FrontendLogin\Validation\RedirectUrlValidator;
  */
 class RedirectModeHandler
 {
-    /**
-     * @var RedirectUrlValidator
-     */
-    protected $redirectUrlValidator;
-
-    /**
-     * @var UriBuilder
-     */
-    protected $uriBuilder;
-
-    /**
-     * @var ServerRequestHandler
-     */
-    protected $serverRequestHandler;
-
-    /**
-     * @var UserService
-     */
-    private $userService;
-
-    /**
-     * @var FrontendUserRepository
-     */
-    private $frontendUserRepository;
-
-    /**
-     * @var FrontendUserGroupRepository
-     */
-    private $frontendUserGroupRepository;
+    protected RedirectUrlValidator $redirectUrlValidator;
 
     public function __construct(
-        UriBuilder $uriBuilder,
-        ServerRequestHandler $serverRequestHandler,
-        UserService $userService,
-        FrontendUserRepository $frontendUserRepository,
-        FrontendUserGroupRepository $frontendUserGroupRepository
+        protected UriBuilder $uriBuilder,
+        protected ServerRequestHandler $serverRequestHandler,
+        private UserService $userService,
+        private FrontendUserRepository $frontendUserRepository,
+        private FrontendUserGroupRepository $frontendUserGroupRepository
     ) {
-        $this->uriBuilder = $uriBuilder;
         $this->redirectUrlValidator = GeneralUtility::makeInstance(
             RedirectUrlValidator::class,
             GeneralUtility::makeInstance(SiteFinder::class)
         );
-        $this->serverRequestHandler = $serverRequestHandler;
-        $this->userService = $userService;
-        $this->frontendUserRepository = $frontendUserRepository;
-        $this->frontendUserGroupRepository = $frontendUserGroupRepository;
     }
 
     /**
      * Handle redirect mode groupLogin
-     *
-     * @return string
      */
     public function redirectModeGroupLogin(): string
     {
@@ -108,8 +73,6 @@ class RedirectModeHandler
 
     /**
      * Handle redirect mode userLogin
-     *
-     * @return string
      */
     public function redirectModeUserLogin(): string
     {
@@ -126,9 +89,6 @@ class RedirectModeHandler
 
     /**
      * Handle redirect mode login
-     *
-     * @param int $redirectPageLogin
-     * @return string
      */
     public function redirectModeLogin(int $redirectPageLogin): string
     {
@@ -142,9 +102,6 @@ class RedirectModeHandler
 
     /**
      * Handle redirect mode referrer
-     *
-     * @param string $redirectReferrer
-     * @return string
      */
     public function redirectModeReferrer(string $redirectReferrer): string
     {
@@ -159,10 +116,6 @@ class RedirectModeHandler
 
     /**
      * Handle redirect mode refererDomains
-     *
-     * @param string $domains
-     * @param string $redirectReferrer
-     * @return string
      */
     public function redirectModeRefererDomains(string $domains, string $redirectReferrer): string
     {
@@ -204,9 +157,6 @@ class RedirectModeHandler
 
     /**
      * Handle redirect mode loginError after login-error
-     *
-     * @param int $redirectPageLoginError
-     * @return string
      */
     public function redirectModeLoginError(int $redirectPageLoginError = 0): string
     {
@@ -220,9 +170,6 @@ class RedirectModeHandler
 
     /**
      * Handle redirect mode logout
-     *
-     * @param int $redirectPageLogout
-     * @return string
      */
     public function redirectModeLogout(int $redirectPageLogout): string
     {

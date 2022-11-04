@@ -31,7 +31,7 @@ cache:
   # it is more important that single jobs don't unpack too much every time.
   # The default key is: "Cache everything created by a 'composer install' for main branch.
   # This means jobs using this default key should not create additional stuff in .cache
-  # directory, for instance by calling a 'yarn install' or 'composer min' or similar.
+  # directory, for instance by calling a 'npm ci' or 'composer min' or similar.
   key: main-composer
   paths:
     - .cache
@@ -40,7 +40,7 @@ services:
   # Each job starts two containers: This dind container that starts a docker
   # daemon, plus a casual container that executes runTests.sh for single jobs
   # to start containers within the dind container.
-  - name: docker:20.10.14-dind
+  - name: docker:20.10-dind
     alias: docker
 
 # This is *never* overridden in single jobs. All jobs start a 'dind' service

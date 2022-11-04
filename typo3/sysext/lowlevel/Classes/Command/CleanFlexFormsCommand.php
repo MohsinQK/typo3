@@ -25,6 +25,7 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 use TYPO3\CMS\Backend\Utility\BackendUtility;
 use TYPO3\CMS\Core\Configuration\FlexForm\FlexFormTools;
 use TYPO3\CMS\Core\Core\Bootstrap;
+use TYPO3\CMS\Core\Database\Connection;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\DataHandling\DataHandler;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
@@ -80,7 +81,7 @@ class CleanFlexFormsCommand extends Command
      * @param OutputInterface $output
      * @return int
      */
-    protected function execute(InputInterface $input, OutputInterface $output)
+    protected function execute(InputInterface $input, OutputInterface $output): int
     {
         // Make sure the _cli_ user is loaded
         Bootstrap::initializeBackendAuthentication();
@@ -122,7 +123,7 @@ class CleanFlexFormsCommand extends Command
         } else {
             $io->success('Nothing to do - You\'re all set!');
         }
-        return 0;
+        return Command::SUCCESS;
     }
 
     /**
@@ -153,7 +154,7 @@ class CleanFlexFormsCommand extends Command
                     ->select('uid')
                     ->from($tableName)
                     ->where(
-                        $queryBuilder->expr()->eq('pid', $queryBuilder->createNamedParameter($pageId, \PDO::PARAM_INT))
+                        $queryBuilder->expr()->eq('pid', $queryBuilder->createNamedParameter($pageId, Connection::PARAM_INT))
                     )
                     ->executeQuery();
 
@@ -193,7 +194,7 @@ class CleanFlexFormsCommand extends Command
                 ->select('uid')
                 ->from('pages')
                 ->where(
-                    $queryBuilder->expr()->eq('pid', $queryBuilder->createNamedParameter($pageId, \PDO::PARAM_INT))
+                    $queryBuilder->expr()->eq('pid', $queryBuilder->createNamedParameter($pageId, Connection::PARAM_INT))
                 )
                 ->orderBy('sorting')
                 ->executeQuery();
@@ -237,7 +238,7 @@ class CleanFlexFormsCommand extends Command
                 $fullRecord = $queryBuilder->select('*')
                     ->from($tableName)
                     ->where(
-                        $queryBuilder->expr()->eq('uid', $queryBuilder->createNamedParameter($uid, \PDO::PARAM_INT))
+                        $queryBuilder->expr()->eq('uid', $queryBuilder->createNamedParameter($uid, Connection::PARAM_INT))
                     )
                     ->executeQuery()
                     ->fetchAssociative();

@@ -111,7 +111,7 @@ class BackendUtility
             $queryBuilder
                 ->select(...GeneralUtility::trimExplode(',', $fields, true))
                 ->from($table)
-                ->where($queryBuilder->expr()->eq('uid', $queryBuilder->createNamedParameter((int)$uid, \PDO::PARAM_INT)));
+                ->where($queryBuilder->expr()->eq('uid', $queryBuilder->createNamedParameter((int)$uid, Connection::PARAM_INT)));
 
             // add custom where clause
             if ($where) {
@@ -299,18 +299,18 @@ class BackendUtility
             $queryBuilder->getRestrictions()
                 ->removeAll()
                 ->add(GeneralUtility::makeInstance(DeletedRestriction::class))
-                ->add(GeneralUtility::makeInstance(WorkspaceRestriction::class, static::getBackendUserAuthentication()->workspace ?? 0));
+                ->add(GeneralUtility::makeInstance(WorkspaceRestriction::class, static::getBackendUserAuthentication()->workspace));
 
             $queryBuilder->select('*')
                 ->from($table)
                 ->where(
                     $queryBuilder->expr()->eq(
                         $tcaCtrl['translationSource'] ?? $tcaCtrl['transOrigPointerField'],
-                        $queryBuilder->createNamedParameter($uid, \PDO::PARAM_INT)
+                        $queryBuilder->createNamedParameter($uid, Connection::PARAM_INT)
                     ),
                     $queryBuilder->expr()->eq(
                         $tcaCtrl['languageField'],
-                        $queryBuilder->createNamedParameter((int)$language, \PDO::PARAM_INT)
+                        $queryBuilder->createNamedParameter((int)$language, Connection::PARAM_INT)
                     )
                 )
                 ->setMaxResults(1);
@@ -464,14 +464,14 @@ class BackendUtility
                     )
                     ->from('pages')
                     ->where(
-                        $queryBuilder->expr()->eq('uid', $queryBuilder->createPositionalParameter($uid, \PDO::PARAM_INT)),
+                        $queryBuilder->expr()->eq('uid', $queryBuilder->createPositionalParameter($uid, Connection::PARAM_INT)),
                         QueryHelper::stripLogicalOperatorPrefix($clause)
                     );
                 $statement = $queryBuilder->prepare();
                 $runtimeCache->set('getPageForRootlineStatement-' . $statementCacheIdent, $statement);
             }
 
-            $statement->bindValue(1, (int)$uid, \PDO::PARAM_INT);
+            $statement->bindValue(1, (int)$uid, Connection::PARAM_INT);
             $result = $statement->executeQuery();
             $row = $result->fetchAssociative();
             $result->free();
@@ -552,9 +552,9 @@ class BackendUtility
             if ($record['uid'] === 0) {
                 continue;
             }
-            $output = '/' . GeneralUtility::fixed_lgd_cs(strip_tags($record['title']), $titleLimit) . $output;
+            $output = '/' . GeneralUtility::fixed_lgd_cs(strip_tags($record['title']), (int)$titleLimit) . $output;
             if ($fullTitleLimit) {
-                $fullOutput = '/' . GeneralUtility::fixed_lgd_cs(strip_tags($record['title']), $fullTitleLimit) . $fullOutput;
+                $fullOutput = '/' . GeneralUtility::fixed_lgd_cs(strip_tags($record['title']), (int)$fullTitleLimit) . $fullOutput;
             }
         }
         if ($fullTitleLimit) {
@@ -641,7 +641,7 @@ class BackendUtility
                     // Get field value from database if field is not in the $row array
                     if (!isset($row[$pointerField])) {
                         $localRow = self::getRecord($table, $row['uid'], $pointerField);
-                        $foreignUid = $localRow[$pointerField];
+                        $foreignUid = $localRow[$pointerField] ?? 0;
                     } else {
                         $foreignUid = $row[$pointerField];
                     }
@@ -914,14 +914,11 @@ class BackendUtility
             return null;
         }
         $configuration = $GLOBALS['TCA'][$tableName]['columns'][$fieldName]['config'];
-        if (empty($configuration['type']) || $configuration['type'] !== 'inline'
-            || empty($configuration['foreign_table']) || $configuration['foreign_table'] !== 'sys_file_reference'
-        ) {
+        if (($configuration['type'] ?? '') !== 'file') {
             return null;
         }
 
         $fileReferences = [];
-        /** @var RelationHandler $relationHandler */
         $relationHandler = GeneralUtility::makeInstance(RelationHandler::class);
         if ($workspaceId !== null) {
             $relationHandler->setWorkspaceId($workspaceId);
@@ -1019,7 +1016,7 @@ class BackendUtility
                                     . ' '
                                     . htmlspecialchars($fileObject->getName())
                                 . '">'
-                                    . $iconFactory->getIcon('mimetypes-other-other', Icon::SIZE_DEFAULT, 'overlay-missing')->render()
+                                    . $iconFactory->getIcon('mimetypes-other-other', Icon::SIZE_MEDIUM, 'overlay-missing')->render()
                                 . '</span>'
                             . '</div>'
                         . '</div>';
@@ -1056,7 +1053,7 @@ class BackendUtility
                 } else {
                     // Icon
                     $imgTag = '<span title="' . htmlspecialchars($fileObject->getName()) . '">'
-                        . $iconFactory->getIconForResource($fileObject, Icon::SIZE_DEFAULT)->render()
+                        . $iconFactory->getIconForResource($fileObject, Icon::SIZE_MEDIUM)->render()
                         . '</span>';
                 }
                 if ($linkInfoPopup) {
@@ -1177,7 +1174,7 @@ class BackendUtility
         }
         if ($row['fe_group']) {
             $fe_groups = [];
-            foreach (GeneralUtility::intExplode(',', $row['fe_group']) as $fe_group) {
+            foreach (GeneralUtility::intExplode(',', (string)$row['fe_group']) as $fe_group) {
                 if ($fe_group < 0) {
                     $fe_groups[] = $lang->sL(self::getLabelFromItemlist('pages', 'fe_group', (string)$fe_group));
                 } else {
@@ -1468,10 +1465,10 @@ class BackendUtility
     {
         // If $titleLength is not a valid positive integer, use BE_USER->uc['titleLen']:
         if (!$titleLength || !MathUtility::canBeInterpretedAsInteger($titleLength) || $titleLength < 0) {
-            $titleLength = static::getBackendUserAuthentication()->uc['titleLen'];
+            $titleLength = (int)static::getBackendUserAuthentication()->uc['titleLen'];
         }
         $titleOrig = htmlspecialchars($title);
-        $title = htmlspecialchars(GeneralUtility::fixed_lgd_cs($title, $titleLength));
+        $title = htmlspecialchars(GeneralUtility::fixed_lgd_cs($title, (int)$titleLength));
         // If title was cropped, offer a tooltip:
         if ($titleOrig != $title) {
             $title = '<span title="' . $titleOrig . '">' . $title . '</span>';
@@ -1555,6 +1552,7 @@ class BackendUtility
                 $l = $lang->sL($l);
                 break;
             case 'inline':
+            case 'file':
                 if ($uid) {
                     $finalValues = static::resolveRelationLabels($theColConf, $table, $uid, $value, $noRecordLookup);
                     $l = implode(', ', $finalValues);
@@ -1739,7 +1737,7 @@ class BackendUtility
             $l = GeneralUtility::callUserFunction($_funcRef, $params, $null);
         }
         if ($fixed_lgd_chars && $l) {
-            return GeneralUtility::fixed_lgd_cs((string)$l, $fixed_lgd_chars);
+            return GeneralUtility::fixed_lgd_cs((string)$l, (int)$fixed_lgd_chars);
         }
         return $l;
     }
@@ -2072,7 +2070,6 @@ class BackendUtility
 
     /**
      * Returns a selector box "function menu" for a module
-     * See Inside TYPO3 for details about how to use / make Function menus
      *
      * @param mixed $mainParams The "&id=" parameter value to be sent to the module, but it can be also a parameter array which will be passed instead of the &id=...
      * @param string $elementName The form elements name, probably something like "SET[...]
@@ -2418,7 +2415,6 @@ class BackendUtility
      * Returns an array which is most backend modules becomes MOD_SETTINGS containing values from function menus etc. determining the function of the module.
      * This is kind of session variable management framework for the backend users.
      * If a key from MOD_MENU is set in the CHANGED_SETTINGS array (eg. a value is passed to the script from the outside), this value is put into the settings-array
-     * Ultimately, see Inside TYPO3 for how to use this function in relation to your modules.
      *
      * @param array $MOD_MENU MOD_MENU is an array that defines the options in menus.
      * @param array $CHANGED_SETTINGS CHANGED_SETTINGS represents the array used when passing values to the script from the menus.
@@ -2570,14 +2566,14 @@ class BackendUtility
                         'sys_lockedrecords.userid',
                         $queryBuilder->createNamedParameter(
                             static::getBackendUserAuthentication()->user['uid'],
-                            \PDO::PARAM_INT
+                            Connection::PARAM_INT
                         )
                     ),
                     $queryBuilder->expr()->gt(
                         'sys_lockedrecords.tstamp',
                         $queryBuilder->createNamedParameter(
                             $GLOBALS['EXEC_TIME'] - 2 * 3600,
-                            \PDO::PARAM_INT
+                            Connection::PARAM_INT
                         )
                     )
                 )
@@ -2799,14 +2795,13 @@ class BackendUtility
     public static function referenceCount($table, $ref, $msg = '', $count = null)
     {
         if ($count === null) {
-
             // Build base query
             $queryBuilder = static::getQueryBuilderForTable('sys_refindex');
             $queryBuilder
                 ->count('*')
                 ->from('sys_refindex')
                 ->where(
-                    $queryBuilder->expr()->eq('ref_table', $queryBuilder->createNamedParameter($table, \PDO::PARAM_STR))
+                    $queryBuilder->expr()->eq('ref_table', $queryBuilder->createNamedParameter($table))
                 );
 
             // Look up the path:
@@ -2817,11 +2812,11 @@ class BackendUtility
 
                 $ref = PathUtility::stripPathSitePrefix($ref);
                 $queryBuilder->andWhere(
-                    $queryBuilder->expr()->eq('ref_string', $queryBuilder->createNamedParameter($ref, \PDO::PARAM_STR))
+                    $queryBuilder->expr()->eq('ref_string', $queryBuilder->createNamedParameter($ref))
                 );
             } else {
                 $queryBuilder->andWhere(
-                    $queryBuilder->expr()->eq('ref_uid', $queryBuilder->createNamedParameter($ref, \PDO::PARAM_INT))
+                    $queryBuilder->expr()->eq('ref_uid', $queryBuilder->createNamedParameter($ref, Connection::PARAM_INT))
                 );
                 if ($table === 'sys_file') {
                     $queryBuilder->andWhere($queryBuilder->expr()->neq('tablename', $queryBuilder->quote('sys_file_metadata')));
@@ -2862,11 +2857,11 @@ class BackendUtility
                 ->where(
                     $queryBuilder->expr()->eq(
                         $GLOBALS['TCA'][$table]['ctrl']['transOrigPointerField'],
-                        $queryBuilder->createNamedParameter($ref, \PDO::PARAM_INT)
+                        $queryBuilder->createNamedParameter($ref, Connection::PARAM_INT)
                     ),
                     $queryBuilder->expr()->neq(
                         $GLOBALS['TCA'][$table]['ctrl']['languageField'],
-                        $queryBuilder->createNamedParameter(0, \PDO::PARAM_INT)
+                        $queryBuilder->createNamedParameter(0, Connection::PARAM_INT)
                     )
                 )
                 ->executeQuery()
@@ -2931,8 +2926,8 @@ class BackendUtility
         $queryBuilder
             ->from($table)
             ->where(
-                $queryBuilder->expr()->neq('uid', $queryBuilder->createNamedParameter($uid, \PDO::PARAM_INT)),
-                $queryBuilder->expr()->eq('t3ver_oid', $queryBuilder->createNamedParameter($uid, \PDO::PARAM_INT))
+                $queryBuilder->expr()->neq('uid', $queryBuilder->createNamedParameter($uid, Connection::PARAM_INT)),
+                $queryBuilder->expr()->eq('t3ver_oid', $queryBuilder->createNamedParameter($uid, Connection::PARAM_INT))
             )
             ->orderBy('uid', 'DESC');
 
@@ -2945,7 +2940,7 @@ class BackendUtility
             $queryBuilder->andWhere(
                 $queryBuilder->expr()->eq(
                     't3ver_wsid',
-                    $queryBuilder->createNamedParameter(0, \PDO::PARAM_INT)
+                    $queryBuilder->createNamedParameter(0, Connection::PARAM_INT)
                 )
             );
         } elseif ($workspace !== null) {
@@ -2993,7 +2988,7 @@ class BackendUtility
         // Initialize workspace ID
         $wsid = (int)$wsid;
         if ($wsid === -99 && static::getBackendUserAuthentication() instanceof BackendUserAuthentication) {
-            $wsid = (int)static::getBackendUserAuthentication()->workspace;
+            $wsid = static::getBackendUserAuthentication()->workspace;
         }
         if ($wsid === 0) {
             // Return early if in live workspace
@@ -3062,7 +3057,6 @@ class BackendUtility
     {
         if (ExtensionManagementUtility::isLoaded('workspaces')) {
             if ($workspace !== 0 && self::isTableWorkspaceEnabled($table)) {
-
                 // Select workspace version of record:
                 $queryBuilder = static::getQueryBuilderForTable($table);
                 $queryBuilder->getRestrictions()
@@ -3077,23 +3071,23 @@ class BackendUtility
                     ->where(
                         $queryBuilder->expr()->eq(
                             't3ver_wsid',
-                            $queryBuilder->createNamedParameter($workspace, \PDO::PARAM_INT)
+                            $queryBuilder->createNamedParameter($workspace, Connection::PARAM_INT)
                         ),
                         $queryBuilder->expr()->or(
                             // t3ver_state=1 does not contain a t3ver_oid, and returns itself
                             $queryBuilder->expr()->and(
                                 $queryBuilder->expr()->eq(
                                     'uid',
-                                    $queryBuilder->createNamedParameter($uid, \PDO::PARAM_INT)
+                                    $queryBuilder->createNamedParameter($uid, Connection::PARAM_INT)
                                 ),
                                 $queryBuilder->expr()->eq(
                                     't3ver_state',
-                                    $queryBuilder->createNamedParameter(VersionState::NEW_PLACEHOLDER, \PDO::PARAM_INT)
+                                    $queryBuilder->createNamedParameter(VersionState::NEW_PLACEHOLDER, Connection::PARAM_INT)
                                 )
                             ),
                             $queryBuilder->expr()->eq(
                                 't3ver_oid',
-                                $queryBuilder->createNamedParameter($uid, \PDO::PARAM_INT)
+                                $queryBuilder->createNamedParameter($uid, Connection::PARAM_INT)
                             )
                         )
                     )
@@ -3357,9 +3351,6 @@ class BackendUtility
             }
             if ($GLOBALS['TCA'][$table]['ctrl']['crdate'] ?? false) {
                 $fieldList[] = $GLOBALS['TCA'][$table]['ctrl']['crdate'];
-            }
-            if ($GLOBALS['TCA'][$table]['ctrl']['cruser_id'] ?? false) {
-                $fieldList[] = $GLOBALS['TCA'][$table]['ctrl']['cruser_id'];
             }
             if ($GLOBALS['TCA'][$table]['ctrl']['sortby'] ?? false) {
                 $fieldList[] = $GLOBALS['TCA'][$table]['ctrl']['sortby'];

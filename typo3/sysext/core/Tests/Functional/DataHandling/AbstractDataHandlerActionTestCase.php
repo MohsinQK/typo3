@@ -51,16 +51,6 @@ abstract class AbstractDataHandlerActionTestCase extends FunctionalTestCase
      */
     protected $expectedErrorLogEntries = 0;
 
-    protected array $configurationToUseInTestInstance = [
-        'SC_OPTIONS' => [
-            'Core/TypoScript/TemplateService' => [
-                'runThroughTemplatesPostProcessing' => [
-                    'FunctionalTest' => \TYPO3\TestingFramework\Core\Functional\Framework\Frontend\Hook\TypoScriptInstructionModifier::class . '->apply',
-                ],
-            ],
-        ],
-    ];
-
     /**
      * @var array
      */
@@ -104,7 +94,8 @@ abstract class AbstractDataHandlerActionTestCase extends FunctionalTestCase
     {
         parent::setUp();
 
-        $this->backendUser = $this->setUpBackendUserFromFixture(self::VALUE_BackendUserId);
+        $this->importCSVDataSet(__DIR__ . '/../Fixtures/be_users_admin.csv');
+        $this->backendUser = $this->setUpBackendUser(self::VALUE_BackendUserId);
         // Note late static binding - Workspace related tests override the constant
         $this->setWorkspaceId(static::VALUE_WorkspaceId);
 

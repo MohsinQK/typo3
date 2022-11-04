@@ -559,7 +559,7 @@ Usage through code::
        'messageCode' => 201905041245,
        'messageBody' => 'Thx for using %s',
        'messageArguments' => ['TYPO3'],
-       'severity' => \TYPO3\CMS\Core\Messaging\AbstractMessage::OK,
+       'severity' => \TYPO3\CMS\Core\Type\ContextualFeedbackSeverity::OK,
    ]);
 
 or create manually (not preferred)::
@@ -570,7 +570,7 @@ or create manually (not preferred)::
        'messageCode' => 201905041245,
        'messageBody' => 'Thx for using %s',
        'messageArguments' => ['TYPO3'],
-       'severity' => \TYPO3\CMS\Core\Messaging\AbstractMessage::OK,
+       'severity' => \TYPO3\CMS\Core\Type\ContextualFeedbackSeverity::OK,
    ]);
    $formDefinition->addFinisher($flashMessageFinisher);
 
@@ -658,11 +658,11 @@ severity
       No
 
 :aspect:`Default value`
-      \TYPO3\CMS\Core\Messaging\AbstractMessage::OK (0)
+      \TYPO3\CMS\Core\Type\ContextualFeedbackSeverity::OK (0)
 
 :aspect:`Description`
       The flash message severity code.
-      See \TYPO3\CMS\Core\Messaging\AbstractMessage constants for the codes.
+      See \TYPO3\CMS\Core\Type\ContextualFeedbackSeverity cases for the codes.
 
 
 .. _apireference-finisheroptions-redirectfinisher:
@@ -762,8 +762,8 @@ fragment
       empty string
 
 :aspect:`Description`
-      Add a fragment (e.g. `#c9` or `#foo`) to the redirect link.
-      The `#' character can be omitted.
+      Add a fragment (e.g. :html:`#c9` or :html:`#foo`) to the redirect link.
+      The :html:`#` character can be omitted.
 
 
 .. _apireference-finisheroptions-redirectfinisher-options-delay:

@@ -27,7 +27,6 @@ use TYPO3\CMS\Form\Domain\Exception\IdentifierNotValidException;
  */
 class RenderableVariant implements RenderableVariantInterface
 {
-
     /**
      * @var string
      */
@@ -64,7 +63,7 @@ class RenderableVariant implements RenderableVariantInterface
         array $options,
         VariableRenderableInterface $renderable
     ) {
-        if ('' === $identifier) {
+        if ($identifier === '') {
             throw new IdentifierNotValidException('The given variant identifier was empty.', 1519998923);
         }
         $this->identifier = $identifier;

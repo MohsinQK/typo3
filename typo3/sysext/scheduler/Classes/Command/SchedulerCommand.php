@@ -104,8 +104,9 @@ Call it like this: typo3/sysext/core/bin/typo3 scheduler:run --task=13 -f')
      * @param InputInterface $input
      * @param OutputInterface $output
      * @return int
+     * @todo: this should at some point become a protected method
      */
-    public function execute(InputInterface $input, OutputInterface $output)
+    public function execute(InputInterface $input, OutputInterface $output): int
     {
         $this->io = new SymfonyStyle($input, $output);
 
@@ -123,7 +124,7 @@ Call it like this: typo3/sysext/core/bin/typo3 scheduler:run --task=13 -f')
         $this->forceExecution = (bool)$input->getOption('force');
         $this->stopTasks = $this->shouldStopTasks((bool)$input->getOption('stop'));
         $this->loopTasks();
-        return 0;
+        return Command::SUCCESS;
     }
 
     /**
@@ -168,7 +169,7 @@ Call it like this: typo3/sysext/core/bin/typo3 scheduler:run --task=13 -f')
      * Return task a task for a given UID
      *
      * @param int $taskUid
-     * @return AbstractTask
+     * @return AbstractTask|null
      */
     protected function getTask(int $taskUid)
     {
@@ -178,8 +179,7 @@ Call it like this: typo3/sysext/core/bin/typo3 scheduler:run --task=13 -f')
         }
 
         $whereClause = 'uid = ' . (int)$taskUid . ' AND nextexecution != 0 AND nextexecution <= ' . $GLOBALS['EXEC_TIME'];
-        [$task] = $this->scheduler->fetchTasksWithCondition($whereClause);
-        return $task;
+        return $this->scheduler->fetchTasksWithCondition($whereClause)[0] ?? null;
     }
 
     /**

@@ -28,7 +28,7 @@ use TYPO3\CMS\Core\Utility\PathUtility;
  *
  * This class does not use any TYPO3 instance specific configuration, it only
  * sets up things based on the server environment and core code. Even with a
- * missing typo3conf/LocalConfiguration.php this script will be successful.
+ * missing system/settings.php this script will be successful.
  *
  * The script aborts execution with an error message if
  * some part fails or conditions are not met.
@@ -40,15 +40,15 @@ use TYPO3\CMS\Core\Utility\PathUtility;
 class SystemEnvironmentBuilder
 {
     /** @internal */
-    const REQUESTTYPE_FE = 1;
+    public const REQUESTTYPE_FE = 1;
     /** @internal */
-    const REQUESTTYPE_BE = 2;
+    public const REQUESTTYPE_BE = 2;
     /** @internal */
-    const REQUESTTYPE_CLI = 4;
+    public const REQUESTTYPE_CLI = 4;
     /** @internal */
-    const REQUESTTYPE_AJAX = 8;
+    public const REQUESTTYPE_AJAX = 8;
     /** @internal */
-    const REQUESTTYPE_INSTALL = 16;
+    public const REQUESTTYPE_INSTALL = 16;
 
     /**
      * Run base setup.
@@ -100,6 +100,7 @@ class SystemEnvironmentBuilder
         defined('TYPO3') ?: define('TYPO3', true);
 
         // Relative path from document root to typo3/ directory, hardcoded to "typo3/"
+        // @deprecated: will be removed in TYPO3 v13.0
         if (!defined('TYPO3_mainDir')) {
             define('TYPO3_mainDir', 'typo3/');
         }
@@ -220,7 +221,7 @@ class SystemEnvironmentBuilder
             static::usesComposerClassLoading(),
             $isDifferentRootPath ? $projectRootPath : $sitePath,
             $sitePath,
-            $isDifferentRootPath ? $projectRootPath . '/var'    : $sitePath . '/typo3temp/var',
+            $isDifferentRootPath ? $projectRootPath . '/var' : $sitePath . '/typo3temp/var',
             $isDifferentRootPath ? $projectRootPath . '/config' : $sitePath . '/typo3conf',
             $scriptPath,
             self::isRunningOnWindows() ? 'WINDOWS' : 'UNIX'

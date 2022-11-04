@@ -24,9 +24,6 @@ use TYPO3\CMS\Extbase\Persistence\Repository;
  */
 class BackendUserGroupRepository extends Repository
 {
-    /**
-     * @var array Default order is by title ascending
-     */
     protected $defaultOrderings = [
         'title' => QueryInterface::ORDER_ASCENDING,
     ];
@@ -51,16 +48,10 @@ class BackendUserGroupRepository extends Repository
      */
     public function findByUidList(array $uidList): array
     {
-        $items = [];
-
-        foreach ($uidList as $id) {
-            $query = $this->createQuery();
-            $query->matching($query->equals('uid', $id));
-            $result = $query->execute(true);
-            if ($result) {
-                $items[] = $result[0];
-            }
-        }
-        return $items;
+        $query = $this->createQuery();
+        // being explicit here, albeit `Typo3DbQueryParser::parseDynamicOperand` uses prepared parameters
+        $uidList = array_map('intval', $uidList);
+        $query->matching($query->in('uid', $uidList));
+        return $query->execute(true);
     }
 }

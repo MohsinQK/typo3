@@ -18,36 +18,16 @@ declare(strict_types=1);
 namespace TYPO3\CMS\Core\Tests\Unit\Resource\Driver;
 
 use TYPO3\CMS\Core\Resource\Driver\AbstractDriver;
-use TYPO3\CMS\Core\Tests\Unit\Resource\BaseTestCase;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
-/**
- * Test case for the abstract driver.
- */
-class AbstractDriverTest extends BaseTestCase
+class AbstractDriverTest extends UnitTestCase
 {
-    /**
-     * @var AbstractDriver
-     */
-    protected $subject;
-
-    protected function setUp(): void
-    {
-        parent::setUp();
-        $this->subject = $this->createDriver();
-    }
-    /**
-     * @return AbstractDriver
-     */
-    protected function createDriver(): AbstractDriver
-    {
-        return $this->getMockForAbstractClass(AbstractDriver::class, [], '', false);
-    }
-
     /**
      * @test
      */
     public function isCaseSensitiveFileSystemReturnsTrueIfNothingIsConfigured(): void
     {
-        self::assertTrue($this->subject->isCaseSensitiveFileSystem());
+        $subject = $this->getMockForAbstractClass(AbstractDriver::class, [], '', false);
+        self::assertTrue($subject->isCaseSensitiveFileSystem());
     }
 }

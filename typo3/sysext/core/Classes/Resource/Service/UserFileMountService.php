@@ -22,6 +22,7 @@ use TYPO3\CMS\Core\Resource\Exception\InsufficientFolderReadPermissionsException
 use TYPO3\CMS\Core\Resource\Folder;
 use TYPO3\CMS\Core\Resource\ResourceStorage;
 use TYPO3\CMS\Core\Resource\StorageRepository;
+use TYPO3\CMS\Core\Type\ContextualFeedbackSeverity;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 
 /**
@@ -48,22 +49,15 @@ class UserFileMountService
             },
             $this->getBackendUserAuthentication()->getFileStorages()
         );
-        // If working for sys_filemounts table
-        $storageUid = (int)($PA['row']['base'][0] ?? 0);
-        if (!$storageUid) {
-            // If working for sys_file_collection table
-            $storageUid = (int)($PA['row']['storage'][0] ?? 0);
-        }
+        $storageUid = (int)($PA['row']['storage'][0] ?? 0);
         if ($storageUid > 0 && in_array($storageUid, $allowedStorageIds, true)) {
-            /** @var StorageRepository $storageRepository */
             $storageRepository = GeneralUtility::makeInstance(StorageRepository::class);
-            /** @var \TYPO3\CMS\Core\Resource\ResourceStorage $storage */
+            /** @var ResourceStorage $storage */
             $storage = $storageRepository->findByUid($storageUid);
             if ($storage === null) {
-                /** @var FlashMessageService $flashMessageService */
                 $flashMessageService = GeneralUtility::makeInstance(FlashMessageService::class);
                 $queue = $flashMessageService->getMessageQueueByIdentifier();
-                $queue->enqueue(new FlashMessage('Storage #' . $storageUid . ' does not exist. No folder is currently selectable.', '', FlashMessage::ERROR));
+                $queue->enqueue(new FlashMessage('Storage #' . $storageUid . ' does not exist. No folder is currently selectable.', '', ContextualFeedbackSeverity::ERROR));
                 if (empty($PA['items'])) {
                     $PA['items'][] = [
                         $PA['row'][$PA['field']],
@@ -92,10 +86,9 @@ class UserFileMountService
                     }
                 }
             } else {
-                /** @var FlashMessageService $flashMessageService */
                 $flashMessageService = GeneralUtility::makeInstance(FlashMessageService::class);
                 $queue = $flashMessageService->getMessageQueueByIdentifier();
-                $queue->enqueue(new FlashMessage('Storage "' . $storage->getName() . '" is not browsable. No folder is currently selectable.', '', FlashMessage::WARNING));
+                $queue->enqueue(new FlashMessage('Storage "' . $storage->getName() . '" is not browsable. No folder is currently selectable.', '', ContextualFeedbackSeverity::WARNING));
                 if (empty($PA['items'])) {
                     $PA['items'][] = [
                         $PA['row'][$PA['field']],

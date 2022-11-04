@@ -21,17 +21,11 @@ use TYPO3\CMS\Core\Localization\Locales;
 use TYPO3\CMS\Core\Site\Entity\Site;
 use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
-/**
- * Test case
- */
 class LocalesTest extends UnitTestCase
 {
     protected bool $resetSingletonInstances = true;
 
-    /**
-     * @var string
-     */
-    protected $originalLocale;
+    protected string|bool $originalLocale = false;
 
     protected function setUp(): void
     {
@@ -48,9 +42,6 @@ class LocalesTest extends UnitTestCase
         parent::tearDown();
     }
 
-    /**
-     * @return array
-     */
     public function browserLanguageDetectionWorksDataProvider(): array
     {
         return [
@@ -74,9 +65,6 @@ class LocalesTest extends UnitTestCase
     }
 
     /**
-     * @param string $acceptLanguageHeader
-     * @param string $expected
-     *
      * @test
      * @dataProvider browserLanguageDetectionWorksDataProvider
      */

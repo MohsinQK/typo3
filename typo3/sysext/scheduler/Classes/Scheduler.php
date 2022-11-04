@@ -113,9 +113,9 @@ class Scheduler implements SingletonInterface
             ->where(
                 $queryBuilder->expr()->neq(
                     'serialized_executions',
-                    $queryBuilder->createNamedParameter('', \PDO::PARAM_STR)
+                    $queryBuilder->createNamedParameter('')
                 ),
-                $queryBuilder->expr()->eq('deleted', $queryBuilder->createNamedParameter(0, \PDO::PARAM_INT))
+                $queryBuilder->expr()->eq('deleted', $queryBuilder->createNamedParameter(0, Connection::PARAM_INT))
             )
             ->executeQuery();
         $maxDuration = $this->extConf['maxLifetime'] * 60;
@@ -221,7 +221,6 @@ class Scheduler implements SingletonInterface
         if ($type !== 'manual' && $type !== 'cli-by-id') {
             $type = 'cron';
         }
-        /** @var Registry $registry */
         $registry = GeneralUtility::makeInstance(Registry::class);
         $runInformation = ['start' => $GLOBALS['EXEC_TIME'], 'end' => time(), 'type' => $type];
         $registry->set('tx_scheduler', 'lastRun', $runInformation);
@@ -322,23 +321,23 @@ class Scheduler implements SingletonInterface
                 $queryBuilder->expr()->eq('t.task_group', $queryBuilder->quoteIdentifier('g.uid'))
             );
             $queryBuilder->where(
-                $queryBuilder->expr()->eq('t.disable', $queryBuilder->createNamedParameter(0, \PDO::PARAM_INT)),
-                $queryBuilder->expr()->neq('t.nextexecution', $queryBuilder->createNamedParameter(0, \PDO::PARAM_INT)),
+                $queryBuilder->expr()->eq('t.disable', $queryBuilder->createNamedParameter(0, Connection::PARAM_INT)),
+                $queryBuilder->expr()->neq('t.nextexecution', $queryBuilder->createNamedParameter(0, Connection::PARAM_INT)),
                 $queryBuilder->expr()->lte(
                     't.nextexecution',
-                    $queryBuilder->createNamedParameter($GLOBALS['EXEC_TIME'], \PDO::PARAM_INT)
+                    $queryBuilder->createNamedParameter($GLOBALS['EXEC_TIME'], Connection::PARAM_INT)
                 ),
                 $queryBuilder->expr()->or(
-                    $queryBuilder->expr()->eq('g.hidden', $queryBuilder->createNamedParameter(0, \PDO::PARAM_INT)),
+                    $queryBuilder->expr()->eq('g.hidden', $queryBuilder->createNamedParameter(0, Connection::PARAM_INT)),
                     $queryBuilder->expr()->isNull('g.hidden')
                 ),
-                $queryBuilder->expr()->eq('t.deleted', $queryBuilder->createNamedParameter(0, \PDO::PARAM_INT))
+                $queryBuilder->expr()->eq('t.deleted', $queryBuilder->createNamedParameter(0, Connection::PARAM_INT))
             );
             $queryBuilder->orderBy('t.nextexecution', 'ASC');
         } else {
             $queryBuilder->where(
-                $queryBuilder->expr()->eq('t.uid', $queryBuilder->createNamedParameter($uid, \PDO::PARAM_INT)),
-                $queryBuilder->expr()->eq('t.deleted', $queryBuilder->createNamedParameter(0, \PDO::PARAM_INT))
+                $queryBuilder->expr()->eq('t.uid', $queryBuilder->createNamedParameter($uid, Connection::PARAM_INT)),
+                $queryBuilder->expr()->eq('t.deleted', $queryBuilder->createNamedParameter(0, Connection::PARAM_INT))
             );
         }
 
@@ -398,8 +397,8 @@ class Scheduler implements SingletonInterface
         $row = $queryBuilder->select('*')
             ->from('tx_scheduler_task')
             ->where(
-                $queryBuilder->expr()->eq('uid', $queryBuilder->createNamedParameter((int)$uid, \PDO::PARAM_INT)),
-                $queryBuilder->expr()->eq('deleted', $queryBuilder->createNamedParameter(0, \PDO::PARAM_INT))
+                $queryBuilder->expr()->eq('uid', $queryBuilder->createNamedParameter((int)$uid, Connection::PARAM_INT)),
+                $queryBuilder->expr()->eq('deleted', $queryBuilder->createNamedParameter(0, Connection::PARAM_INT))
             )
             ->executeQuery()
             ->fetchAssociative();
@@ -430,12 +429,12 @@ class Scheduler implements SingletonInterface
             ->select('serialized_task_object')
             ->from('tx_scheduler_task')
             ->where(
-                $queryBuilder->expr()->eq('deleted', $queryBuilder->createNamedParameter(0, \PDO::PARAM_INT))
+                $queryBuilder->expr()->eq('deleted', $queryBuilder->createNamedParameter(0, Connection::PARAM_INT))
             );
 
         if (!$includeDisabledTasks) {
             $queryBuilder->andWhere(
-                $queryBuilder->expr()->eq('disable', $queryBuilder->createNamedParameter(0, \PDO::PARAM_INT))
+                $queryBuilder->expr()->eq('disable', $queryBuilder->createNamedParameter(0, Connection::PARAM_INT))
             );
         }
 
@@ -495,15 +494,15 @@ class Scheduler implements SingletonInterface
             case 1:
                 $this->logger->alert($messageTemplate, ['code' => $code, 'original_message' => $message]);
                 break;
-            // System Error (which should not happen)
+                // System Error (which should not happen)
             case 2:
                 $this->logger->error($messageTemplate, ['code' => $code, 'original_message' => $message]);
                 break;
-            // security notice (admin)
+                // security notice (admin)
             case 3:
                 $this->logger->emergency($messageTemplate, ['code' => $code, 'original_message' => $message]);
                 break;
-            // regular message (= 0)
+                // regular message (= 0)
             default:
                 $this->logger->info($messageTemplate, ['code' => $code, 'original_message' => $message]);
         }

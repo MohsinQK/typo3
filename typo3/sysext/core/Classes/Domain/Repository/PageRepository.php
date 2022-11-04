@@ -15,10 +15,12 @@
 
 namespace TYPO3\CMS\Core\Domain\Repository;
 
+use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Log\LoggerAwareInterface;
 use Psr\Log\LoggerAwareTrait;
 use TYPO3\CMS\Core\Cache\CacheManager;
 use TYPO3\CMS\Core\Cache\Frontend\VariableFrontend;
+use TYPO3\CMS\Core\Compatibility\PublicMethodDeprecationTrait;
 use TYPO3\CMS\Core\Context\Context;
 use TYPO3\CMS\Core\Context\Exception\AspectNotFoundException;
 use TYPO3\CMS\Core\Context\LanguageAspect;
@@ -38,6 +40,9 @@ use TYPO3\CMS\Core\Database\Query\Restriction\QueryRestrictionContainerInterface
 use TYPO3\CMS\Core\Database\Query\Restriction\StartTimeRestriction;
 use TYPO3\CMS\Core\Database\Query\Restriction\WorkspaceRestriction;
 use TYPO3\CMS\Core\Domain\Access\RecordAccessVoter;
+use TYPO3\CMS\Core\Domain\Event\AfterRecordLanguageOverlayEvent;
+use TYPO3\CMS\Core\Domain\Event\BeforePageLanguageOverlayEvent;
+use TYPO3\CMS\Core\Domain\Event\BeforeRecordLanguageOverlayEvent;
 use TYPO3\CMS\Core\Error\Http\ShortcutTargetPageNotFoundException;
 use TYPO3\CMS\Core\Type\Bitmask\PageTranslationVisibility;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
@@ -55,6 +60,11 @@ use TYPO3\CMS\Core\Versioning\VersionState;
 class PageRepository implements LoggerAwareInterface
 {
     use LoggerAwareTrait;
+    use PublicMethodDeprecationTrait;
+
+    private array $deprecatedPublicMethods = [
+        'getRecordOverlay' => 'Using PageRepository::getRecordOverlay() is deprecated and will not be possible anymore in TYPO3 v13.0. Use PageRepository:getLanguageOverlay() instead.',
+    ];
 
     /**
      * This is not the final clauses. There will normally be conditions for the
@@ -110,22 +120,22 @@ class PageRepository implements LoggerAwareInterface
     /**
      * Named constants for "magic numbers" of the field doktype
      */
-    const DOKTYPE_DEFAULT = 1;
-    const DOKTYPE_LINK = 3;
-    const DOKTYPE_SHORTCUT = 4;
-    const DOKTYPE_BE_USER_SECTION = 6;
-    const DOKTYPE_MOUNTPOINT = 7;
-    const DOKTYPE_SPACER = 199;
-    const DOKTYPE_SYSFOLDER = 254;
-    const DOKTYPE_RECYCLER = 255;
+    public const DOKTYPE_DEFAULT = 1;
+    public const DOKTYPE_LINK = 3;
+    public const DOKTYPE_SHORTCUT = 4;
+    public const DOKTYPE_BE_USER_SECTION = 6;
+    public const DOKTYPE_MOUNTPOINT = 7;
+    public const DOKTYPE_SPACER = 199;
+    public const DOKTYPE_SYSFOLDER = 254;
+    public const DOKTYPE_RECYCLER = 255;
 
     /**
      * Named constants for "magic numbers" of the field shortcut_mode
      */
-    const SHORTCUT_MODE_NONE = 0;
-    const SHORTCUT_MODE_FIRST_SUBPAGE = 1;
-    const SHORTCUT_MODE_RANDOM_SUBPAGE = 2;
-    const SHORTCUT_MODE_PARENT_PAGE = 3;
+    public const SHORTCUT_MODE_NONE = 0;
+    public const SHORTCUT_MODE_FIRST_SUBPAGE = 1;
+    public const SHORTCUT_MODE_RANDOM_SUBPAGE = 2;
+    public const SHORTCUT_MODE_PARENT_PAGE = 3;
 
     /**
      * @var Context
@@ -304,7 +314,7 @@ class PageRepository implements LoggerAwareInterface
         if ($row) {
             $this->versionOL('pages', $row);
             if (is_array($row)) {
-                $result = $this->getPageOverlay($row);
+                $result = $this->getLanguageOverlay('pages', $row);
             }
         }
 
@@ -347,7 +357,7 @@ class PageRepository implements LoggerAwareInterface
         if ($row) {
             $this->versionOL('pages', $row);
             if (is_array($row)) {
-                $result = $this->getPageOverlay($row);
+                $result = $this->getLanguageOverlay('pages', $row);
             }
         }
         $cache->set($cacheIdentifier, $result);
@@ -361,46 +371,61 @@ class PageRepository implements LoggerAwareInterface
      * This might change through a feature switch in the future.
      *
      * @param string $table the name of the table, should be a TCA table with localization enabled
-     * @param array $row the current (full-fletched) record.
-     * @return array|null
+     * @param array $originalRow the current (full-fletched) record.
+     * @param LanguageAspect|null $languageAspect an alternative language aspect if needed (optional)
+     * @return array|null NULL If overlays were activated but no overlay was found and LanguageAspect was NOT set to MIXED
      */
-    public function getLanguageOverlay(string $table, array $row)
+    public function getLanguageOverlay(string $table, array $originalRow, LanguageAspect $languageAspect = null): ?array
     {
         // table is not localizable, so return directly
         if (!isset($GLOBALS['TCA'][$table]['ctrl']['languageField'])) {
-            return $row;
+            return $originalRow;
         }
+
         try {
             /** @var LanguageAspect $languageAspect */
-            $languageAspect = $this->context->getAspect('language');
-            if ($languageAspect->doOverlays()) {
-                if ($table === 'pages') {
-                    return $this->getPageOverlay($row, $languageAspect->getId());
-                }
-                return $this->getRecordOverlay(
-                    $table,
-                    $row,
-                    $languageAspect->getContentId(),
-                    $languageAspect->getOverlayType() === $languageAspect::OVERLAYS_MIXED ? '1' : 'hideNonTranslated'
-                );
-            }
+            $languageAspect = $languageAspect ?? $this->context->getAspect('language');
         } catch (AspectNotFoundException $e) {
             // no overlays
+            return $originalRow;
         }
-        return $row;
+
+        $eventDispatcher = GeneralUtility::makeInstance(EventDispatcherInterface::class);
+
+        $event = $eventDispatcher->dispatch(new BeforeRecordLanguageOverlayEvent($table, $originalRow, $languageAspect));
+        $languageAspect = $event->getLanguageAspect();
+        $originalRow = $event->getRecord();
+
+        $attempted = false;
+        $localizedRecord = null;
+        if ($languageAspect->doOverlays()) {
+            $attempted = true;
+            if ($table === 'pages') {
+                $localizedRecord = $this->getPageOverlay($originalRow, $languageAspect);
+            } else {
+                $localizedRecord = $this->getRecordOverlay($table, $originalRow, $languageAspect);
+            }
+        }
+
+        $event = new AfterRecordLanguageOverlayEvent($table, $originalRow, $localizedRecord, $attempted, $languageAspect);
+        /** @var AfterRecordLanguageOverlayEvent $event */
+        $event = $eventDispatcher->dispatch($event);
+
+        // Return localized record or the original row, if no overlays were done
+        return $event->overlayingWasAttempted() ? $event->getLocalizedRecord() : $originalRow;
     }
 
     /**
      * Returns the relevant page overlay record fields
      *
      * @param mixed $pageInput If $pageInput is an integer, it's the pid of the pageOverlay record and thus the page overlay record is returned. If $pageInput is an array, it's a page-record and based on this page record the language record is found and OVERLAID before the page record is returned.
-     * @param int $languageUid anguage UID if you want to set an alternative value to $this->sys_language_uid which is default. Should be >=0
+     * @param int|LanguageAspect|null $language language UID if you want to set an alternative value to $this->sys_language_uid which is default. Should be >=0
      * @throws \UnexpectedValueException
      * @return array Page row which is overlaid with language_overlay record (or the overlay record alone)
      */
-    public function getPageOverlay($pageInput, $languageUid = null)
+    public function getPageOverlay($pageInput, $language = null)
     {
-        $rows = $this->getPagesOverlay([$pageInput], $languageUid);
+        $rows = $this->getPagesOverlay([$pageInput], $language);
         // Always an array in return
         return $rows[0] ?? [];
     }
@@ -409,37 +434,27 @@ class PageRepository implements LoggerAwareInterface
      * Returns the relevant page overlay record fields
      *
      * @param array $pagesInput Array of integers or array of arrays. If each value is an integer, it's the pids of the pageOverlay records and thus the page overlay records are returned. If each value is an array, it's page-records and based on this page records the language records are found and OVERLAID before the page records are returned.
-     * @param int $languageUid Language UID if you want to set an alternative value to $this->sys_language_uid which is default. Should be >=0
+     * @param int|LanguageAspect|null $language Language UID if you want to set an alternative value to $this->sys_language_uid which is default. Should be >=0
      * @throws \UnexpectedValueException
      * @return array Page rows which are overlaid with language_overlay record.
      *               If the input was an array of integers, missing records are not
      *               included. If the input were page rows, untranslated pages
      *               are returned.
      */
-    public function getPagesOverlay(array $pagesInput, $languageUid = null)
+    public function getPagesOverlay(array $pagesInput, int|LanguageAspect $language = null)
     {
         if (empty($pagesInput)) {
             return [];
         }
-        if ($languageUid === null) {
-            $languageUid = $this->sys_language_uid;
+        if (is_int($language)) {
+            $languageAspect = new LanguageAspect($language, $language);
+        } else {
+            $languageAspect = $language ?? $this->context->getAspect('language');
         }
-        foreach ($pagesInput as &$origPage) {
-            foreach ($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['t3lib/class.t3lib_page.php']['getPageOverlay'] ?? [] as $className) {
-                $hookObject = GeneralUtility::makeInstance($className);
-                if (!$hookObject instanceof PageRepositoryGetPageOverlayHookInterface) {
-                    throw new \UnexpectedValueException($className . ' must implement interface ' . PageRepositoryGetPageOverlayHookInterface::class, 1269878881);
-                }
-                $hookObject->getPageOverlay_preProcess($origPage, $languageUid, $this);
-            }
-        }
-        unset($origPage);
 
         $overlays = [];
         // If language UID is different from zero, do overlay:
-        if ($languageUid) {
-            $languageUids = array_merge([$languageUid], $this->getLanguageFallbackChain(null));
-
+        if ($languageAspect->getId() > 0) {
             $pageIds = [];
             foreach ($pagesInput as $origPage) {
                 if (is_array($origPage)) {
@@ -450,7 +465,12 @@ class PageRepository implements LoggerAwareInterface
                     $pageIds[] = (int)$origPage;
                 }
             }
-            $overlays = $this->getPageOverlaysForLanguageUids($pageIds, $languageUids);
+
+            $event = GeneralUtility::makeInstance(EventDispatcherInterface::class)->dispatch(
+                new BeforePageLanguageOverlayEvent($pagesInput, $pageIds, $languageAspect)
+            );
+            $pagesInput = $event->getPageInput();
+            $overlays = $this->getPageOverlaysForLanguage($event->getPageIds(), $event->getLanguageAspect());
         }
 
         // Create output:
@@ -466,10 +486,8 @@ class PageRepository implements LoggerAwareInterface
                         }
                     }
                 }
-            } else {
-                if (isset($overlays[$origPage])) {
-                    $pagesOutput[$key] = $overlays[$origPage];
-                }
+            } elseif (isset($overlays[$origPage])) {
+                $pagesOutput[$key] = $overlays[$origPage];
             }
         }
         return $pagesOutput;
@@ -529,11 +547,12 @@ class PageRepository implements LoggerAwareInterface
      * But that's not how it's done right now.
      *
      * @param array $pageUids
-     * @param array $languageUids uid of site language, please note that the order is important here.
+     * @param LanguageAspect $languageAspect Used for the fallback chain
      * @return array
      */
-    protected function getPageOverlaysForLanguageUids(array $pageUids, array $languageUids): array
+    protected function getPageOverlaysForLanguage(array $pageUids, LanguageAspect $languageAspect): array
     {
+        $languageUids = array_merge([$languageAspect->getId()], $this->getLanguageFallbackChain($languageAspect));
         // Remove default language ("0")
         $languageUids = array_filter($languageUids);
         $languageField = $GLOBALS['TCA']['pages']['ctrl']['languageField'];
@@ -553,7 +572,7 @@ class PageRepository implements LoggerAwareInterface
                 ->where(
                     $queryBuilder->expr()->eq(
                         $GLOBALS['TCA']['pages']['ctrl']['transOrigPointerField'],
-                        $queryBuilder->createNamedParameter($pageId, \PDO::PARAM_INT)
+                        $queryBuilder->createNamedParameter($pageId, Connection::PARAM_INT)
                     ),
                     $queryBuilder->expr()->in(
                         $GLOBALS['TCA']['pages']['ctrl']['languageField'],
@@ -598,19 +617,26 @@ class PageRepository implements LoggerAwareInterface
      *
      * @param string $table Table name
      * @param array $row Record to overlay. Must contain uid, pid and $table]['ctrl']['languageField']
-     * @param int $sys_language_content Pointer to the site language id for content on the site.
-     * @param string $OLmode Overlay mode. If "hideNonTranslated" then records without translation will not be returned  un-translated but unset (and return value is NULL)
+     * @param LanguageAspect|int|null $languageAspect Pointer to the site language id for content on the site.
+     * @param string $OLmode Overlay mode. If "hideNonTranslated" then records without translation will not be returned  un-translated but unset (and return value is NULL) - will be removed in TYPOO3 v13.0.
      * @throws \UnexpectedValueException
-     * @return mixed Returns the input record, possibly overlaid with a translation.  But if $OLmode is "hideNonTranslated" then it will return NULL if no translation is found.
+     * @return array|null Returns the input record, possibly overlaid with a translation. But if overlays are not mixed ("fallback to default language") then it will return NULL if no translation is found.
      */
-    public function getRecordOverlay($table, $row, $sys_language_content, $OLmode = '')
+    protected function getRecordOverlay(string $table, array $row, $languageAspect = null, $OLmode = '')
     {
-        foreach ($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['t3lib/class.t3lib_page.php']['getRecordOverlay'] ?? [] as $className) {
-            $hookObject = GeneralUtility::makeInstance($className);
-            if (!$hookObject instanceof PageRepositoryGetRecordOverlayHookInterface) {
-                throw new \UnexpectedValueException($className . ' must implement interface ' . PageRepositoryGetRecordOverlayHookInterface::class, 1269881658);
-            }
-            $hookObject->getRecordOverlay_preProcess($table, $row, $sys_language_content, $OLmode, $this);
+        // Kept for backwards-compatibility, can be removed in TYPO3 v13.0.
+        if (is_int($languageAspect)) {
+            $OLmode = func_get_args()[3] ?? '';
+            $languageAspect = new LanguageAspect(
+                $languageAspect,
+                $languageAspect,
+                ($OLmode === 'hideNonTranslated' ? LanguageAspect::OVERLAYS_ON_WITH_FLOATING : ($OLmode ? LanguageAspect::OVERLAYS_MIXED : LanguageAspect::OVERLAYS_OFF))
+            );
+        }
+        $languageAspect ??= $this->context->getAspect('language');
+        // Early return when no overlays are needed
+        if ($languageAspect->getOverlayType() === $languageAspect::OVERLAYS_OFF) {
+            return $row;
         }
 
         $tableControl = $GLOBALS['TCA'][$table]['ctrl'] ?? [];
@@ -618,14 +644,15 @@ class PageRepository implements LoggerAwareInterface
         if (!empty($tableControl['languageField'])
             // Return record for ALL languages untouched
             // @todo: Fix call stack to prevent this situation in the first place
-            && (int)$row[$tableControl['languageField']] !== -1
+            && (int)($row[$tableControl['languageField']] ?? 0) !== -1
             && !empty($tableControl['transOrigPointerField'])
             && $row['uid'] > 0
-            && ($row['pid'] > 0 || in_array($tableControl['rootLevel'] ?? false, [true, 1, -1], true))) {
+            && ($row['pid'] > 0 || in_array($tableControl['rootLevel'] ?? false, [true, 1, -1], true))
+        ) {
             // Will try to overlay a record only if the sys_language_content value is larger than zero.
-            if ($sys_language_content > 0) {
+            if ($languageAspect->getContentId() > 0) {
                 // Must be default language, otherwise no overlaying
-                if ((int)$row[$tableControl['languageField']] === 0) {
+                if ((int)($row[$tableControl['languageField']] ?? 0) === 0) {
                     // Select overlay record:
                     $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)
                         ->getQueryBuilderForTable($table);
@@ -665,15 +692,15 @@ class PageRepository implements LoggerAwareInterface
                         ->where(
                             $queryBuilder->expr()->eq(
                                 'pid',
-                                $queryBuilder->createNamedParameter($pid, \PDO::PARAM_INT)
+                                $queryBuilder->createNamedParameter($pid, Connection::PARAM_INT)
                             ),
                             $queryBuilder->expr()->eq(
                                 $tableControl['languageField'],
-                                $queryBuilder->createNamedParameter($sys_language_content, \PDO::PARAM_INT)
+                                $queryBuilder->createNamedParameter($languageAspect->getContentId(), Connection::PARAM_INT)
                             ),
                             $queryBuilder->expr()->eq(
                                 $tableControl['transOrigPointerField'],
-                                $queryBuilder->createNamedParameter($row['uid'], \PDO::PARAM_INT)
+                                $queryBuilder->createNamedParameter($row['uid'], Connection::PARAM_INT)
                             )
                         )
                         ->setMaxResults(1)
@@ -690,37 +717,30 @@ class PageRepository implements LoggerAwareInterface
                             $row['_ORIG_pid'] = $olrow['_ORIG_pid'];
                         }
                         foreach ($row as $fN => $fV) {
-                            if ($fN !== 'uid' && $fN !== 'pid' && isset($olrow[$fN])) {
+                            if ($fN !== 'uid' && $fN !== 'pid' && array_key_exists($fN, $olrow)) {
                                 $row[$fN] = $olrow[$fN];
                             } elseif ($fN === 'uid') {
                                 $row['_LOCALIZED_UID'] = $olrow['uid'];
                             }
                         }
-                    } elseif ($OLmode === 'hideNonTranslated' && (int)$row[$tableControl['languageField']] === 0) {
+                    } elseif (in_array($languageAspect->getOverlayType(), [LanguageAspect::OVERLAYS_ON_WITH_FLOATING, LanguageAspect::OVERLAYS_ON])
+                        && (int)($row[$tableControl['languageField']] ?? 0) === 0
+                    ) {
                         // Unset, if non-translated records should be hidden. ONLY done if the source
                         // record really is default language and not [All] in which case it is allowed.
                         $row = null;
                     }
-                } elseif ($sys_language_content != $row[$tableControl['languageField']]) {
+                } elseif ($languageAspect->getContentId() != ($row[$tableControl['languageField']] ?? null)) {
                     $row = null;
                 }
             } else {
                 // When default language is displayed, we never want to return a record carrying
                 // another language!
-                if ($row[$tableControl['languageField']] > 0) {
+                if ((int)($row[$tableControl['languageField']] ?? 0) > 0) {
                     $row = null;
                 }
             }
         }
-
-        foreach ($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['t3lib/class.t3lib_page.php']['getRecordOverlay'] ?? [] as $className) {
-            $hookObject = GeneralUtility::makeInstance($className);
-            if (!$hookObject instanceof PageRepositoryGetRecordOverlayHookInterface) {
-                throw new \UnexpectedValueException($className . ' must implement interface ' . PageRepositoryGetRecordOverlayHookInterface::class, 1269881659);
-            }
-            $hookObject->getRecordOverlay_postProcess($table, $row, $sys_language_content, $OLmode, $this);
-        }
-
         return $row;
     }
 
@@ -835,7 +855,7 @@ class PageRepository implements LoggerAwareInterface
                 ),
                 $queryBuilder->expr()->eq(
                     $GLOBALS['TCA']['pages']['ctrl']['languageField'],
-                    $queryBuilder->createNamedParameter(0, \PDO::PARAM_INT)
+                    $queryBuilder->createNamedParameter(0, Connection::PARAM_INT)
                 ),
                 QueryHelper::stripLogicalOperatorPrefix($this->where_hid_del),
                 QueryHelper::stripLogicalOperatorPrefix($this->where_groupAccess),
@@ -905,7 +925,6 @@ class PageRepository implements LoggerAwareInterface
 
         // There is a valid mount point in overlay mode.
         if (is_array($mountPointInfo) && $mountPointInfo['overlay']) {
-
             // Using "getPage" is OK since we need the check for enableFields AND for type 2
             // of mount pids we DO require a doktype < 200!
             $mountPointPage = $this->getPage($mountPointInfo['mount_pid']);
@@ -963,7 +982,7 @@ class PageRepository implements LoggerAwareInterface
                 ->where(
                     $queryBuilder->expr()->eq(
                         $searchField,
-                        $queryBuilder->createNamedParameter($searchUid, \PDO::PARAM_INT)
+                        $queryBuilder->createNamedParameter($searchUid, Connection::PARAM_INT)
                     ),
                     QueryHelper::stripLogicalOperatorPrefix($this->where_hid_del),
                     QueryHelper::stripLogicalOperatorPrefix($this->where_groupAccess),
@@ -1062,7 +1081,7 @@ class PageRepository implements LoggerAwareInterface
         if ((int)$page['doktype'] === self::DOKTYPE_SHORTCUT) {
             if (!in_array($page['uid'], $pageLog) && $iteration > 0) {
                 $pageLog[] = $page['uid'];
-                $page = $this->getPageShortcut($page['shortcut'], $page['shortcut_mode'], $page['uid'], $iteration - 1, $pageLog, $disableGroupCheck);
+                $page = $this->getPageShortcut((string)$page['shortcut'], $page['shortcut_mode'], $page['uid'], $iteration - 1, $pageLog, $disableGroupCheck);
             } else {
                 $pageLog[] = $page['uid'];
                 $this->logger->error('Page shortcuts were looping in uids {uids}', ['uids' => implode(', ', array_values($pageLog))]);
@@ -1199,11 +1218,11 @@ class PageRepository implements LoggerAwareInterface
                 ->where(
                     $queryBuilder->expr()->eq(
                         'uid',
-                        $queryBuilder->createNamedParameter($pageId, \PDO::PARAM_INT)
+                        $queryBuilder->createNamedParameter($pageId, Connection::PARAM_INT)
                     ),
                     $queryBuilder->expr()->neq(
                         'doktype',
-                        $queryBuilder->createNamedParameter(self::DOKTYPE_RECYCLER, \PDO::PARAM_INT)
+                        $queryBuilder->createNamedParameter(self::DOKTYPE_RECYCLER, Connection::PARAM_INT)
                     )
                 )
                 ->executeQuery()
@@ -1232,11 +1251,11 @@ class PageRepository implements LoggerAwareInterface
                 ->where(
                     $queryBuilder->expr()->eq(
                         'uid',
-                        $queryBuilder->createNamedParameter($mount_pid, \PDO::PARAM_INT)
+                        $queryBuilder->createNamedParameter($mount_pid, Connection::PARAM_INT)
                     ),
                     $queryBuilder->expr()->neq(
                         'doktype',
-                        $queryBuilder->createNamedParameter(self::DOKTYPE_RECYCLER, \PDO::PARAM_INT)
+                        $queryBuilder->createNamedParameter(self::DOKTYPE_RECYCLER, Connection::PARAM_INT)
                     )
                 )
                 ->executeQuery()
@@ -1321,7 +1340,7 @@ class PageRepository implements LoggerAwareInterface
             $queryBuilder->setRestrictions(GeneralUtility::makeInstance(FrontendRestrictionContainer::class, $this->context));
             $row = $queryBuilder->select('*')
                 ->from($table)
-                ->where($queryBuilder->expr()->eq('uid', $queryBuilder->createNamedParameter($uid, \PDO::PARAM_INT)))
+                ->where($queryBuilder->expr()->eq('uid', $queryBuilder->createNamedParameter($uid, Connection::PARAM_INT)))
                 ->executeQuery()
                 ->fetchAssociative();
 
@@ -1337,7 +1356,7 @@ class PageRepository implements LoggerAwareInterface
                             ->where(
                                 $queryBuilder->expr()->eq(
                                     'uid',
-                                    $queryBuilder->createNamedParameter($row['pid'], \PDO::PARAM_INT)
+                                    $queryBuilder->createNamedParameter($row['pid'], Connection::PARAM_INT)
                                 )
                             )
                             ->executeQuery()
@@ -1374,7 +1393,7 @@ class PageRepository implements LoggerAwareInterface
                 ->add(GeneralUtility::makeInstance(DeletedRestriction::class));
             $row = $queryBuilder->select(...GeneralUtility::trimExplode(',', $fields, true))
                 ->from($table)
-                ->where($queryBuilder->expr()->eq('uid', $queryBuilder->createNamedParameter($uid, \PDO::PARAM_INT)))
+                ->where($queryBuilder->expr()->eq('uid', $queryBuilder->createNamedParameter($uid, Connection::PARAM_INT)))
                 ->executeQuery()
                 ->fetchAssociative();
 
@@ -1573,7 +1592,7 @@ class PageRepository implements LoggerAwareInterface
      * usage might produce undesired results and that should be evaluated on
      * individual basis.
      *
-     * Principle; Record online! => Find offline?
+     * Principle: Record online! => Find offline?
      *
      * @param string $table Table name
      * @param array $row Record array passed by reference. As minimum, the "uid", "pid" and "t3ver_state" fields must exist! The record MAY be set to FALSE in which case the calling function should act as if the record is forbidden to access!
@@ -1599,7 +1618,7 @@ class PageRepository implements LoggerAwareInterface
                     ->add(GeneralUtility::makeInstance(DeletedRestriction::class));
                 $row = $queryBuilder->select(...GeneralUtility::trimExplode(',', $fieldNames, true))
                     ->from($table)
-                    ->where($queryBuilder->expr()->eq('uid', $queryBuilder->createNamedParameter((int)$row['t3ver_oid'], \PDO::PARAM_INT)))
+                    ->where($queryBuilder->expr()->eq('uid', $queryBuilder->createNamedParameter((int)$row['t3ver_oid'], Connection::PARAM_INT)))
                     ->executeQuery()
                     ->fetchAssociative();
             }
@@ -1637,7 +1656,7 @@ class PageRepository implements LoggerAwareInterface
                     // Notice, that unless $bypassEnableFieldsCheck is TRUE, the $row is unset if
                     // enablefields for BOTH the version AND the online record deselects it. See
                     // note for $bypassEnableFieldsCheck
-                    /** @var \TYPO3\CMS\Core\Versioning\VersionState $versionState */
+                    /** @var VersionState $versionState */
                     $versionState = VersionState::cast($row['t3ver_state'] ?? 0);
                     if ($wsAlt <= -1 || $versionState->indicatesPlaceholder()) {
                         // Unset record if it turned out to be "hidden"
@@ -1677,23 +1696,23 @@ class PageRepository implements LoggerAwareInterface
                 ->where(
                     $queryBuilder->expr()->eq(
                         't3ver_wsid',
-                        $queryBuilder->createNamedParameter($workspace, \PDO::PARAM_INT)
+                        $queryBuilder->createNamedParameter($workspace, Connection::PARAM_INT)
                     ),
                     $queryBuilder->expr()->or(
-                    // t3ver_state=1 does not contain a t3ver_oid, and returns itself
+                        // t3ver_state=1 does not contain a t3ver_oid, and returns itself
                         $queryBuilder->expr()->and(
                             $queryBuilder->expr()->eq(
                                 'uid',
-                                $queryBuilder->createNamedParameter($uid, \PDO::PARAM_INT)
+                                $queryBuilder->createNamedParameter($uid, Connection::PARAM_INT)
                             ),
                             $queryBuilder->expr()->eq(
                                 't3ver_state',
-                                $queryBuilder->createNamedParameter(VersionState::NEW_PLACEHOLDER, \PDO::PARAM_INT)
+                                $queryBuilder->createNamedParameter(VersionState::NEW_PLACEHOLDER, Connection::PARAM_INT)
                             )
                         ),
                         $queryBuilder->expr()->eq(
                             't3ver_oid',
-                            $queryBuilder->createNamedParameter($uid, \PDO::PARAM_INT)
+                            $queryBuilder->createNamedParameter($uid, Connection::PARAM_INT)
                         )
                     )
                 )
@@ -1715,23 +1734,23 @@ class PageRepository implements LoggerAwareInterface
                 $queryBuilder->where(
                     $queryBuilder->expr()->eq(
                         't3ver_wsid',
-                        $queryBuilder->createNamedParameter($workspace, \PDO::PARAM_INT)
+                        $queryBuilder->createNamedParameter($workspace, Connection::PARAM_INT)
                     ),
                     $queryBuilder->expr()->or(
-                    // t3ver_state=1 does not contain a t3ver_oid, and returns itself
+                        // t3ver_state=1 does not contain a t3ver_oid, and returns itself
                         $queryBuilder->expr()->and(
                             $queryBuilder->expr()->eq(
                                 'uid',
-                                $queryBuilder->createNamedParameter($uid, \PDO::PARAM_INT)
+                                $queryBuilder->createNamedParameter($uid, Connection::PARAM_INT)
                             ),
                             $queryBuilder->expr()->eq(
                                 't3ver_state',
-                                $queryBuilder->createNamedParameter(VersionState::NEW_PLACEHOLDER, \PDO::PARAM_INT)
+                                $queryBuilder->createNamedParameter(VersionState::NEW_PLACEHOLDER, Connection::PARAM_INT)
                             )
                         ),
                         $queryBuilder->expr()->eq(
                             't3ver_oid',
-                            $queryBuilder->createNamedParameter($uid, \PDO::PARAM_INT)
+                            $queryBuilder->createNamedParameter($uid, Connection::PARAM_INT)
                         )
                     )
                 );
@@ -1745,7 +1764,7 @@ class PageRepository implements LoggerAwareInterface
             // OK, so no workspace version was found. Then check if online version can be
             // selected with full enable fields and if so, return 1:
             $queryBuilder->where(
-                $queryBuilder->expr()->eq('uid', $queryBuilder->createNamedParameter($uid, \PDO::PARAM_INT))
+                $queryBuilder->expr()->eq('uid', $queryBuilder->createNamedParameter($uid, Connection::PARAM_INT))
             );
             if ($bypassEnableFieldsCheck || $queryBuilder->executeQuery()->fetchOne()) {
                 // Means search was done, but no version found.
@@ -1835,7 +1854,7 @@ class PageRepository implements LoggerAwareInterface
                 ),
                 $queryBuilder->expr()->gt(
                     'expires',
-                    $queryBuilder->createNamedParameter($GLOBALS['EXEC_TIME'], \PDO::PARAM_INT)
+                    $queryBuilder->createNamedParameter($GLOBALS['EXEC_TIME'], Connection::PARAM_INT)
                 )
             )
             ->setMaxResults(1)
@@ -1920,7 +1939,7 @@ class PageRepository implements LoggerAwareInterface
             ->where(
                 $queryBuilder->expr()->eq(
                     'pid',
-                    $queryBuilder->createNamedParameter($pageId, \PDO::PARAM_INT)
+                    $queryBuilder->createNamedParameter($pageId, Connection::PARAM_INT)
                 ),
                 // tree is only built by language=0 pages
                 $queryBuilder->expr()->eq('sys_language_uid', 0)
@@ -1967,7 +1986,7 @@ class PageRepository implements LoggerAwareInterface
                     ->where(
                         $queryBuilder->expr()->eq(
                             'uid',
-                            $queryBuilder->createNamedParameter($next_id, \PDO::PARAM_INT)
+                            $queryBuilder->createNamedParameter($next_id, Connection::PARAM_INT)
                         )
                     )
                     ->orderBy('sorting')
@@ -2063,7 +2082,7 @@ class PageRepository implements LoggerAwareInterface
             }
             // Check for the language and all its fallbacks (except for default language)
             $constraint = $queryBuilder->expr()->and(
-                $queryBuilder->expr()->eq('l10n_parent', $queryBuilder->createNamedParameter($pageId, \PDO::PARAM_INT)),
+                $queryBuilder->expr()->eq('l10n_parent', $queryBuilder->createNamedParameter($pageId, Connection::PARAM_INT)),
                 $queryBuilder->expr()->in('sys_language_uid', $queryBuilder->createNamedParameter(array_filter($languagesToCheck), Connection::PARAM_INT_ARRAY))
             );
             // If the fallback language Ids also contains the default language, this needs to be considered
@@ -2072,7 +2091,7 @@ class PageRepository implements LoggerAwareInterface
                     $constraint,
                     // Ensure to also fetch the default record
                     $queryBuilder->expr()->and(
-                        $queryBuilder->expr()->eq('uid', $queryBuilder->createNamedParameter($pageId, \PDO::PARAM_INT)),
+                        $queryBuilder->expr()->eq('uid', $queryBuilder->createNamedParameter($pageId, Connection::PARAM_INT)),
                         $queryBuilder->expr()->eq('sys_language_uid', 0)
                     )
                 );
@@ -2082,7 +2101,7 @@ class PageRepository implements LoggerAwareInterface
             $queryBuilder->orderBy('sys_language_uid', 'DESC');
         } else {
             $queryBuilder->where(
-                $queryBuilder->expr()->eq('uid', $queryBuilder->createNamedParameter($pageId, \PDO::PARAM_INT))
+                $queryBuilder->expr()->eq('uid', $queryBuilder->createNamedParameter($pageId, Connection::PARAM_INT))
             );
         }
         $page = $queryBuilder->executeQuery()->fetchAssociative();

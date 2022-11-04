@@ -21,6 +21,7 @@ use ArrayObject;
 use Psr\Container\ContainerInterface;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Symfony\Component\Console\Command\HelpCommand;
+use Symfony\Component\EventDispatcher\EventDispatcher as SymfonyEventDispatcher;
 use Symfony\Contracts\EventDispatcher\EventDispatcherInterface as SymfonyEventDispatcherInterface;
 use TYPO3\CMS\Core\Configuration\Loader\PageTsConfigLoader;
 use TYPO3\CMS\Core\Core\Environment;
@@ -28,7 +29,6 @@ use TYPO3\CMS\Core\DependencyInjection\ContainerBuilder;
 use TYPO3\CMS\Core\Imaging\IconRegistry;
 use TYPO3\CMS\Core\Package\AbstractServiceProvider;
 use TYPO3\CMS\Core\Package\PackageManager;
-use TYPO3\SymfonyPsrEventDispatcherAdapter\EventDispatcherAdapter as SymfonyEventDispatcher;
 
 /**
  * @internal
@@ -65,11 +65,11 @@ class ServiceProvider extends AbstractServiceProvider
             Crypto\PasswordHashing\PasswordHashFactory::class => [ static::class, 'getPasswordHashFactory' ],
             EventDispatcher\EventDispatcher::class => [ static::class, 'getEventDispatcher' ],
             EventDispatcher\ListenerProvider::class => [ static::class, 'getEventListenerProvider' ],
+            FormProtection\FormProtectionFactory::class => [ static::class, 'getFormProtectionFactory' ],
             Http\Client\GuzzleClientFactory::class => [ static::class, 'getGuzzleClientFactory' ],
             Http\MiddlewareStackResolver::class => [ static::class, 'getMiddlewareStackResolver' ],
             Http\RequestFactory::class => [ static::class, 'getRequestFactory' ],
             Imaging\IconFactory::class => [ static::class, 'getIconFactory' ],
-            Imaging\IconProvider\FontawesomeIconProvider::class => [ static::class, 'getFontawesomeIconProvider' ],
             Imaging\IconRegistry::class => [ static::class, 'getIconRegistry' ],
             Localization\LanguageServiceFactory::class => [ static::class, 'getLanguageServiceFactory' ],
             Localization\LanguageStore::class => [ static::class, 'getLanguageStore' ],
@@ -81,6 +81,7 @@ class ServiceProvider extends AbstractServiceProvider
             Middleware\VerifyHostHeader::class => [ static::class, 'getVerifyHostHeaderMiddleware' ],
             Package\FailsafePackageManager::class => [ static::class, 'getFailsafePackageManager' ],
             Package\Cache\PackageDependentCacheIdentifier::class => [ static::class, 'getPackageDependentCacheIdentifier' ],
+            Routing\BackendEntryPointResolver::class => [ static::class, 'getBackendEntryPointResolver' ],
             Registry::class => [ static::class, 'getRegistry' ],
             Resource\Index\FileIndexRepository::class => [ static::class, 'getFileIndexRepository' ],
             Resource\Index\MetaDataRepository::class => [ static::class, 'getMetaDataRepository' ],
@@ -92,8 +93,10 @@ class ServiceProvider extends AbstractServiceProvider
             Service\FlexFormService::class => [ static::class, 'getFlexFormService' ],
             Service\OpcodeCacheService::class => [ static::class, 'getOpcodeCacheService' ],
             TimeTracker\TimeTracker::class => [ static::class, 'getTimeTracker' ],
-            TypoScript\Parser\ConstantConfigurationParser::class => [ static::class, 'getTypoScriptConstantConfigurationParser' ],
             TypoScript\TypoScriptService::class => [ static::class, 'getTypoScriptService' ],
+            TypoScript\AST\Traverser\AstTraverser::class => [ static::class, 'getAstTraverser' ],
+            TypoScript\AST\CommentAwareAstBuilder::class => [ static::class, 'getCommentAwareAstBuilder' ],
+            TypoScript\Tokenizer\LosslessTokenizer::class => [ static::class, 'getLosslessTokenizer'],
             'globalPageTsConfig' => [ static::class, 'getGlobalPageTsConfig' ],
             'icons' => [ static::class, 'getIcons' ],
             'middlewares' => [ static::class, 'getMiddlewares' ],
@@ -316,14 +319,6 @@ class ServiceProvider extends AbstractServiceProvider
         return new ArrayObject();
     }
 
-    public static function getFontawesomeIconProvider(ContainerInterface $container): Imaging\IconProvider\FontawesomeIconProvider
-    {
-        return self::new($container, Imaging\IconProvider\FontawesomeIconProvider::class, [
-            $container->get('cache.assets'),
-            $container->get(Package\Cache\PackageDependentCacheIdentifier::class)->withPrefix('FontawesomeSvgIcons')->toString(),
-        ]);
-    }
-
     public static function getIconRegistry(ContainerInterface $container): Imaging\IconRegistry
     {
         return self::new($container, Imaging\IconRegistry::class, [$container->get('cache.assets'), $container->get(Package\Cache\PackageDependentCacheIdentifier::class)->withPrefix('BackendIcons')->toString()]);
@@ -481,14 +476,44 @@ class ServiceProvider extends AbstractServiceProvider
         return self::new($container, TimeTracker\TimeTracker::class);
     }
 
-    public static function getTypoScriptConstantConfigurationParser(ContainerInterface $container): TypoScript\Parser\ConstantConfigurationParser
-    {
-        return self::new($container, TypoScript\Parser\ConstantConfigurationParser::class);
-    }
-
     public static function getTypoScriptService(ContainerInterface $container): TypoScript\TypoScriptService
     {
         return self::new($container, TypoScript\TypoScriptService::class);
+    }
+
+    public static function getAstTraverser(ContainerInterface $container): TypoScript\AST\Traverser\AstTraverser
+    {
+        return self::new($container, TypoScript\AST\Traverser\AstTraverser::class);
+    }
+
+    public static function getCommentAwareAstBuilder(ContainerInterface $container): TypoScript\AST\CommentAwareAstBuilder
+    {
+        return self::new($container, TypoScript\AST\CommentAwareAstBuilder::class, [
+            $container->get(EventDispatcherInterface::class),
+        ]);
+    }
+
+    public static function getLosslessTokenizer(ContainerInterface $container): TypoScript\Tokenizer\LosslessTokenizer
+    {
+        return self::new($container, TypoScript\Tokenizer\LosslessTokenizer::class);
+    }
+
+    public static function getBackendEntryPointResolver(ContainerInterface $container): Routing\BackendEntryPointResolver
+    {
+        return self::new($container, Routing\BackendEntryPointResolver::class);
+    }
+
+    public static function getFormProtectionFactory(ContainerInterface $container): FormProtection\FormProtectionFactory
+    {
+        return self::new(
+            $container,
+            FormProtection\FormProtectionFactory::class,
+            [
+                $container->get(Messaging\FlashMessageService::class),
+                $container->get(Localization\LanguageServiceFactory::class),
+                $container->get(Registry::class),
+            ]
+        );
     }
 
     public static function getGuzzleClientFactory(ContainerInterface $container): Http\Client\GuzzleClientFactory

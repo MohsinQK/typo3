@@ -8,7 +8,6 @@ return [
         'sortby' => 'sorting',
         'tstamp' => 'tstamp',
         'crdate' => 'crdate',
-        'cruser_id' => 'cruser_id',
         'editlock' => 'editlock',
         'title' => 'LLL:EXT:frontend/Resources/Private/Language/locallang_tca.xlf:tt_content',
         'delete' => 'deleted',
@@ -60,6 +59,9 @@ return [
             'menu_section_pages' => 'content-menu-section',
         ],
         'searchFields' => 'header,header_link,subheader,bodytext,pi_flexform',
+        'security' => [
+            'ignorePageTypeRestriction' => true,
+        ],
     ],
     'columns' => [
         'CType' => [
@@ -243,7 +245,6 @@ return [
             ],
         ],
         'editlock' => [
-            'exclude' => true,
             'displayCond' => 'HIDE_FOR_NON_ADMINS',
             'label' => 'LLL:EXT:core/Resources/Private/Language/locallang_tca.xlf:editlock',
             'config' => [
@@ -322,7 +323,7 @@ return [
             ],
         ],
         'categories' => [
-            'config'=> [
+            'config' => [
                 'type' => 'category',
             ],
         ],
@@ -597,7 +598,9 @@ return [
         ],
         'image' => [
             'label' => 'LLL:EXT:core/Resources/Private/Language/locallang_general.xlf:LGL.images',
-            'config' => \TYPO3\CMS\Core\Utility\ExtensionManagementUtility::getFileFieldTCAConfig('image', [
+            'config' => [
+                'type' => 'file',
+                'allowed' => 'common-image-types',
                 'appearance' => [
                     'createNewRelationLinkTitle' => 'LLL:EXT:frontend/Resources/Private/Language/locallang_ttc.xlf:images.addFileReference',
                     'showPossibleLocalizationRecords' => true,
@@ -638,11 +641,13 @@ return [
                         ],
                     ],
                 ],
-            ], $GLOBALS['TYPO3_CONF_VARS']['GFX']['imagefile_ext']),
+            ],
         ],
         'assets' => [
             'label' => 'LLL:EXT:frontend/Resources/Private/Language/Database.xlf:tt_content.asset_references',
-            'config' => \TYPO3\CMS\Core\Utility\ExtensionManagementUtility::getFileFieldTCAConfig('assets', [
+            'config' => [
+                'type' => 'file',
+                'allowed' => 'common-media-types',
                 'appearance' => [
                     'createNewRelationLinkTitle' => 'LLL:EXT:frontend/Resources/Private/Language/Database.xlf:tt_content.asset_references.addFileReference',
                     'showPossibleLocalizationRecords' => true,
@@ -683,7 +688,7 @@ return [
                         ],
                     ],
                 ],
-            ], $GLOBALS['TYPO3_CONF_VARS']['SYS']['mediafile_ext']),
+            ],
         ],
         'imagewidth' => [
             'exclude' => true,
@@ -975,12 +980,13 @@ return [
         ],
         'media' => [
             'label' => 'LLL:EXT:frontend/Resources/Private/Language/locallang_ttc.xlf:media',
-            'config' => \TYPO3\CMS\Core\Utility\ExtensionManagementUtility::getFileFieldTCAConfig('media', [
+            'config' => [
+                'type' => 'file',
                 'appearance' => [
                     'createNewRelationLinkTitle' => 'LLL:EXT:frontend/Resources/Private/Language/locallang_ttc.xlf:media.addFileReference',
                     'showPossibleLocalizationRecords' => true,
                 ],
-            ]),
+            ],
         ],
         'filelink_size' => [
             'exclude' => true,
@@ -1075,13 +1081,11 @@ return [
                             <el>
                                 <!-- Repeat an element like "xmlTitle" beneath for as many elements you like. Remember to name them uniquely  -->
                               <xmlTitle>
-                                <TCEforms>
-                                    <label>The Title:</label>
-                                    <config>
-                                        <type>input</type>
-                                        <size>48</size>
-                                    </config>
-                                </TCEforms>
+                                <label>The Title:</label>
+                                <config>
+                                    <type>input</type>
+                                    <size>48</size>
+                                </config>
                               </xmlTitle>
                             </el>
                           </ROOT>

@@ -17,6 +17,9 @@ declare(strict_types=1);
 
 namespace TYPO3\CMS\Core\Session;
 
+use Firebase\JWT\JWT;
+use TYPO3\CMS\Core\Security\JwtTrait;
+
 /**
  * Represents all information about a user's session.
  * A user session can be bound to a frontend / backend user, or an anonymous session based on session data stored
@@ -27,16 +30,19 @@ namespace TYPO3\CMS\Core\Session;
  *
  * if a session is user-bound, it is automatically fixated.
  *
- * The $isNew flag is meant to show that this user session object was not fetched from the session backend,
- * but initialized in the first place by the current request.
+ * The `$isNew` flag is meant to show that this user session object was not
+ * fetched from the session backend, but initialized in the first place by
+ * the current request.
  *
- * The $data argument is to store any arbitrary data valid for the users' session.
+ * The `$data` argument stores arbitrary data valid for the user's session.
  *
- * A permanent session means that the client is not issued a session-based cookie but a time-based cookie.
- * So the server-session survives the session of the browser.
+ * A permanent session is not issued by a session-based cookie but a
+ * time-based cookie. The session might be persisted in the user's browser.
  */
 class UserSession
 {
+    use JwtTrait;
+
     protected const SESSION_UPDATE_GRACE_PERIOD = 61;
     protected string $identifier;
     protected ?int $userId;
@@ -56,9 +62,7 @@ class UserSession
     }
 
     /**
-     * Get the user session identifier (the ses_id)
-     *
-     * @return string
+     * @return string the session ID. This is the `ses_id` respectively the `AbstractUserAuthentication->id`
      */
     public function getIdentifier(): string
     {
@@ -66,9 +70,7 @@ class UserSession
     }
 
     /**
-     * Get the user id (ID of the user record to whom the session belongs)
-     *
-     * @return int
+     * @return ?int the user ID the session belongs to. Can also return `0` or `NULL` Which indicates an anonymous session. This is the `ses_userid`.
      */
     public function getUserId(): ?int
     {
@@ -76,9 +78,7 @@ class UserSession
     }
 
     /**
-     * Get the timestamp of the last session data update
-     *
-     * @return int
+     * @return int the timestamp of the last session data update. This is the `ses_tstamp`.
      */
     public function getLastUpdated(): int
     {
@@ -86,11 +86,11 @@ class UserSession
     }
 
     /**
-     * Set / update a data value for a given key.
-     * Throws an exception if the given key is empty.
+     * Sets or updates session data value for a given `$key`. It is also
+     * internally used if calling `AbstractUserAuthentication->setSessionData()`
      *
      * @param string $key The key whose value should be updated
-     * @param mixed $value The value or NULL to unset the key
+     * @param mixed $value The value or `NULL` to unset the key
      */
     public function set(string $key, $value): void
     {
@@ -106,9 +106,7 @@ class UserSession
     }
 
     /**
-     * Check whether the session has data
-     *
-     * @return bool
+     * Checks whether the session has data assigned
      */
     public function hasData(): bool
     {
@@ -116,10 +114,9 @@ class UserSession
     }
 
     /**
-     * Return the data for the given key or an NULL if the key does not exist
-     *
-     * @param string $key
-     * @return mixed
+     * Returns the session data for the given `$key` or `NULL` if the key does
+     * not exist. It is internally used if calling
+     * `AbstractUserAuthentication->getSessionData()`
      */
     public function get(string $key)
     {
@@ -127,9 +124,7 @@ class UserSession
     }
 
     /**
-     * Return the whole session data array.
-     *
-     * @return array
+     * @return array the whole data array.
      */
     public function getData(): array
     {
@@ -137,8 +132,8 @@ class UserSession
     }
 
     /**
-     * Override the whole $data. Can be used to e.g. preserve session data
-     * on login or to remove session data by providing an empty array.
+     * Overrides the whole data array. Can also be used to unset the array.
+     * This also sets the `$wasUpdated` pointer to `true`
      *
      * @param array $data
      */
@@ -153,9 +148,7 @@ class UserSession
     }
 
     /**
-     * Check if session data was already updated
-     *
-     * @return bool
+     * Checks whether the session data has been updated
      */
     public function dataWasUpdated(): bool
     {
@@ -163,10 +156,8 @@ class UserSession
     }
 
     /**
-     * Check if the user session is an anonymous one.
-     * This means, the session does not belong to a logged-in user.
-     *
-     * @return bool
+     * Checks if the user session is an anonymous one. This means, the
+     * session does not belong to a logged-in user
      */
     public function isAnonymous(): bool
     {
@@ -174,9 +165,7 @@ class UserSession
     }
 
     /**
-     * Return the sessions ipLock state
-     *
-     * @return string
+     * @return string the `ipLock` state of the session
      */
     public function getIpLock(): string
     {
@@ -184,9 +173,7 @@ class UserSession
     }
 
     /**
-     * Check whether the session was marked as new on creation
-     *
-     * @return bool
+     * Checks whether the session is marked as new
      */
     public function isNew(): bool
     {
@@ -194,9 +181,7 @@ class UserSession
     }
 
     /**
-     * Check whether the session was marked as permanent on creation
-     *
-     * @return bool
+     * Checks whether the session was marked as permanent
      */
     public function isPermanent(): bool
     {
@@ -204,9 +189,7 @@ class UserSession
     }
 
     /**
-     * Use a gracetime-value to avoid updating a session-record too often
-     *
-     * @return bool
+     * Checks whether the session has to be updated
      */
     public function needsUpdate(): bool
     {
@@ -214,7 +197,25 @@ class UserSession
     }
 
     /**
-     * Create a new user session based on the provided session record
+     * Gets session ID wrapped in JWT to be used for emitting a new cookie.
+     * `Cookie: <JWT(HS256, [identifier => <session-id>], <signature>)>`
+     *
+     * @return string the session ID wrapped in JWT to be used for emitting a new cookie
+     */
+    public function getJwt(): string
+    {
+        // @todo payload could be organized in a new `SessionToken` object
+        return self::encodeHashSignedJwt(
+            [
+                'identifier' => $this->identifier,
+                'time' => (new \DateTimeImmutable())->format(\DateTimeImmutable::RFC3339),
+            ],
+            self::createSigningKeyFromEncryptionKey(UserSession::class)
+        );
+    }
+
+    /**
+     * Creates a new user session based on the provided session record
      *
      * @param string $id the session identifier
      * @param array $record
@@ -238,8 +239,8 @@ class UserSession
     }
 
     /**
-     * Create a non fixated user session. This means the
-     * session does not belong to a logged-in user.
+     * Creates a non fixated user session. This means the
+     * session does not belong to a logged-in user
      *
      * @param string $identifier
      * @return UserSession
@@ -253,8 +254,25 @@ class UserSession
     }
 
     /**
-     * Used internally to store data in the backend
+     * Verifies and resolves the session ID from a submitted cookie value:
+     * `Cookie: <JWT(HS256, [identifier => <session-id>], <signature>)>`
      *
+     * @param string $cookieValue submitted cookie value
+     * @return non-empty-string|null session ID, null in case verification failed
+     * @throws \Exception
+     * @see getJwt()
+     */
+    public static function resolveIdentifierFromJwt(string $cookieValue): ?string
+    {
+        if ($cookieValue === '') {
+            return null;
+        }
+        $payload = self::decodeJwt($cookieValue, self::createSigningKeyFromEncryptionKey(UserSession::class));
+        return !empty($payload->identifier) && is_string($payload->identifier) ? $payload->identifier : null;
+    }
+
+    /**
+     * @internal Used internally to store data in the backend
      * @return array The session record as array
      */
     public function toArray(): array

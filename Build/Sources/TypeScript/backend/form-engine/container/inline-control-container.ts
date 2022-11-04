@@ -40,6 +40,7 @@ enum Selectors {
   uniqueValueSelectors = 'select.t3js-inline-unique',
   revertUniqueness = '.t3js-revert-unique',
   controlContainer = '.t3js-inline-controls',
+  controlTopOuterContainer = '.t3js-inline-controls-top-outer-container',
 }
 
 enum States {
@@ -460,8 +461,8 @@ class InlineControlContainer {
       e.stopImmediatePropagation();
 
       const title = TYPO3.lang['label.confirm.delete_record.title'] || 'Delete this record?';
-      const content = TYPO3.lang['label.confirm.delete_record.content'] || 'Are you sure you want to delete this record?';
-      const $modal = Modal.confirm(title, content, Severity.warning, [
+      const content = (TYPO3.lang['label.confirm.delete_record.content'] || 'Are you sure you want to delete the record \'%s\'?').replace('%s', this.dataset.recordInfo);
+      const modal = Modal.confirm(title, content, Severity.warning, [
         {
           text: TYPO3.lang['buttons.confirm.delete_record.no'] || 'Cancel',
           active: true,
@@ -474,13 +475,13 @@ class InlineControlContainer {
           name: 'yes',
         },
       ]);
-      $modal.on('button.clicked', (modalEvent: Event): void => {
+      modal.addEventListener('button.clicked', (modalEvent: Event): void => {
         if ((<HTMLAnchorElement>modalEvent.target).name === 'yes') {
           const objectId = (<HTMLDivElement>this.closest('[data-object-id]')).dataset.objectId;
           me.deleteRecord(objectId);
         }
 
-        Modal.dismiss();
+        modal.hideModal();
       });
     }).delegateTo(this.container, Selectors.deleteRecordButtonSelector);
   }
@@ -789,13 +790,18 @@ class InlineControlContainer {
    * @param {boolean} visible
    */
   private toggleContainerControls(visible: boolean): void {
-    const controlContainer = this.container.querySelector(Selectors.controlContainer);
+    const controlContainer = this.container.querySelectorAll(
+      ':scope > ' + Selectors.controlContainer + ', '
+      + ':scope > ' + Selectors.controlTopOuterContainer + ' ' + Selectors.controlContainer
+    );
     if (controlContainer === null) {
       return;
     }
-    const controlContainerButtons = controlContainer.querySelectorAll('button, a');
-    controlContainerButtons.forEach((button: HTMLElement): void => {
-      button.style.display = visible ? null : 'none';
+    controlContainer.forEach((container: HTMLElement): void => {
+      let controlContainerButtons = container.querySelectorAll('button, a');
+      controlContainerButtons.forEach((button: HTMLElement): void => {
+        button.style.display = visible ? null : 'none';
+      });
     });
   }
 

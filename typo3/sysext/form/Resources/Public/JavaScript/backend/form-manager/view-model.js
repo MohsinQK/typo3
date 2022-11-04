@@ -397,52 +397,44 @@ function factory($, Modal, Severity, MultiStepWizard, Icons, Notification, Secur
                     + '<div class="alert-body mt-1">'
 
                   if (settings['prototypeNameName']) {
-                    html += '<div class="dropdown-table-row">'
-                      + '<div class="dropdown-table-column dropdown-table-column-top dropdown-table-icon">'
-                      + formPrototypeIconMarkup
-                      + '</div>'
-                      + '<div class="dropdown-table-column dropdown-table-column-top dropdown-table-title">'
+                    html += '<div class="row my-1">'
+                      + '<div class="col col-sm-6">'
+                      + formPrototypeIconMarkup + ' '
                       + TYPO3.lang['formManager.form_prototype']
                       + '</div>'
-                      + '<div class="dropdown-table-column dropdown-table-column-top dropdown-table-value ">'
+                      + '<div class="col">'
                       + securityUtility.encodeHtml(settings['prototypeNameName'])
                       + '</div>'
                       + '</div>';
                   }
 
                   if (settings['templatePathName']) {
-                    html += '<div class="dropdown-table-row">'
-                      + '<div class="dropdown-table-column dropdown-table-column-top dropdown-table-icon">'
-                      + formTemplateIconMarkup
-                      + '</div>'
-                      + '<div class="dropdown-table-column dropdown-table-column-top dropdown-table-title">'
+                    html += '<div class="row my-1">'
+                      + '<div class="col col-sm-6">'
+                      + formTemplateIconMarkup + ' '
                       + TYPO3.lang['formManager.form_template']
                       + '</div>'
-                      + '<div class="dropdown-table-column dropdown-table-column-top dropdown-table-value ">'
+                      + '<div class="col">'
                       + securityUtility.encodeHtml(settings['templatePathName'])
                       + '</div>'
                       + '</div>';
                   }
 
-                  html += '<div class="dropdown-table-row">'
-                    + '<div class="dropdown-table-column dropdown-table-column-top dropdown-table-icon">'
-                    + formNameIconMarkup
-                    + '</div>'
-                    + '<div class="dropdown-table-column dropdown-table-column-top dropdown-table-title">'
+                  html += '<div class="row my-1">'
+                    + '<div class="col col-sm-6">'
+                    + formNameIconMarkup + ' '
                     + TYPO3.lang['formManager.form_name']
                     + '</div>'
-                    + '<div class="dropdown-table-column dropdown-table-column-top dropdown-table-value ">'
+                    + '<div class="col">'
                     + securityUtility.encodeHtml(settings['formName'])
                     + '</div>'
                     + '</div>'
-                    + '<div class="dropdown-table-row">'
-                    + '<div class="dropdown-table-column dropdown-table-column-top dropdown-table-icon">'
-                    + formStorageMarkup
-                    + '</div>'
-                    + '<div class="dropdown-table-column dropdown-table-column-top dropdown-table-title">'
+                    + '<div class="row my-1">'
+                    + '<div class="col col-sm-6">'
+                    + formStorageMarkup + ' '
                     + TYPO3.lang['formManager.form_save_path']
                     + '</div>'
-                    + '<div class="dropdown-table-column dropdown-table-column-top dropdown-table-value ">'
+                    + '<div class="col">'
                     + securityUtility.encodeHtml(settings['savePathName'])
                     + '</div>'
                     + '</div>';
@@ -520,8 +512,8 @@ function factory($, Modal, Severity, MultiStepWizard, Icons, Notification, Secur
           active: true,
           btnClass: 'btn-default',
           name: 'cancel',
-          trigger: function() {
-            Modal.currentModal.trigger('modal-dismiss');
+          trigger: function(e, modal) {
+            modal.hideModal();
           }
         });
 
@@ -530,9 +522,9 @@ function factory($, Modal, Severity, MultiStepWizard, Icons, Notification, Secur
           active: true,
           btnClass: 'btn-warning',
           name: 'createform',
-          trigger: function() {
+          trigger: function(e, modal) {
             document.location = _formManagerApp.getAjaxEndpoint('delete') + '&tx_form_web_formformbuilder[formPersistenceIdentifier]=' + that.data('formPersistenceIdentifier');
-            Modal.currentModal.trigger('modal-dismiss');
+            modal.hideModal();
           }
         });
 
@@ -669,35 +661,35 @@ function factory($, Modal, Severity, MultiStepWizard, Icons, Notification, Secur
                   + '<div class="alert alert-notice">'
                   + '<div class="alert-body mt-1">'
                   + '<div class="dropdown-table-row">'
-                  + '<div class="dropdown-table-column dropdown-table-column-top dropdown-table-icon">'
+                  + '<div class="dropdown-table-column dropdown-table-icon">'
                   + formTemplateIconMarkup
                   + '</div>'
-                  + '<div class="dropdown-table-column dropdown-table-column-top dropdown-table-title">'
+                  + '<div class="dropdown-table-column dropdown-table-title">'
                   + TYPO3.lang['formManager.form_copied']
                   + '</div>'
-                  + '<div class="dropdown-table-column dropdown-table-column-top dropdown-table-value">'
+                  + '<div class="dropdown-table-column dropdown-table-value">'
                   + securityUtility.encodeHtml(settings['confirmationDuplicateFormName'])
                   + '</div>'
                   + '</div>'
                   + '<div class="dropdown-table-row">'
-                  + '<div class="dropdown-table-column dropdown-table-column-top dropdown-table-icon">'
+                  + '<div class="dropdown-table-column dropdown-table-icon">'
                   + formNameIconMarkup
                   + '</div>'
-                  + '<div class="dropdown-table-column dropdown-table-column-top dropdown-table-title">'
+                  + '<div class="dropdown-table-column dropdown-table-title">'
                   + TYPO3.lang['formManager.form_name']
                   + '</div>'
-                  + '<div class="dropdown-table-column dropdown-table-column-top dropdown-table-value">'
+                  + '<div class="dropdown-table-column dropdown-table-value">'
                   + securityUtility.encodeHtml(settings['formName'])
                   + '</div>'
                   + '</div>'
                   + '<div class="dropdown-table-row">'
-                  + '<div class="dropdown-table-column dropdown-table-column-top dropdown-table-icon">'
+                  + '<div class="dropdown-table-column dropdown-table-icon">'
                   + formStorageMarkup
                   + '</div>'
-                  + '<div class="dropdown-table-column dropdown-table-column-top dropdown-table-title">'
+                  + '<div class="dropdown-table-column dropdown-table-title">'
                   + TYPO3.lang['formManager.form_save_path']
                   + '</div>'
-                  + '<div class="dropdown-table-column dropdown-table-column-top dropdown-table-value">'
+                  + '<div class="dropdown-table-column dropdown-table-value">'
                   + securityUtility.encodeHtml(settings['confirmationDuplicateFormSavePath'])
                   + '</div>'
                   + '</div>'
@@ -779,8 +771,8 @@ function factory($, Modal, Severity, MultiStepWizard, Icons, Notification, Secur
             active: true,
             btnClass: 'btn-default',
             name: 'cancel',
-            trigger: function() {
-              Modal.currentModal.trigger('modal-dismiss');
+            trigger: function(e, modal) {
+              modal.hideModal();
             }
           });
 
@@ -824,7 +816,7 @@ function factory($, Modal, Severity, MultiStepWizard, Icons, Notification, Secur
           html = $(html);
           $(getDomElementIdentifier('referenceLink'), html).on('click', function(e) {
             e.preventDefault();
-            Modal.currentModal.trigger('modal-dismiss');
+            Modal.currentModal.hideModal();
             document.location = $(this).prop('href');
           });
 

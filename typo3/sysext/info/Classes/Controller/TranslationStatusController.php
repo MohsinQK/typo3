@@ -22,6 +22,7 @@ use Psr\Http\Message\ServerRequestInterface;
 use TYPO3\CMS\Backend\Routing\PreviewUriBuilder;
 use TYPO3\CMS\Backend\Tree\View\PageTreeView;
 use TYPO3\CMS\Backend\Utility\BackendUtility;
+use TYPO3\CMS\Core\Database\Connection;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Database\Query\Restriction\DeletedRestriction;
 use TYPO3\CMS\Core\Database\Query\Restriction\WorkspaceRestriction;
@@ -126,7 +127,7 @@ class TranslationStatusController extends InfoModuleController
         $lang = $this->getLanguageService();
         $backendUser = $this->getBackendUser();
         // Title length:
-        $titleLen = $backendUser->uc['titleLen'];
+        $titleLen = (int)$backendUser->uc['titleLen'];
         // Put together the TREE:
         $output = '';
         $langRecUids = [];
@@ -248,9 +249,16 @@ class TranslationStatusController extends InfoModuleController
                             'LLL:EXT:info/Resources/Private/Language/locallang_webinfo.xlf:lang_renderl10n_CEcount'
                         ) . '" align="center">' . ($this->getContentElementCount((int)$data['row']['uid'], $languageId) ?: '-') . '</td>';
                     } else {
-                        $info = '<div class="btn-group"><label class="btn btn-default btn-checkbox">';
-                        $info .= '<input type="checkbox" data-lang="' . $languageId . '" data-uid="' . (int)$data['row']['uid'] . '" name="newOL[' . $languageId . '][' . $data['row']['uid'] . ']" value="1" />';
-                        $info .= '<span class="t3-icon fa"></span></label></div>';
+                        $idName = sprintf('new-overlay-%d-%d', $languageId, $data['row']['uid']);
+                        $info = '<div class="form-check form-check-type-icon-toggle">'
+                            . '<input type="checkbox" data-lang="' . $languageId . '" data-uid="' . (int)$data['row']['uid'] . '" name="newOL[' . $languageId . '][' . $data['row']['uid'] . ']" id="' . htmlspecialchars($idName) . '" class="form-check-input" value="1" />'
+                            . '<label class="form-check-label" for="' . $idName . '">'
+                            . '<span class="form-check-label-icon">'
+                            . '<span class="form-check-label-icon-checked">' . $this->iconFactory->getIcon('actions-check', Icon::SIZE_SMALL)->render() . '</span>'
+                            . '<span class="form-check-label-icon-unchecked">' . $this->iconFactory->getIcon('empty-empty', Icon::SIZE_SMALL)->render() . '</span>'
+                            . '</span>'
+                            . '</label>'
+                            . '</div>';
                         $tCells[] = '<td class="' . $status . ' col-border-left">&nbsp;</td>';
                         $tCells[] = '<td class="' . $status . '">&nbsp;</td>';
                         $tCells[] = '<td class="' . $status . '">' . $info . '</td>';
@@ -319,7 +327,7 @@ class TranslationStatusController extends InfoModuleController
                 $createLink = (string)$this->uriBuilder->buildUriFromRoute('tce_db', [
                     'redirect' => $request->getAttribute('normalizedParams')->getRequestUri(),
                 ]);
-                $newButton = '<a href="' . htmlspecialchars($createLink) . '" data-edit-url="' . htmlspecialchars($createLink) . '" class="btn btn-default disabled t3js-language-new-' . $languageId . '" title="' . $lang->sL(
+                $newButton = '<a href="' . htmlspecialchars($createLink) . '" data-edit-url="' . htmlspecialchars($createLink) . '" class="btn btn-default disabled t3js-language-new" data-lang="' . $languageId . '" title="' . $lang->sL(
                     'LLL:EXT:info/Resources/Private/Language/locallang_webinfo.xlf:lang_getlangsta_createNewTranslationHeaders'
                 ) . '">' . $this->iconFactory->getIcon('actions-document-new', Icon::SIZE_SMALL)->render() . '</a>';
 
@@ -366,13 +374,13 @@ class TranslationStatusController extends InfoModuleController
             ->where(
                 $queryBuilder->expr()->eq(
                     $GLOBALS['TCA']['pages']['ctrl']['transOrigPointerField'],
-                    $queryBuilder->createNamedParameter($pageId, \PDO::PARAM_INT)
+                    $queryBuilder->createNamedParameter($pageId, Connection::PARAM_INT)
                 )
             )
             ->andWhere(
                 $queryBuilder->expr()->eq(
                     $GLOBALS['TCA']['pages']['ctrl']['languageField'],
-                    $queryBuilder->createNamedParameter($langId, \PDO::PARAM_INT)
+                    $queryBuilder->createNamedParameter($langId, Connection::PARAM_INT)
                 )
             )
             ->executeQuery();
@@ -408,13 +416,13 @@ class TranslationStatusController extends InfoModuleController
             ->where(
                 $queryBuilder->expr()->eq(
                     'pid',
-                    $queryBuilder->createNamedParameter($pageId, \PDO::PARAM_INT)
+                    $queryBuilder->createNamedParameter($pageId, Connection::PARAM_INT)
                 )
             )
             ->andWhere(
                 $queryBuilder->expr()->eq(
                     'sys_language_uid',
-                    $queryBuilder->createNamedParameter($sysLang, \PDO::PARAM_INT)
+                    $queryBuilder->createNamedParameter($sysLang, Connection::PARAM_INT)
                 )
             )
             ->executeQuery()

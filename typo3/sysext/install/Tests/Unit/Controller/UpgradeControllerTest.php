@@ -17,21 +17,13 @@ declare(strict_types=1);
 
 namespace TYPO3\CMS\Install\Tests\Unit\Controller;
 
-use PHPUnit\Framework\MockObject\MockObject;
-use Prophecy\Argument;
-use Prophecy\PhpUnit\ProphecyTrait;
-use Psr\Http\Message\ServerRequestInterface;
+use TYPO3\CMS\Core\Http\ServerRequest;
 use TYPO3\CMS\Core\View\ViewInterface;
 use TYPO3\CMS\Install\Controller\UpgradeController;
 use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
-/**
- * Test case
- */
 class UpgradeControllerTest extends UnitTestCase
 {
-    use ProphecyTrait;
-
     /**
      * @return array
      */
@@ -69,14 +61,12 @@ class UpgradeControllerTest extends UnitTestCase
             $this->expectException(\InvalidArgumentException::class);
             $this->expectExceptionCode(1537209128);
         }
-        $requestProphecy = $this->prophesize(ServerRequestInterface::class);
-        $requestProphecy->getQueryParams()->willReturn([
+        $request = (new ServerRequest())->withQueryParams([
             'install' => [
                 'version' => $version,
             ],
         ]);
 
-        /** @var UpgradeController|MockObject $subject */
         $subject = $this->getMockBuilder(UpgradeController::class)
             ->disableOriginalConstructor()
             ->onlyMethods(['getDocumentationFiles', 'initializeView'])
@@ -87,10 +77,10 @@ class UpgradeControllerTest extends UnitTestCase
             'readFiles' => [],
             'notAffectedFiles' => [],
         ]);
-        $viewProphecy = $this->prophesize(ViewInterface::class);
-        $viewProphecy->assignMultiple(Argument::cetera())->willReturn($viewProphecy->reveal());
-        $viewProphecy->render(Argument::cetera())->willReturn('');
-        $subject->method('initializeView')->willReturn($viewProphecy->reveal());
-        $subject->upgradeDocsGetChangelogForVersionAction($requestProphecy->reveal());
+        $viewMock = $this->getMockBuilder(ViewInterface::class)->getMock();
+        $viewMock->expects(self::any())->method('assignMultiple')->willReturn($viewMock);
+        $viewMock->expects(self::any())->method('render')->willReturn('');
+        $subject->method('initializeView')->willReturn($viewMock);
+        $subject->upgradeDocsGetChangelogForVersionAction($request);
     }
 }

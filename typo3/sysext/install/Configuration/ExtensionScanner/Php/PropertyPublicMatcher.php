@@ -165,11 +165,6 @@ return [
             'Breaking-55298-DecoupledHistoryFunctionality.rst',
         ],
     ],
-    'TYPO3\CMS\Backend\Controller\ContentElement\ElementHistoryController->content' => [
-        'restFiles' => [
-            'Breaking-55298-DecoupledHistoryFunctionality.rst',
-        ],
-    ],
     'TYPO3\CMS\Backend\Controller\ContentElement\ElementHistoryController->doc' => [
         'restFiles' => [
             'Breaking-55298-DecoupledHistoryFunctionality.rst',
@@ -374,12 +369,6 @@ return [
         ],
     ],
     'TYPO3\CMS\Backend\Controller\File\CreateFolderController->target' => [
-        'restFiles' => [
-            'Deprecation-84289-UseServerRequestInterfaceInFileCreateFolderController.rst',
-            'Breaking-87193-DeprecatedFunctionalityRemoved.rst',
-        ],
-    ],
-    'TYPO3\CMS\Backend\Controller\File\CreateFolderController->content' => [
         'restFiles' => [
             'Deprecation-84289-UseServerRequestInterfaceInFileCreateFolderController.rst',
             'Breaking-87193-DeprecatedFunctionalityRemoved.rst',
@@ -962,6 +951,31 @@ return [
     'TYPO3\CMS\Frontend\ContentObject\ContentObjectRenderer->lastTypoLinkLD' => [
         'restFiles' => [
             'Deprecation-97549-ContentObjectRenderer-lastTypoLinkProperties.rst',
+        ],
+    ],
+    'TYPO3\CMS\Frontend\Controller\TypoScriptFrontendController->spamProtectEmailAddresses' => [
+        'restFiles' => [
+            'Deprecation-97866-VariousPublicTSFEProperties.rst',
+        ],
+    ],
+    'TYPO3\CMS\Frontend\Controller\TypoScriptFrontendController->intTarget' => [
+        'restFiles' => [
+            'Deprecation-97866-VariousPublicTSFEProperties.rst',
+        ],
+    ],
+    'TYPO3\CMS\Frontend\Controller\TypoScriptFrontendController->extTarget' => [
+        'restFiles' => [
+            'Deprecation-97866-VariousPublicTSFEProperties.rst',
+        ],
+    ],
+    'TYPO3\CMS\Frontend\Controller\TypoScriptFrontendController->fileTarget' => [
+        'restFiles' => [
+            'Deprecation-97866-VariousPublicTSFEProperties.rst',
+        ],
+    ],
+    'TYPO3\CMS\Frontend\Controller\TypoScriptFrontendController->baseUrl' => [
+        'restFiles' => [
+            'Deprecation-97866-VariousPublicTSFEProperties.rst',
         ],
     ],
 ];

@@ -36,27 +36,27 @@ class ClassLoadingInformation
     /**
      * Base directory storing all autoload information
      */
-    const AUTOLOAD_INFO_DIR = 'autoload/';
+    public const AUTOLOAD_INFO_DIR = 'autoload/';
 
     /**
      * Base directory storing all autoload information in testing context
      */
-    const AUTOLOAD_INFO_DIR_TESTS = 'autoload-tests/';
+    public const AUTOLOAD_INFO_DIR_TESTS = 'autoload-tests/';
 
     /**
      * Name of file that contains all classes-filename mappings
      */
-    const AUTOLOAD_CLASSMAP_FILENAME = 'autoload_classmap.php';
+    public const AUTOLOAD_CLASSMAP_FILENAME = 'autoload_classmap.php';
 
     /**
      * Name of file that contains all PSR4 mappings, fetched from the composer.json files of extensions
      */
-    const AUTOLOAD_PSR4_FILENAME = 'autoload_psr4.php';
+    public const AUTOLOAD_PSR4_FILENAME = 'autoload_psr4.php';
 
     /**
      * Name of file that contains all class alias mappings
      */
-    const AUTOLOAD_CLASSALIASMAP_FILENAME = 'autoload_classaliasmap.php';
+    public const AUTOLOAD_CLASSALIASMAP_FILENAME = 'autoload_classaliasmap.php';
 
     /**
      * @var ClassLoader
@@ -94,7 +94,6 @@ class ClassLoadingInformation
         $composerClassLoader = static::getClassLoader();
         $activeExtensionPackages = static::getActiveExtensionPackages();
 
-        /** @var ClassLoadingInformationGenerator  $generator */
         $generator = GeneralUtility::makeInstance(ClassLoadingInformationGenerator::class, $composerClassLoader, $activeExtensionPackages, Environment::getPublicPath() . '/', self::isTestingContext());
         $classInfoFiles = $generator->buildAutoloadInformationFiles();
         GeneralUtility::writeFile(self::getClassLoadingInformationDirectory() . self::AUTOLOAD_CLASSMAP_FILENAME, $classInfoFiles['classMapFile']);
@@ -174,7 +173,6 @@ class ClassLoadingInformation
         $composerClassLoader = static::getClassLoader();
         $activeExtensionPackages = static::getActiveExtensionPackages();
 
-        /** @var ClassLoadingInformationGenerator  $generator */
         $generator = GeneralUtility::makeInstance(ClassLoadingInformationGenerator::class, $composerClassLoader, $activeExtensionPackages, Environment::getPublicPath() . '/', self::isTestingContext());
 
         $classInformation = $generator->buildClassLoadingInformationForPackage($package);

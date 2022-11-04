@@ -28,11 +28,12 @@ use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
 use TYPO3\CMS\Core\Configuration\ExtensionConfiguration;
 use TYPO3\CMS\Core\Imaging\IconFactory;
 use TYPO3\CMS\Core\Localization\LanguageService;
-use TYPO3\CMS\Core\Messaging\AbstractMessage;
 use TYPO3\CMS\Core\Messaging\FlashMessage;
 use TYPO3\CMS\Core\Messaging\FlashMessageQueue;
 use TYPO3\CMS\Core\Messaging\FlashMessageService;
+use TYPO3\CMS\Core\Page\JavaScriptModuleInstruction;
 use TYPO3\CMS\Core\Page\PageRenderer;
+use TYPO3\CMS\Core\Type\ContextualFeedbackSeverity;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Core\View\ResponsableViewInterface;
 use TYPO3\CMS\Core\View\ViewInterface;
@@ -148,6 +149,7 @@ final class ModuleTemplate implements ViewInterface, ResponsableViewInterface
         $this->pageRenderer->loadJavaScriptModule('@typo3/backend/global-event-handler.js');
         $this->pageRenderer->loadJavaScriptModule('@typo3/backend/action-dispatcher.js');
         $this->pageRenderer->loadJavaScriptModule('@typo3/backend/element/immediate-action-element.js');
+        $this->pageRenderer->loadJavaScriptModule('@typo3/backend/live-search/live-search-shortcut.js');
         $this->pageRenderer->addBodyContent($this->bodyTag . $this->view->render($templateFileName));
         $this->pageRenderer->setTitle($this->title);
         $updateSignalDetails = BackendUtility::getUpdateSignalDetails();
@@ -158,6 +160,7 @@ final class ModuleTemplate implements ViewInterface, ResponsableViewInterface
         if (!empty($updateSignalDetails['script'])) {
             $this->pageRenderer->addJsFooterInlineCode('updateSignals', implode("\n", $updateSignalDetails['script']));
         }
+        $this->dispatchNotificationMessages();
     }
 
     /**
@@ -233,9 +236,15 @@ final class ModuleTemplate implements ViewInterface, ResponsableViewInterface
     /**
      * Creates a message object and adds it to the FlashMessageQueue.
      * These messages are automatically rendered when the view is rendered.
+     *
+     * @todo: Change $severity to allow ContextualFeedbackSeverity only in v13
      */
-    public function addFlashMessage(string $messageBody, string $messageTitle = '', int $severity = AbstractMessage::OK, bool $storeInSession = true): self
+    public function addFlashMessage(string $messageBody, string $messageTitle = '', int|ContextualFeedbackSeverity $severity = ContextualFeedbackSeverity::OK, bool $storeInSession = true): self
     {
+        if (is_int($severity)) {
+            // @deprecated int type for $severity deprecated in v12, will change to Severity only in v13.
+            $severity = ContextualFeedbackSeverity::transform($severity);
+        }
         $flashMessage = GeneralUtility::makeInstance(FlashMessage::class, $messageBody, $messageTitle, $severity, $storeInSession);
         $this->flashMessageQueue->enqueue($flashMessage);
         return $this;
@@ -321,6 +330,7 @@ final class ModuleTemplate implements ViewInterface, ResponsableViewInterface
         if (!empty($updateSignalDetails['script'])) {
             $this->pageRenderer->addJsFooterInlineCode('updateSignals', implode("\n", $updateSignalDetails['script']));
         }
+        $this->dispatchNotificationMessages();
         return $this->pageRenderer->render();
     }
 
@@ -454,6 +464,19 @@ final class ModuleTemplate implements ViewInterface, ResponsableViewInterface
             E_USER_DEPRECATED
         );
         return '<h1 ' . ($inlineEdit ? 'class="t3js-title-inlineedit"' : '') . '>' . htmlspecialchars($text) . '</h1>';
+    }
+
+    /**
+     * Dispatches all messages in a special FlashMessageQueue to the PageRenderer to be rendered as inline notifications
+     */
+    protected function dispatchNotificationMessages(): void
+    {
+        $notificationQueue = $this->flashMessageService->getMessageQueueByIdentifier(FlashMessageQueue::NOTIFICATION_QUEUE);
+        foreach ($notificationQueue->getAllMessagesAndFlush() as $message) {
+            $notificationInstruction = JavaScriptModuleInstruction::create('@typo3/backend/notification.js');
+            $notificationInstruction->invoke('showMessage', $message->getTitle(), $message->getMessage(), $message->getSeverity());
+            $this->pageRenderer->getJavaScriptRenderer()->addJavaScriptModuleInstruction($notificationInstruction);
+        }
     }
 
     /**

@@ -26,7 +26,7 @@ use TYPO3\CMS\Core\Utility\GeneralUtility;
  */
 class MailMessage extends Email
 {
-    protected Mailer $mailer;
+    protected MailerInterface $mailer;
 
     /**
      * TRUE if the message has been sent.
@@ -35,7 +35,8 @@ class MailMessage extends Email
 
     private function initializeMailer(): void
     {
-        $this->mailer ??= GeneralUtility::makeInstance(Mailer::class);
+        // TODO: DI should be used to inject the MailerInterface
+        $this->mailer ??= GeneralUtility::makeInstance(MailerInterface::class);
     }
 
     /**
@@ -277,27 +278,27 @@ class MailMessage extends Email
     // Compatibility methods, as it was possible in TYPO3 v9 / SwiftMailer.
     //
 
-    public function addFrom(...$addresses): Email
+    public function addFrom(Address|string|null|array ...$addresses): static
     {
         return parent::addFrom(...$this->convertNamedAddress(...$addresses));
     }
 
-    public function addReplyTo(...$addresses): Email
+    public function addReplyTo(Address|string|null|array ...$addresses): static
     {
         return parent::addReplyTo(...$this->convertNamedAddress(...$addresses));
     }
 
-    public function addTo(...$addresses): Email
+    public function addTo(Address|string|null|array ...$addresses): static
     {
         return parent::addTo(...$this->convertNamedAddress(...$addresses));
     }
 
-    public function addCc(...$addresses): Email
+    public function addCc(Address|string|null|array ...$addresses): static
     {
         return parent::addCc(...$this->convertNamedAddress(...$addresses));
     }
 
-    public function addBcc(...$addresses): Email
+    public function addBcc(Address|string|null|array ...$addresses): static
     {
         return parent::addBcc(...$this->convertNamedAddress(...$addresses));
     }

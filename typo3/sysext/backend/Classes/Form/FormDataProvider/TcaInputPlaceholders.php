@@ -15,10 +15,10 @@
 
 namespace TYPO3\CMS\Backend\Form\FormDataProvider;
 
-use Doctrine\DBAL\Connection;
 use TYPO3\CMS\Backend\Form\FormDataCompiler;
 use TYPO3\CMS\Backend\Form\FormDataGroup\TcaInputPlaceholderRecord;
 use TYPO3\CMS\Backend\Form\FormDataProviderInterface;
+use TYPO3\CMS\Core\Database\Connection;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Localization\LanguageService;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
@@ -127,6 +127,7 @@ class TcaInputPlaceholders implements FormDataProviderInterface
                 $foreignTableName = $this->getAllowedTableForGroupField($fieldConfig);
                 break;
             case 'inline':
+            case 'file':
                 $possibleUids = array_filter(GeneralUtility::trimExplode(',', $value, true));
                 $foreignTableName = $fieldConfig['foreign_table'];
                 break;
@@ -174,9 +175,7 @@ class TcaInputPlaceholders implements FormDataProviderInterface
             'inlineCompileExistingChildren' => false,
             'columnsToProcess' => [$columnToProcess],
         ];
-        /** @var TcaInputPlaceholderRecord $formDataGroup */
         $formDataGroup = GeneralUtility::makeInstance(TcaInputPlaceholderRecord::class);
-        /** @var FormDataCompiler $formDataCompiler */
         $formDataCompiler = GeneralUtility::makeInstance(FormDataCompiler::class, $formDataGroup);
         $compilerResult = $formDataCompiler->compile($fakeDataInput);
         return $compilerResult;

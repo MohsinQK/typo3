@@ -26,6 +26,7 @@ use TYPO3\CMS\Core\Console\CommandRegistry;
 use TYPO3\CMS\Core\Localization\LanguageService;
 use TYPO3\CMS\Core\Messaging\FlashMessage;
 use TYPO3\CMS\Core\Messaging\FlashMessageService;
+use TYPO3\CMS\Core\Type\ContextualFeedbackSeverity;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Scheduler\AdditionalFieldProviderInterface;
 use TYPO3\CMS\Scheduler\Controller\SchedulerModuleController;
@@ -104,7 +105,6 @@ class ExecuteSchedulableCommandAdditionalFieldProvider implements AdditionalFiel
 
         $command = $this->schedulableCommands[$submittedData['task_executeschedulablecommand']['command']];
 
-        /** @var FlashMessageService $flashMessageService */
         $flashMessageService = GeneralUtility::makeInstance(FlashMessageService::class);
 
         $hasErrors = false;
@@ -125,7 +125,7 @@ class ExecuteSchedulableCommandAdditionalFieldProvider implements AdditionalFiel
                                 $argumentName
                             ),
                             $this->getLanguageService()->sL('LLL:EXT:scheduler/Resources/Private/Language/locallang.xlf:msg.updateError'),
-                            FlashMessage::ERROR
+                            ContextualFeedbackSeverity::ERROR
                         )
                     );
                     $hasErrors = true;
@@ -153,7 +153,7 @@ class ExecuteSchedulableCommandAdditionalFieldProvider implements AdditionalFiel
                                     $optionDefinition->getName()
                                 ),
                                 $this->getLanguageService()->sL('LLL:EXT:scheduler/Resources/Private/Language/locallang.xlf:msg.updateError'),
-                                FlashMessage::ERROR
+                                ContextualFeedbackSeverity::ERROR
                             )
                         );
                         $hasErrors = true;

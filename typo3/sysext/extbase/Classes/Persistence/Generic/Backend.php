@@ -16,6 +16,7 @@
 namespace TYPO3\CMS\Extbase\Persistence\Generic;
 
 use Psr\EventDispatcher\EventDispatcherInterface;
+use TYPO3\CMS\Core\Context\LanguageAspect;
 use TYPO3\CMS\Core\Database\ReferenceIndex;
 use TYPO3\CMS\Core\SingletonInterface;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
@@ -211,7 +212,16 @@ class Backend implements BackendInterface, SingletonInterface
         $query = $this->persistenceManager->createQueryForType($className);
         $query->getQuerySettings()->setRespectStoragePage(false);
         $query->getQuerySettings()->setRespectSysLanguage(false);
-        $query->getQuerySettings()->setLanguageOverlayMode(true);
+        // This allows to fetch IDs for languages for default language AND language IDs
+        // This is especially important when using the PropertyMapper of the Extbase MVC part to get
+        // an object of the translated version of the incoming ID of a record.
+        $languageAspect = $query->getQuerySettings()->getLanguageAspect();
+        $languageAspect = new LanguageAspect(
+            $languageAspect->getId(),
+            $languageAspect->getContentId(),
+            $languageAspect->getOverlayType() === LanguageAspect::OVERLAYS_OFF ? LanguageAspect::OVERLAYS_ON_WITH_FLOATING : $languageAspect->getOverlayType()
+        );
+        $query->getQuerySettings()->setLanguageAspect($languageAspect);
         return $query->matching($query->equals('uid', $identifier))->execute()->getFirst();
     }
 
@@ -295,10 +305,16 @@ class Backend implements BackendInterface, SingletonInterface
         }
         $row = [];
         $queue = [];
-        $dataMap = $this->dataMapFactory->buildDataMap(get_class($object));
-        $properties = $object->_getProperties();
-        foreach ($properties as $propertyName => $propertyValue) {
-            if (!$dataMap->isPersistableProperty($propertyName) || $this->propertyValueIsLazyLoaded($propertyValue)) {
+        $className = get_class($object);
+        $dataMap = $this->dataMapFactory->buildDataMap($className);
+        $classSchema = $this->reflectionService->getClassSchema($className);
+        foreach ($classSchema->getDomainObjectProperties() as $property) {
+            $propertyName = $property->getName();
+            if (!$dataMap->isPersistableProperty($propertyName)) {
+                continue;
+            }
+            $propertyValue = $object->_getProperty($propertyName);
+            if ($this->propertyValueIsLazyLoaded($propertyValue)) {
                 continue;
             }
             $columnMap = $dataMap->getColumnMap($propertyName);
@@ -582,11 +598,17 @@ class Backend implements BackendInterface, SingletonInterface
                 return;
             }
         }
-        $dataMap = $this->dataMapFactory->buildDataMap(get_class($object));
+        $className = get_class($object);
+        $dataMap = $this->dataMapFactory->buildDataMap($className);
         $row = [];
-        $properties = $object->_getProperties();
-        foreach ($properties as $propertyName => $propertyValue) {
-            if (!$dataMap->isPersistableProperty($propertyName) || $this->propertyValueIsLazyLoaded($propertyValue)) {
+        $classSchema = $this->reflectionService->getClassSchema($className);
+        foreach ($classSchema->getDomainObjectProperties() as $property) {
+            $propertyName = $property->getName();
+            if (!$dataMap->isPersistableProperty($propertyName)) {
+                continue;
+            }
+            $propertyValue = $object->_getProperty($propertyName);
+            if ($this->propertyValueIsLazyLoaded($propertyValue)) {
                 continue;
             }
             $columnMap = $dataMap->getColumnMap($propertyName);
@@ -626,16 +648,18 @@ class Backend implements BackendInterface, SingletonInterface
             }
         }
         $uid = $this->storageBackend->addRow($dataMap->getTableName(), $row);
+        $localizedUid = $object->_getProperty(AbstractDomainObject::PROPERTY_LOCALIZED_UID);
+        $identifier = $uid . ($localizedUid ? '_' . $localizedUid : '');
         $object->_setProperty(AbstractDomainObject::PROPERTY_UID, (int)$uid);
         $object->setPid((int)$row['pid']);
         if ((int)$uid >= 1) {
             $this->eventDispatcher->dispatch(new EntityAddedToPersistenceEvent($object));
         }
         $frameworkConfiguration = $this->configurationManager->getConfiguration(ConfigurationManagerInterface::CONFIGURATION_TYPE_FRAMEWORK);
-        if ($frameworkConfiguration['persistence']['updateReferenceIndex'] === '1') {
+        if (($frameworkConfiguration['persistence']['updateReferenceIndex'] ?? '') === '1') {
             $this->referenceIndex->updateRefIndexTable($dataMap->getTableName(), $uid);
         }
-        $this->session->registerObject($object, $uid);
+        $this->session->registerObject($object, $identifier);
         if ((int)$uid >= 1) {
             $this->eventDispatcher->dispatch(new EntityFinalizedAfterPersistenceEvent($object));
         }
@@ -790,7 +814,7 @@ class Backend implements BackendInterface, SingletonInterface
         $this->eventDispatcher->dispatch(new EntityUpdatedInPersistenceEvent($object));
 
         $frameworkConfiguration = $this->configurationManager->getConfiguration(ConfigurationManagerInterface::CONFIGURATION_TYPE_FRAMEWORK);
-        if ($frameworkConfiguration['persistence']['updateReferenceIndex'] === '1') {
+        if (($frameworkConfiguration['persistence']['updateReferenceIndex'] ?? '') === '1') {
             $this->referenceIndex->updateRefIndexTable($dataMap->getTableName(), $row['uid']);
         }
         return true;
@@ -871,7 +895,7 @@ class Backend implements BackendInterface, SingletonInterface
 
         $this->removeRelatedObjects($object);
         $frameworkConfiguration = $this->configurationManager->getConfiguration(ConfigurationManagerInterface::CONFIGURATION_TYPE_FRAMEWORK);
-        if ($frameworkConfiguration['persistence']['updateReferenceIndex'] === '1') {
+        if (($frameworkConfiguration['persistence']['updateReferenceIndex'] ?? '') === '1') {
             $this->referenceIndex->updateRefIndexTable($tableName, $object->getUid());
         }
     }
@@ -886,13 +910,13 @@ class Backend implements BackendInterface, SingletonInterface
         $className = get_class($object);
         $dataMap = $this->dataMapFactory->buildDataMap($className);
         $classSchema = $this->reflectionService->getClassSchema($className);
-        $properties = $object->_getProperties();
-        foreach ($properties as $propertyName => $propertyValue) {
+        foreach ($classSchema->getDomainObjectProperties() as $property) {
+            $propertyName = $property->getName();
             $columnMap = $dataMap->getColumnMap($propertyName);
             if ($columnMap === null) {
                 continue;
             }
-            $property = $classSchema->getProperty($propertyName);
+            $propertyValue = $object->_getProperty($propertyName);
             if ($property->getCascadeValue() === 'remove') {
                 if ($columnMap->getTypeOfRelation() === ColumnMap::RELATION_HAS_MANY) {
                     foreach ($propertyValue as $containedObject) {
@@ -936,7 +960,7 @@ class Backend implements BackendInterface, SingletonInterface
                 return (int)$frameworkConfiguration['persistence']['classes'][$className]['newRecordStoragePid'];
             }
         }
-        $storagePidList = GeneralUtility::intExplode(',', $frameworkConfiguration['persistence']['storagePid']);
+        $storagePidList = GeneralUtility::intExplode(',', (string)($frameworkConfiguration['persistence']['storagePid'] ?? ''));
         return (int)$storagePidList[0];
     }
 

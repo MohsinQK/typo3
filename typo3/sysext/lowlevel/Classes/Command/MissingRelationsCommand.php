@@ -26,6 +26,7 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 use TYPO3\CMS\Backend\Command\ProgressListener\ReferenceIndexProgressListener;
 use TYPO3\CMS\Backend\Utility\BackendUtility;
 use TYPO3\CMS\Core\Core\Bootstrap;
+use TYPO3\CMS\Core\Database\Connection;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Database\ReferenceIndex;
 use TYPO3\CMS\Core\Utility\ArrayUtility;
@@ -108,7 +109,7 @@ If you want to get more detailed information, use the --verbose option.')
      * @param OutputInterface $output
      * @return int
      */
-    protected function execute(InputInterface $input, OutputInterface $output)
+    protected function execute(InputInterface $input, OutputInterface $output): int
     {
         // Make sure the _cli_ user is loaded
         Bootstrap::initializeBackendAuthentication();
@@ -185,7 +186,7 @@ If you want to get more detailed information, use the --verbose option.')
         } else {
             $io->success('Nothing to do, no missing relations found. Everything is in place.');
         }
-        return 0;
+        return Command::SUCCESS;
     }
 
     /**
@@ -240,8 +241,8 @@ If you want to get more detailed information, use the --verbose option.')
             ->select('ref_uid', 'ref_table', 'softref_key', 'hash', 'tablename', 'recuid', 'field', 'flexpointer')
             ->from('sys_refindex')
             ->where(
-                $queryBuilder->expr()->neq('ref_table', $queryBuilder->createNamedParameter('_FILE', \PDO::PARAM_STR)),
-                $queryBuilder->expr()->gt('ref_uid', $queryBuilder->createNamedParameter(0, \PDO::PARAM_INT))
+                $queryBuilder->expr()->neq('ref_table', $queryBuilder->createNamedParameter('_FILE')),
+                $queryBuilder->expr()->gt('ref_uid', $queryBuilder->createNamedParameter(0, Connection::PARAM_INT))
             )
             ->executeQuery();
 
@@ -271,7 +272,7 @@ If you want to get more detailed information, use the --verbose option.')
                         ->where(
                             $queryBuilder->expr()->eq(
                                 'uid',
-                                $queryBuilder->createNamedParameter($rec['ref_uid'], \PDO::PARAM_INT)
+                                $queryBuilder->createNamedParameter($rec['ref_uid'], Connection::PARAM_INT)
                             )
                         )
                         ->executeQuery()
@@ -291,7 +292,7 @@ If you want to get more detailed information, use the --verbose option.')
                     } else {
                         $offlineVersionRecords[$idx][$rec['hash']] = $infoString;
                     }
-                    // reference to a deleted record
+                // reference to a deleted record
                 } elseif (isset($GLOBALS['TCA'][$rec['ref_table']]['ctrl']['delete']) && $existingRecords[$idx][$GLOBALS['TCA'][$rec['ref_table']]['ctrl']['delete']]) {
                     if ($isSoftReference) {
                         $deletedRecordsInSoftReferenceRelations[] = $infoString;

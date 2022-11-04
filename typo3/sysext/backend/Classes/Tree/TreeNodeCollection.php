@@ -43,12 +43,11 @@ class TreeNodeCollection extends \ArrayObject
      * Sorts the internal nodes array
      *
      * @param int $flags Optional parameter, ignored. Added to be compatible with asort method signature in PHP 8.
-     * @todo: Set return type to void in v12 as breaking patch and drop #[\ReturnTypeWillChange]
      */
-    #[\ReturnTypeWillChange]
-    public function asort($flags = SORT_REGULAR)
+    public function asort($flags = SORT_REGULAR): bool
     {
         $this->uasort([$this, 'nodeCompare']);
+        return true;
     }
 
     /**
@@ -66,49 +65,19 @@ class TreeNodeCollection extends \ArrayObject
     }
 
     /**
-     * Returns the serialized instance
-     *
-     * @return string
-     * @todo: Drop method and \Serializable class interface in v12.
-     */
-    #[\ReturnTypeWillChange]
-    public function serialize()
-    {
-        return serialize($this->__serialize());
-    }
-
-    /**
      * Returns class state to be serialized.
-     *
-     * @todo: Change signature to __serialize(): array in v12
      */
-    #[\ReturnTypeWillChange]
-    public function __serialize()
+    public function __serialize(): array
     {
         return $this->toArray();
-    }
-
-    /**
-     * Create class state from serialized array.
-     *
-     * @param string $serializedString
-     * @throws Exception if the deserialized object type is not identical to the current one
-     * @todo: Drop method and \Serializable class interface in v12.
-     */
-    #[\ReturnTypeWillChange]
-    public function unserialize($serializedString)
-    {
-        $this->__unserialize(unserialize($serializedString));
     }
 
     /**
      * Fills the current node with the given serialized information
      *
      * @throws Exception if the deserialized object type is not identical to the current one
-     * @todo: Change signature to __unserialize(array $arrayRepresentation): void in v12
      */
-    #[\ReturnTypeWillChange]
-    public function __unserialize($arrayRepresentation)
+    public function __unserialize($arrayRepresentation): void
     {
         if ($arrayRepresentation['serializeClassName'] !== static::class) {
             throw new Exception('Deserialized object type is not identical!', 1294586647);

@@ -2,8 +2,6 @@
 
 declare(strict_types=1);
 
-namespace TYPO3\CMS\Install\Updates;
-
 /*
  * This file is part of the TYPO3 CMS project.
  *
@@ -17,7 +15,10 @@ namespace TYPO3\CMS\Install\Updates;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Install\Updates;
+
 use Symfony\Component\Console\Output\OutputInterface;
+use TYPO3\CMS\Core\Database\Connection;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Database\Query\QueryBuilder;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
@@ -106,7 +107,7 @@ final class BackendGroupsExplicitAllowDenyMigration implements UpgradeWizardInte
                     self::TABLE_NAME,
                     ['explicit_allowdeny' => implode(',', $newTuples)],
                     ['uid' => (int)$row['uid']],
-                    ['explicit_allowdeny' => \PDO::PARAM_STR]
+                    ['explicit_allowdeny' => Connection::PARAM_STR]
                 );
             }
         }

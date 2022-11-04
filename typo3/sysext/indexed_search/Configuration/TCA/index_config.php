@@ -7,7 +7,6 @@ return [
         'descriptionColumn' => 'description',
         'tstamp' => 'tstamp',
         'crdate' => 'crdate',
-        'cruser_id' => 'cruser_id',
         'groupName' => 'system',
         'type' => 'type',
         'default_sortby' => 'crdate',
@@ -17,6 +16,9 @@ return [
         ],
         'typeicon_classes' => [
             'default' => 'mimetypes-x-index_config',
+        ],
+        'security' => [
+            'ignorePageTypeRestriction' => true,
         ],
     ],
     'columns' => [

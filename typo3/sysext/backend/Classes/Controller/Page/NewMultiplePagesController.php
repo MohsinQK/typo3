@@ -23,9 +23,11 @@ use TYPO3\CMS\Backend\Routing\PreviewUriBuilder;
 use TYPO3\CMS\Backend\Template\ModuleTemplateFactory;
 use TYPO3\CMS\Backend\Utility\BackendUtility;
 use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
+use TYPO3\CMS\Core\Database\Connection;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Database\Query\Restriction\DeletedRestriction;
 use TYPO3\CMS\Core\DataHandling\DataHandler;
+use TYPO3\CMS\Core\DataHandling\PageDoktypeRegistry;
 use TYPO3\CMS\Core\Domain\Repository\PageRepository;
 use TYPO3\CMS\Core\Imaging\Icon;
 use TYPO3\CMS\Core\Imaging\IconFactory;
@@ -72,6 +74,7 @@ class NewMultiplePagesController
         $viewButton = $buttonBar->makeLinkButton()
             ->setDataAttributes($previewDataAttributes ?? [])
             ->setTitle($this->getLanguageService()->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.showPage'))
+            ->setShowLabelText(true)
             ->setIcon($this->iconFactory->getIcon('actions-view-page', Icon::SIZE_SMALL))
             ->setHref('#');
         $buttonBar->addButton($viewButton);
@@ -177,9 +180,7 @@ class NewMultiplePagesController
         $pagesTsConfig = $tsConfig['TCEFORM.']['pages.'] ?? [];
 
         // Find all available doktypes for the current user
-        $types = $GLOBALS['PAGES_TYPES'];
-        unset($types['default']);
-        $types = array_keys($types);
+        $types = GeneralUtility::makeInstance(PageDoktypeRegistry::class)->getRegisteredDoktypes();
         $types[] = PageRepository::DOKTYPE_DEFAULT;
         $types[] = PageRepository::DOKTYPE_LINK;
         $types[] = PageRepository::DOKTYPE_SHORTCUT;
@@ -228,11 +229,11 @@ class NewMultiplePagesController
             ->where(
                 $queryBuilder->expr()->eq(
                     'pid',
-                    $queryBuilder->createNamedParameter($pageUid, \PDO::PARAM_INT)
+                    $queryBuilder->createNamedParameter($pageUid, Connection::PARAM_INT)
                 ),
                 $queryBuilder->expr()->eq(
                     $GLOBALS['TCA']['pages']['ctrl']['languageField'],
-                    $queryBuilder->createNamedParameter(0, \PDO::PARAM_INT)
+                    $queryBuilder->createNamedParameter(0, Connection::PARAM_INT)
                 )
             )
             ->orderBy('sorting')

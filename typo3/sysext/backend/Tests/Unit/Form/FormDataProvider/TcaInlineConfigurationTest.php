@@ -20,9 +20,6 @@ namespace TYPO3\CMS\Backend\Tests\Unit\Form\FormDataProvider;
 use TYPO3\CMS\Backend\Form\FormDataProvider\TcaInlineConfiguration;
 use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
-/**
- * Test case
- */
 class TcaInlineConfigurationTest extends UnitTestCase
 {
     /**
@@ -572,8 +569,7 @@ class TcaInlineConfigurationTest extends UnitTestCase
                                             'aGivenSetting' => 'aOverrideValue',
                                             'aNewSetting' => 'aNewSetting',
                                             'appearance' => [
-                                                'elementBrowserType' => 'file',
-                                                'elementBrowserAllowed' => 'jpg,png',
+                                                'useSortable' => true,
                                             ],
                                         ],
                                     ],
@@ -602,8 +598,7 @@ class TcaInlineConfigurationTest extends UnitTestCase
                 'aGivenSetting' => 'aOverrideValue',
                 'aNewSetting' => 'aNewSetting',
                 'appearance' => [
-                    'elementBrowserType' => 'file',
-                    'elementBrowserAllowed' => 'jpg,png',
+                    'useSortable' => true,
                 ],
             ],
         ];
@@ -619,8 +614,7 @@ class TcaInlineConfigurationTest extends UnitTestCase
                 'aGivenSetting' => 'aOverrideValue',
                 'aNewSetting' => 'aNewSetting',
                 'appearance' => [
-                    'elementBrowserType' => 'file',
-                    'elementBrowserAllowed' => 'jpg,png',
+                    'useSortable' => true,
                 ],
             ],
             'foreignTable' => 'anotherForeignTableName',

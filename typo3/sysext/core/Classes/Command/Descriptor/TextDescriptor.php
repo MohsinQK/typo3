@@ -86,7 +86,7 @@ class TextDescriptor extends SymfonyTextDescriptor
             // calculate max. width based on available commands per namespace
             $width = $this->getColumnWidth($namespaces);
             foreach ($namespaces as $namespace) {
-                if (ApplicationDescription::GLOBAL_NAMESPACE !== $namespace['id']) {
+                if ($namespace['id'] !== ApplicationDescription::GLOBAL_NAMESPACE) {
                     $this->write("\n");
                     $this->write(' <comment>' . $namespace['id'] . '</comment>', true);
                 }
@@ -105,7 +105,7 @@ class TextDescriptor extends SymfonyTextDescriptor
     {
         foreach ($namespace['commands'] as $name) {
             $this->write("\n");
-            $spacingWidth = $width - Helper::strlen($name);
+            $spacingWidth = $width - Helper::length($name);
             $command = $commands[$name];
 
             $aliases = count($command['aliases']) ? '[' . implode('|', $command['aliases']) . '] ' : '';
@@ -117,9 +117,9 @@ class TextDescriptor extends SymfonyTextDescriptor
     {
         $widths = [];
         foreach ($namespaces as $name => $namespace) {
-            $widths[] = Helper::strlen($name);
+            $widths[] = Helper::length($name);
             foreach ($namespace['commands'] as $commandName) {
-                $widths[] = Helper::strlen($commandName);
+                $widths[] = Helper::length($commandName);
             }
         }
 

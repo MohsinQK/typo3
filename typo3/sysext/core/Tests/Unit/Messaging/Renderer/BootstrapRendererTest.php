@@ -17,16 +17,38 @@ declare(strict_types=1);
 
 namespace TYPO3\CMS\Core\Tests\Unit\Messaging\Renderer;
 
+use Prophecy\Argument;
+use Prophecy\PhpUnit\ProphecyTrait;
+use TYPO3\CMS\Core\Imaging\Icon;
+use TYPO3\CMS\Core\Imaging\IconFactory;
 use TYPO3\CMS\Core\Messaging\FlashMessage;
 use TYPO3\CMS\Core\Messaging\Renderer\BootstrapRenderer;
+use TYPO3\CMS\Core\Type\ContextualFeedbackSeverity;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
-/**
- * Test case
- */
 class BootstrapRendererTest extends UnitTestCase
 {
+    use ProphecyTrait;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $iconProphecy = $this->prophesize(Icon::class);
+        $iconProphecy->render()->willReturn('');
+
+        $iconFactoryProphecy = $this->prophesize(IconFactory::class);
+        $iconFactoryProphecy->getIcon(Argument::cetera())->willReturn($iconProphecy->reveal());
+        GeneralUtility::addInstance(IconFactory::class, $iconFactoryProphecy->reveal());
+    }
+
+    protected function tearDown(): void
+    {
+        GeneralUtility::purgeInstances();
+        parent::tearDown();
+    }
+
     /**
      * @test
      */
@@ -37,7 +59,7 @@ class BootstrapRendererTest extends UnitTestCase
             FlashMessage::class,
             'messageBody',
             'messageTitle',
-            FlashMessage::NOTICE
+            ContextualFeedbackSeverity::NOTICE
         );
         $output = $rendererClass->render([$flashMessage]);
         self::assertStringContainsString('<div class="typo3-messages">', $output);
@@ -57,7 +79,7 @@ class BootstrapRendererTest extends UnitTestCase
             FlashMessage::class,
             'messageBody',
             '',
-            FlashMessage::NOTICE
+            ContextualFeedbackSeverity::NOTICE
         );
         $output = $rendererClass->render([$flashMessage]);
         self::assertStringContainsString('<div class="typo3-messages">', $output);

@@ -175,6 +175,13 @@ class SilentConfigurationUpgradeService
         'EXT/allowLocalInstall',
         // #97265
         'BE/explicitADmode',
+        // #98179
+        'BE/interfaces',
+        // Please note that further migrations in this file are kept in order to remove the setting at the very end
+        // #97797
+        'GFX/processor_path_lzw',
+        // #98503
+        'SYS/caching/cacheConfigurations/pagesection',
     ];
 
     public function __construct(ConfigurationManager $configurationManager)
@@ -325,7 +332,7 @@ class SilentConfigurationUpgradeService
             if ($legacyStrictRedirects !== '' && (bool)$legacyStrictRedirects === true) {
                 $newParameters['HTTP/allow_redirects']['strict'] = true;
             }
-            // defaults are used, no need to set the option in LocalConfiguration.php
+            // defaults are used, no need to set the option in system/settings.php
             if (empty($newParameters['HTTP/allow_redirects'])) {
                 unset($newParameters['HTTP/allow_redirects']);
             }
@@ -476,12 +483,6 @@ class SilentConfigurationUpgradeService
         }
 
         try {
-            $currentPathLzwValue = $this->configurationManager->getLocalConfigurationValueByPath('GFX/processor_path_lzw');
-        } catch (MissingArrayPathException $e) {
-            $currentPathLzwValue = $this->configurationManager->getDefaultConfigurationValueByPath('GFX/processor_path_lzw');
-        }
-
-        try {
             $currentImageFileExtValue = $this->configurationManager->getLocalConfigurationValueByPath('GFX/imagefile_ext');
         } catch (MissingArrayPathException $e) {
             $currentImageFileExtValue = $this->configurationManager->getDefaultConfigurationValueByPath('GFX/imagefile_ext');
@@ -496,9 +497,6 @@ class SilentConfigurationUpgradeService
         if (!$currentEnabledValue) {
             if ($currentPathValue != '') {
                 $changedValues['GFX/processor_path'] = '';
-            }
-            if ($currentPathLzwValue != '') {
-                $changedValues['GFX/processor_path_lzw'] = '';
             }
             if ($currentImageFileExtValue !== 'gif,jpg,jpeg,png') {
                 $changedValues['GFX/imagefile_ext'] = 'gif,jpg,jpeg,png';
@@ -669,7 +667,7 @@ class SilentConfigurationUpgradeService
     }
 
     /**
-     * Migrate the configuration setting BE/lockSSL to boolean if set in the LocalConfiguration.php file
+     * Migrate the configuration setting BE/lockSSL to boolean if set in the system/settings.php file
      *
      * @throws ConfigurationChangedException
      */
@@ -683,7 +681,7 @@ class SilentConfigurationUpgradeService
                 $this->throwConfigurationChangedException();
             }
         } catch (MissingArrayPathException $e) {
-            // no change inside the LocalConfiguration.php found, so nothing needs to be modified
+            // no change inside the system/settings.php found, so nothing needs to be modified
         }
     }
 
@@ -852,7 +850,7 @@ class SilentConfigurationUpgradeService
     }
 
     /**
-     * Migrate the configuration setting BE/lang/debug if set in the LocalConfiguration.php file
+     * Migrate the configuration setting BE/lang/debug if set in the system/settings.php file
      *
      * @throws ConfigurationChangedException
      */
@@ -867,7 +865,7 @@ class SilentConfigurationUpgradeService
                 $this->throwConfigurationChangedException();
             }
         } catch (MissingArrayPathException $e) {
-            // no change inside the LocalConfiguration.php found, so nothing needs to be modified
+            // no change inside the system/settings.php found, so nothing needs to be modified
         }
     }
 
@@ -948,7 +946,7 @@ class SilentConfigurationUpgradeService
                 $this->throwConfigurationChangedException();
             }
         } catch (MissingArrayPathException $e) {
-            // no change inside the LocalConfiguration.php found, so nothing needs to be modified
+            // no change inside the system/settings.php found, so nothing needs to be modified
         }
     }
 
@@ -968,7 +966,7 @@ class SilentConfigurationUpgradeService
                 $this->throwConfigurationChangedException();
             }
         } catch (MissingArrayPathException $e) {
-            // no change inside the LocalConfiguration.php found, so nothing needs to be modified
+            // no change inside the system/settings.php found, so nothing needs to be modified
         }
     }
 
@@ -1052,7 +1050,7 @@ class SilentConfigurationUpgradeService
                 $this->throwConfigurationChangedException();
             }
         } catch (MissingArrayPathException $e) {
-            // no change inside the LocalConfiguration.php found, so nothing needs to be modified
+            // no change inside the system/settings.php found, so nothing needs to be modified
         }
     }
 
@@ -1072,7 +1070,7 @@ class SilentConfigurationUpgradeService
                 $this->throwConfigurationChangedException();
             }
         } catch (MissingArrayPathException $e) {
-            // no change inside the LocalConfiguration.php found, so nothing needs to be modified
+            // no change inside the system/settings.php found, so nothing needs to be modified
         }
     }
 
@@ -1108,7 +1106,7 @@ class SilentConfigurationUpgradeService
                 }
             }
         } catch (MissingArrayPathException $e) {
-            // no change inside the LocalConfiguration.php found, so nothing needs to be modified
+            // no change inside the system/settings.php found, so nothing needs to be modified
         }
     }
 }

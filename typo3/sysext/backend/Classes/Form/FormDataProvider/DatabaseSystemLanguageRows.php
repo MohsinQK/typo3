@@ -21,6 +21,7 @@ use TYPO3\CMS\Core\Localization\LanguageService;
 use TYPO3\CMS\Core\Messaging\FlashMessage;
 use TYPO3\CMS\Core\Messaging\FlashMessageService;
 use TYPO3\CMS\Core\Site\Entity\SiteInterface;
+use TYPO3\CMS\Core\Type\ContextualFeedbackSeverity;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 
 /**
@@ -60,6 +61,7 @@ class DatabaseSystemLanguageRows implements FormDataProviderInterface
                 'title' => $language->getTitle(),
                 'iso' => $iso,
                 'flagIconIdentifier' => $language->getFlagIdentifier(),
+                'direction' => $language->getDirection(),
             ];
 
             if (empty($iso)) {
@@ -76,14 +78,12 @@ class DatabaseSystemLanguageRows implements FormDataProviderInterface
                     $language->getTwoLetterIsoCode(),
                     $languageId
                 );
-                /** @var FlashMessage $flashMessage */
                 $flashMessage = GeneralUtility::makeInstance(
                     FlashMessage::class,
                     $message,
                     '',
-                    FlashMessage::ERROR
+                    ContextualFeedbackSeverity::ERROR
                 );
-                /** @var FlashMessageService $flashMessageService */
                 $flashMessageService = GeneralUtility::makeInstance(FlashMessageService::class);
                 $defaultFlashMessageQueue = $flashMessageService->getMessageQueueByIdentifier();
                 $defaultFlashMessageQueue->enqueue($flashMessage);

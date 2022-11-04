@@ -20,7 +20,6 @@ namespace TYPO3\CMS\Form\Domain\Finishers;
 use TYPO3\CMS\Core\Http\PropagateResponseException;
 use TYPO3\CMS\Core\Http\RedirectResponse;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
-use TYPO3\CMS\Extbase\Mvc\Web\Routing\UriBuilder;
 
 /**
  * This finisher redirects to another Controller.
@@ -29,7 +28,6 @@ use TYPO3\CMS\Extbase\Mvc\Web\Routing\UriBuilder;
  */
 class RedirectFinisher extends AbstractFinisher
 {
-
     /**
      * @var array
      */
@@ -41,26 +39,11 @@ class RedirectFinisher extends AbstractFinisher
     ];
 
     /**
-     * @var \TYPO3\CMS\Extbase\Mvc\Request
-     */
-    protected $request;
-
-    /**
-     * @var \TYPO3\CMS\Extbase\Mvc\Web\Routing\UriBuilder
-     */
-    protected $uriBuilder;
-
-    /**
      * Executes this finisher
      * @see AbstractFinisher::execute()
      */
     protected function executeInternal()
     {
-        $formRuntime = $this->finisherContext->getFormRuntime();
-        $this->request = $formRuntime->getRequest();
-        $this->uriBuilder = GeneralUtility::makeInstance(UriBuilder::class);
-        $this->uriBuilder->setRequest($this->request);
-
         $pageUid = $this->parseOption('pageUid');
         $pageUid = (int)str_replace('pages_', '', (string)$pageUid);
         $additionalParameters = $this->parseOption('additionalParameters');
@@ -86,7 +69,7 @@ class RedirectFinisher extends AbstractFinisher
      * @param int $statusCode (optional) The HTTP status code for the redirect. Default is "303 See Other
      * @see forward()
      */
-    protected function redirect(int $pageUid = 1, string $additionalParameters = '', string $fragment = '', int $statusCode = 303)
+    protected function redirect(int $pageUid, string $additionalParameters, string $fragment, int $statusCode)
     {
         $typolinkConfiguration = [
             'parameter' => $pageUid,
@@ -125,6 +108,6 @@ class RedirectFinisher extends AbstractFinisher
      */
     protected function addBaseUriIfNecessary(string $uri): string
     {
-        return GeneralUtility::locationHeaderUrl((string)$uri);
+        return GeneralUtility::locationHeaderUrl($uri);
     }
 }

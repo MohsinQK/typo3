@@ -23,7 +23,6 @@ use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Database\Query\Restriction\AbstractRestrictionContainer;
 use TYPO3\CMS\Core\Database\Query\Restriction\DefaultRestrictionContainer;
 use TYPO3\CMS\Core\Database\Query\Restriction\HiddenRestriction;
-use TYPO3\CMS\Core\Domain\Repository\PageRepository;
 use TYPO3\CMS\Core\Exception\SiteNotFoundException;
 use TYPO3\CMS\Core\Package\PackageManager;
 use TYPO3\CMS\Core\Site\Entity\Site;
@@ -39,8 +38,9 @@ use TYPO3\CMS\Frontend\Controller\TypoScriptFrontendController;
 
 /**
  * Template object that is responsible for generating the TypoScript template based on template records.
- * @see \TYPO3\CMS\Core\TypoScript\Parser\TypoScriptParser
- * @see \TYPO3\CMS\Core\Configuration\TypoScript\ConditionMatching\AbstractConditionMatcher
+ *
+ * @deprecated This class should not be used anymore, last core usages will be removed during v12.
+ *             Using methods or properties of this class will start logging deprecation messages.
  */
 class TemplateService
 {
@@ -156,18 +156,56 @@ class TemplateService
     protected $rootId;
 
     /**
-     * The rootline from current page to the root page
+     * This is the "local" rootline of a deep page that stops at the first parent
+     * sys_template record that has "root" flag set, in natural parent-child order.
      *
-     * @var array
+     * In frontend context, this is also set as TSFE TypoScriptFrontendController->config['rootLine'].
+     *
+     * Both language and version overlays are applied to these page records:
+     * All "data" fields are set to language / version overlay values, *except* uid and
+     * pid, which are the default-language and live-version ids.
+     *
+     * When page uid 5 is called in this example:
+     * [0] Project name
+     * |- [2] An organizational page, probably with is_siteroot=1 and a site config
+     *    |- [3] Site root with a sys_template having "root" flag set
+     *       |- [5] Here you are
+     *
+     * This $rootLine is:
+     * [0] => [uid = 3, pid = 2, title = Site root with a sys_template having "root" flag set, ...]
+     * [1] => [uid = 5, pid = 3, title = Here you are, ...]
+     *
+     * @var array<int, array<string, mixed>>
      */
     public $rootLine;
 
     /**
-     * Rootline all the way to the root. Set but runThroughTemplates
+     * Rootline of page records all the way to the root.
      *
-     * @var array
+     * In frontend context, this is also set as TSFE TypoScriptFrontendController->rootLine.
+     *
+     * Both language and version overlays are applied to these page records:
+     * All "data" fields are set to language / version overlay values, *except* uid and
+     * pid, which are the default-language and live-version ids.
+     *
+     * First array row with the highest key is the deepest page (the requested page),
+     * then parent pages with descending keys until (but not including) the
+     * project root pseudo page 0.
+     *
+     * When page uid 5 is called in this example:
+     * [0] Project name
+     * |- [2] An organizational page, probably with is_siteroot=1 and a site config
+     *    |- [3] Site root with a sys_template having "root" flag set
+     *       |- [5] Here you are
+     *
+     * This $absoluteRootLine is:
+     * [3] => [uid = 5, pid = 3, title = Here you are, ...]
+     * [2] => [uid = 3, pid = 2, title = Site root with a sys_template having "root" flag set, ...]
+     * [1] => [uid = 2, pid = 0, title = An organizational page, probably with is_siteroot=1 and a site config, ...]
+     *
+     * @var array<int, array<string, mixed>>
      */
-    protected $absoluteRootLine;
+    protected array $absoluteRootLine = [];
 
     /**
      * Array of arrays with title/uid of templates in hierarchy
@@ -327,31 +365,6 @@ class TemplateService
     }
 
     /**
-     * Fetches the "currentPageData" array from cache
-     *
-     * NOTE about currentPageData:
-     * It holds information about the TypoScript conditions along with the list
-     * of template uid's which is used on the page. In the getFromCache() function
-     * in TSFE, currentPageData is used to evaluate if there is a template and
-     * if the matching conditions are alright. Unfortunately this does not take
-     * into account if the templates in the rowSum of currentPageData has
-     * changed composition, eg. due to hidden fields or start/end time. So if a
-     * template is hidden or times out, it'll not be discovered unless the page
-     * is regenerated - at least the this->start function must be called,
-     * because this will make a new portion of data in currentPageData string.
-     *
-     * @param int $pageId
-     * @param string $mountPointValue
-     * @return array Returns the unmatched array $currentPageData if found cached in "cache_pagesection". Otherwise FALSE is returned which means that the array must be generated and stored in the cache
-     * @throws \TYPO3\CMS\Core\Cache\Exception\NoSuchCacheException
-     * @internal
-     */
-    public function getCurrentPageData(int $pageId, string $mountPointValue)
-    {
-        return GeneralUtility::makeInstance(CacheManager::class)->getCache('pagesection')->get($pageId . '_' . GeneralUtility::md5int($mountPointValue));
-    }
-
-    /**
      * Fetches data about which TypoScript-matches there are at this page. Then it performs a matchingtest.
      *
      * @param array $cc An array with three keys, "all", "rowSum" and "rootLine" - all coming from the "currentPageData" array
@@ -360,8 +373,7 @@ class TemplateService
     public function matching($cc)
     {
         if (is_array($cc['all'])) {
-            /** @var ConditionMatcher $matchObj */
-            $matchObj = GeneralUtility::makeInstance(ConditionMatcher::class);
+            $matchObj = GeneralUtility::makeInstance(ConditionMatcher::class, null, null, null, $this->absoluteRootLine);
             $matchObj->setRootline((array)($cc['rootLine'] ?? []));
             $sectionsMatch = [];
             foreach ($cc['all'] as $key => $pre) {
@@ -380,7 +392,6 @@ class TemplateService
      * Sets $this->setup to the parsed TypoScript template array
      *
      * @param array $theRootLine The rootline of the current page (going ALL the way to tree root)
-     * @see \TYPO3\CMS\Frontend\Controller\TypoScriptFrontendController::getConfigArray()
      */
     public function start($theRootLine)
     {
@@ -389,47 +400,18 @@ class TemplateService
             $constantsData = [];
             $setupData = [];
             $cacheIdentifier = '';
-            // Flag that indicates that the existing data in cache_pagesection
-            // could be used (this is the case if $TSFE->all is set, and the
-            // rowSum still matches). Based on this we decide if cache_pagesection
-            // needs to be updated...
-            $isCached = false;
             $this->runThroughTemplates($theRootLine);
-            if ($this->getTypoScriptFrontendController()->all) {
-                $cc = $this->getTypoScriptFrontendController()->all;
-                // The two rowSums must NOT be different from each other - which they will be if start/endtime or hidden has changed!
-                if (serialize($this->rowSum) !== serialize($cc['rowSum'])) {
-                    $cc = [];
-                } else {
-                    // If $TSFE->all contains valid data, we don't need to update cache_pagesection (because this data was fetched from there already)
-                    if (serialize($this->rootLine) === serialize($cc['rootLine'])) {
-                        $isCached = true;
-                    }
-                    // When the data is serialized below (ROWSUM hash), it must not contain the rootline by concept. So this must be removed (and added again later)...
-                    unset($cc['rootLine']);
-                }
-            }
             // This is about getting the hash string which is used to fetch the cached TypoScript template.
             // If there was some cached currentPageData ($cc) then that's good (it gives us the hash).
-            if (!empty($cc)) {
-                // If currentPageData was actually there, we match the result (if this wasn't done already in $TSFE->getFromCache()...)
-                if (!$cc['match']) {
-                    // @todo check if this can ever be the case - otherwise remove
-                    $cc = $this->matching($cc);
-                    ksort($cc);
-                }
+            // If currentPageData was not there, we first find $rowSum (freshly generated). After that we try to see, if it is stored with a list of all conditions. If so we match the result.
+            $rowSumHash = md5('ROWSUM:' . serialize($this->rowSum));
+            $result = $this->getCacheEntry($rowSumHash);
+            if (is_array($result)) {
+                $cc['all'] = $result;
+                $cc['rowSum'] = $this->rowSum;
+                $cc = $this->matching($cc);
+                ksort($cc);
                 $cacheIdentifier = md5(serialize($cc));
-            } else {
-                // If currentPageData was not there, we first find $rowSum (freshly generated). After that we try to see, if it is stored with a list of all conditions. If so we match the result.
-                $rowSumHash = md5('ROWSUM:' . serialize($this->rowSum));
-                $result = $this->getCacheEntry($rowSumHash);
-                if (is_array($result)) {
-                    $cc['all'] = $result;
-                    $cc['rowSum'] = $this->rowSum;
-                    $cc = $this->matching($cc);
-                    ksort($cc);
-                    $cacheIdentifier = md5(serialize($cc));
-                }
             }
             if ($cacheIdentifier) {
                 // Get TypoScript setup array
@@ -473,19 +455,6 @@ class TemplateService
             // Add rootLine
             $cc['rootLine'] = $this->rootLine;
             ksort($cc);
-            // Make global and save
-            $this->getTypoScriptFrontendController()->all = $cc;
-            // Matching must be executed for every request, so this must never be part of the pagesection cache!
-            unset($cc['match']);
-            if (!$isCached && !$this->simulationHiddenOrTime && !$this->getTypoScriptFrontendController()->no_cache) {
-                // Only save the data if we're not simulating by hidden/starttime/endtime
-                $mpvarHash = GeneralUtility::md5int($this->getTypoScriptFrontendController()->MP);
-                $pageSectionCache = GeneralUtility::makeInstance(CacheManager::class)->getCache('pagesection');
-                $pageSectionCache->set($this->getTypoScriptFrontendController()->id . '_' . $mpvarHash, $cc, [
-                    'pageId_' . $this->getTypoScriptFrontendController()->id,
-                    'mpvarHash_' . $mpvarHash,
-                ]);
-            }
             // If everything OK.
             if ($this->rootId && $this->rootLine && $this->setup) {
                 $this->loaded = true;
@@ -523,14 +492,14 @@ class TemplateService
             $where = [
                 $queryBuilder->expr()->eq(
                     'pid',
-                    $queryBuilder->createNamedParameter($this->absoluteRootLine[$a]['uid'], \PDO::PARAM_INT)
+                    $queryBuilder->createNamedParameter($this->absoluteRootLine[$a]['uid'], Connection::PARAM_INT)
                 ),
             ];
             // If first loop AND there is set an alternative template uid, use that
             if ($a === $c - 1 && $start_template_uid) {
                 $where[] = $queryBuilder->expr()->eq(
                     'uid',
-                    $queryBuilder->createNamedParameter($start_template_uid, \PDO::PARAM_INT)
+                    $queryBuilder->createNamedParameter($start_template_uid, Connection::PARAM_INT)
                 );
             }
             $queryBuilder->setRestrictions($this->queryBuilderRestrictions);
@@ -543,10 +512,7 @@ class TemplateService
                 ->setMaxResults(1)
                 ->executeQuery();
             if ($row = $queryResult->fetchAssociative()) {
-                $this->versionOL($row);
-                if (is_array($row)) {
-                    $this->processTemplate($row, 'sys_' . $row['uid'], $this->absoluteRootLine[$a]['uid'], 'sys_' . $row['uid']);
-                }
+                $this->processTemplate($row, 'sys_' . $row['uid'], $this->absoluteRootLine[$a]['uid'], 'sys_' . $row['uid']);
             }
             $this->rootLine[] = $this->absoluteRootLine[$a];
         }
@@ -622,10 +588,11 @@ class TemplateService
         }
         // Include "Based On" sys_templates:
         // 'basedOn' is a list of templates to include
-        if (trim($row['basedOn'] ?? '')) {
+        $basedOn = trim($row['basedOn'] ?? '');
+        if ($basedOn !== '') {
             // Normal Operation, which is to include the "based-on" sys_templates,
             // if they are not already included, and maintaining the sorting of the templates
-            $basedOnIds = GeneralUtility::intExplode(',', $row['basedOn'], true);
+            $basedOnIds = GeneralUtility::intExplode(',', $basedOn, true);
             // skip template if it's already included
             foreach ($basedOnIds as $key => $basedOnId) {
                 if (GeneralUtility::inList($idList, 'sys_' . $basedOnId)) {
@@ -653,7 +620,6 @@ class TemplateService
                 // Traversing list again to ensure the sorting of the templates
                 foreach ($basedOnIds as $id) {
                     if (is_array($subTemplates[$id] ?? false)) {
-                        $this->versionOL($subTemplates[$id]);
                         $this->processTemplate($subTemplates[$id], $idList . ',sys_' . $id, $pid, 'sys_' . $id, $templateID);
                     }
                 }
@@ -794,7 +760,7 @@ class TemplateService
      * @internal
      * @see includeStaticTypoScriptSources()
      */
-    public function addExtensionStatics($idList, $templateID, $pid)
+    protected function addExtensionStatics($idList, $templateID, $pid)
     {
         $this->extensionStaticsProcessed = true;
 
@@ -870,19 +836,6 @@ class TemplateService
         return $subrow;
     }
 
-    /**
-     * Creating versioning overlay of a sys_template record.
-     *
-     * @param array $row Row to overlay (passed by reference)
-     */
-    protected function versionOL(&$row)
-    {
-        if ($this->context->getPropertyFromAspect('workspace', 'isOffline')) {
-            $pageRepository = GeneralUtility::makeInstance(PageRepository::class, $this->context);
-            $pageRepository->versionOL('sys_template', $row);
-        }
-    }
-
     /*******************************************************************
      *
      * Parsing TypoScript code text from Template Records into PHP array
@@ -906,10 +859,8 @@ class TemplateService
         // Parse TypoScript Constants
         // ****************************
         // Initialize parser and match-condition classes:
-        /** @var Parser\TypoScriptParser $constants */
         $constants = GeneralUtility::makeInstance(TypoScriptParser::class);
-        /** @var ConditionMatcher $matchObj */
-        $matchObj = GeneralUtility::makeInstance(ConditionMatcher::class);
+        $matchObj = GeneralUtility::makeInstance(ConditionMatcher::class, null, null, $this->rootLine, $this->absoluteRootLine);
         $matchObj->setSimulateMatchConditions($this->matchAlternative);
         $matchObj->setSimulateMatchResult((bool)$this->matchAll);
         // Traverse constants text fields and parse them
@@ -924,7 +875,6 @@ class TemplateService
         // Parse TypoScript Setup (here called "config")
         // ***********************************************
         // Initialize parser and match-condition classes:
-        /** @var Parser\TypoScriptParser $config */
         $config = GeneralUtility::makeInstance(TypoScriptParser::class);
         $config->regLinenumbers = $this->ext_regLinenumbers;
         $config->regComments = $this->ext_regComments;
@@ -1065,7 +1015,6 @@ class TemplateService
      *
      * @param array $matches Regular expression matches
      * @return string Replacement
-     * @see substituteConstants()
      * @internal
      */
     public function substituteConstantsCallBack($matches)

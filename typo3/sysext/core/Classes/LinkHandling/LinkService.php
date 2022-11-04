@@ -31,15 +31,15 @@ use TYPO3\CMS\Core\Utility\PathUtility;
  */
 class LinkService implements SingletonInterface
 {
-    const TYPE_PAGE = 'page';
-    const TYPE_INPAGE = 'inpage';
-    const TYPE_URL = 'url';
-    const TYPE_EMAIL = 'email';
-    const TYPE_TELEPHONE = 'telephone';
-    const TYPE_FILE = 'file';
-    const TYPE_FOLDER = 'folder';
-    const TYPE_RECORD = 'record';
-    const TYPE_UNKNOWN = 'unknown';
+    public const TYPE_PAGE = 'page';
+    public const TYPE_INPAGE = 'inpage';
+    public const TYPE_URL = 'url';
+    public const TYPE_EMAIL = 'email';
+    public const TYPE_TELEPHONE = 'telephone';
+    public const TYPE_FILE = 'file';
+    public const TYPE_FOLDER = 'folder';
+    public const TYPE_RECORD = 'record';
+    public const TYPE_UNKNOWN = 'unknown';
 
     /**
      * All registered LinkHandlers
@@ -118,7 +118,7 @@ class LinkService implements SingletonInterface
             }
             $fragment = $urnParsed['fragment'] ?? null;
 
-            if (is_object($this->handlers[$type])) {
+            if (isset($this->handlers[$type])) {
                 $result = $this->handlers[$type]->resolveHandlerData($data);
                 $result['type'] = $type;
             } else {
@@ -128,13 +128,13 @@ class LinkService implements SingletonInterface
             if ($fragment) {
                 $result['fragment'] = $fragment;
             }
-        } elseif ($this->handlers[self::TYPE_URL] && PathUtility::hasProtocolAndScheme($urn)) {
+        } elseif (($this->handlers[self::TYPE_URL] ?? false) && PathUtility::hasProtocolAndScheme($urn)) {
             $result = $this->handlers[self::TYPE_URL]->resolveHandlerData(['url' => $urn]);
             $result['type'] = self::TYPE_URL;
         } elseif (($this->handlers[self::TYPE_EMAIL] ?? false) && str_starts_with(strtolower($urn), 'mailto:')) {
             $result = $this->handlers[self::TYPE_EMAIL]->resolveHandlerData(['email' => $urn]);
             $result['type'] = self::TYPE_EMAIL;
-        } elseif (($this->handlers[self::TYPE_TELEPHONE]  ?? false) && str_starts_with(strtolower($urn), 'tel:')) {
+        } elseif (($this->handlers[self::TYPE_TELEPHONE] ?? false) && str_starts_with(strtolower($urn), 'tel:')) {
             $result = $this->handlers[self::TYPE_TELEPHONE]->resolveHandlerData(['telephone' => $urn]);
             $result['type'] = self::TYPE_TELEPHONE;
         } else {

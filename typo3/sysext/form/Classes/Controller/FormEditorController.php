@@ -18,7 +18,6 @@ declare(strict_types=1);
 namespace TYPO3\CMS\Form\Controller;
 
 use Psr\Http\Message\ResponseInterface;
-use Psr\Http\Message\ServerRequestInterface;
 use TYPO3\CMS\Backend\Routing\UriBuilder;
 use TYPO3\CMS\Backend\Template\Components\ButtonBar;
 use TYPO3\CMS\Backend\Template\ModuleTemplate;
@@ -34,6 +33,7 @@ use TYPO3\CMS\Core\Site\Entity\SiteLanguage;
 use TYPO3\CMS\Core\Utility\ArrayUtility;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Core\Utility\PathUtility;
+use TYPO3\CMS\Extbase\Mvc\RequestInterface;
 use TYPO3\CMS\Extbase\Mvc\View\JsonView;
 use TYPO3\CMS\Fluid\View\TemplateView;
 use TYPO3\CMS\Form\Domain\Configuration\ConfigurationService;
@@ -108,7 +108,7 @@ class FormEditorController extends AbstractBackendController
             $this->prototypeConfiguration['formEditor']['dynamicJavaScriptModules']['additionalViewModelModules'] ?? []
         );
         $additionalViewModelRequireJsModules = array_map(
-            static fn (string $name) => JavaScriptModuleInstruction::forRequireJS($name),
+            static fn (string $name) => JavaScriptModuleInstruction::forRequireJS($name, null, true),
             $this->prototypeConfiguration['formEditor']['dynamicRequireJsModules']['additionalViewModelModules'] ?? []
         );
         if (count($additionalViewModelRequireJsModules) > 0) {
@@ -299,7 +299,6 @@ class FormEditorController extends AbstractBackendController
             ],
         ];
 
-        /** @var SiteLanguage $currentSiteLanguage */
         $currentSiteLanguage = GeneralUtility::makeInstance(Site::class, 'form-dummy', $pageId, $fakeSiteConfiguration)
             ->getLanguageById($languageId);
         return $currentSiteLanguage;
@@ -395,7 +394,7 @@ class FormEditorController extends AbstractBackendController
     /**
      * Initialize ModuleTemplate and register docheader icons.
      */
-    protected function initializeModuleTemplate(ServerRequestInterface $request): ModuleTemplate
+    protected function initializeModuleTemplate(RequestInterface $request): ModuleTemplate
     {
         $moduleTemplate = $this->moduleTemplateFactory->create($request);
 
@@ -418,6 +417,7 @@ class FormEditorController extends AbstractBackendController
                 ->setHref((string)$uriBuilder->buildUriFromRoute('web_FormFormbuilder'))
                 ->setClasses('t3-form-element-close-form-button hidden')
                 ->setTitle($this->getLanguageService()->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:rm.closeDoc'))
+                ->setShowLabelText(true)
                 ->setIcon($this->iconFactory->getIcon('actions-close', Icon::SIZE_SMALL));
 
             $saveButton = $buttonBar->makeInputButton()

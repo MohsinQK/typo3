@@ -1,5 +1,7 @@
 .. include:: /Includes.rst.txt
 
+.. _deprecation-96996:
+
 ===============================================================================
 Deprecation: #96996 - Deprecate TypoScriptFrontendController->checkEnableFields
 ===============================================================================
@@ -16,9 +18,8 @@ component.
 Impact
 ======
 
-:php:`TypoScriptFrontendController->checkEnableFields()` will raise a
-deprecation level log entry when called. The extension scanner will
-report usages as weak match.
+:php:`TypoScriptFrontendController->checkEnableFields()` will trigger a PHP :php:`E_USER_DEPRECATED` error
+when called. The extension scanner will report usages as weak match.
 
 Affected Installations
 ======================

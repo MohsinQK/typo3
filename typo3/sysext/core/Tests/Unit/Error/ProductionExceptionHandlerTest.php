@@ -53,6 +53,17 @@ class ProductionExceptionHandlerTest extends UnitTestCase
         $this->subject->method('discloseExceptionInformation')->willReturn(true);
     }
 
+    protected function tearDown(): void
+    {
+        $previousExceptionHandler = set_exception_handler(function () {});
+        restore_exception_handler();
+        if ($previousExceptionHandler !== null) {
+            // testcase exception handler detected, remove it
+            restore_exception_handler();
+        }
+        parent::tearDown();
+    }
+
     /**
      * @test
      */
@@ -140,7 +151,7 @@ class ProductionExceptionHandlerTest extends UnitTestCase
         $typo3InformationProphecy->getCopyrightYear()->willReturn('1999-20XX');
         GeneralUtility::addInstance(Typo3Information::class, $typo3InformationProphecy->reveal());
         $subject = new ProductionExceptionHandler();
-        $logger = new class() implements LoggerInterface {
+        $logger = new class () implements LoggerInterface {
             use LoggerTrait;
             public array $records = [];
             public function log($level, string|\Stringable $message, array $context = []): void

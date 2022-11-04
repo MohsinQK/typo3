@@ -17,11 +17,17 @@ declare(strict_types=1);
 
 namespace TYPO3\CMS\Backend\Tests\Functional\Controller\Page;
 
+use Symfony\Component\DependencyInjection\Container;
+use TYPO3\CMS\Backend\Controller\Event\AfterPageTreeItemsPreparedEvent;
 use TYPO3\CMS\Backend\Controller\Page\TreeController;
+use TYPO3\CMS\Backend\Tests\Functional\Tree\Repository\Fixtures\Tree\NormalizeTreeTrait;
 use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
 use TYPO3\CMS\Core\Context\Context;
 use TYPO3\CMS\Core\Context\WorkspaceAspect;
 use TYPO3\CMS\Core\Core\Bootstrap;
+use TYPO3\CMS\Core\EventDispatcher\ListenerProvider;
+use TYPO3\CMS\Core\Http\ServerRequest;
+use TYPO3\CMS\Core\Http\Uri;
 use TYPO3\CMS\Core\Tests\Functional\SiteHandling\SiteBasedTestTrait;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\TestingFramework\Core\AccessibleObjectInterface;
@@ -29,12 +35,10 @@ use TYPO3\TestingFramework\Core\Functional\Framework\DataHandling\Scenario\DataH
 use TYPO3\TestingFramework\Core\Functional\Framework\DataHandling\Scenario\DataHandlerWriter;
 use TYPO3\TestingFramework\Core\Functional\FunctionalTestCase;
 
-/**
- * Test case for TYPO3\CMS\Backend\Controller\Page\TreeController
- */
 class TreeControllerTest extends FunctionalTestCase
 {
     use SiteBasedTestTrait;
+    use NormalizeTreeTrait;
 
     protected const LANGUAGE_PRESETS = [];
 
@@ -55,16 +59,23 @@ class TreeControllerTest extends FunctionalTestCase
      */
     private $context;
 
-    protected string $backendUserFixture = 'EXT:core/Tests/Functional/Fixtures/be_users.xml';
-
     protected function setUp(): void
     {
         parent::setUp();
-        //admin user for importing dataset
-        $this->backendUser = $this->setUpBackendUserFromFixture(1);
-        $this->setUpDatabase();
 
-        //regular editor, non admin
+        $this->withDatabaseSnapshot(function () {
+            $this->importCSVDataSet(__DIR__ . '/Fixtures/be_users.csv');
+            // Admin user for importing dataset
+            $this->backendUser = $this->setUpBackendUser(1);
+            Bootstrap::initializeLanguageObject();
+            $scenarioFile = __DIR__ . '/Fixtures/PagesWithBEPermissions.yaml';
+            $factory = DataHandlerFactory::fromYamlFile($scenarioFile);
+            $writer = DataHandlerWriter::withBackendUser($this->backendUser);
+            $writer->invokeFactory($factory);
+            static::failIfArrayIsNotEmpty($writer->getErrors());
+        });
+
+        // Regular editor, non admin
         $this->backendUser = $this->setUpBackendUser(9);
         $this->context = GeneralUtility::makeInstance(Context::class);
         $this->subject = $this->getAccessibleMock(TreeController::class, ['dummy']);
@@ -74,18 +85,6 @@ class TreeControllerTest extends FunctionalTestCase
     {
         unset($this->subject, $this->backendUser, $this->context);
         parent::tearDown();
-    }
-
-    protected function setUpDatabase(): void
-    {
-        Bootstrap::initializeLanguageObject();
-        $scenarioFile = __DIR__ . '/Fixtures/PagesWithBEPermissions.yaml';
-        $factory = DataHandlerFactory::fromYamlFile($scenarioFile);
-        $writer = DataHandlerWriter::withBackendUser($this->backendUser);
-        $writer->invokeFactory($factory);
-        static::failIfArrayIsNotEmpty(
-            $writer->getErrors()
-        );
     }
 
     /**
@@ -717,61 +716,43 @@ class TreeControllerTest extends FunctionalTestCase
     }
 
     /**
+     * @test
+     */
+    public function pageTreeItemsModificationEventIsTriggered(): void
+    {
+        Bootstrap::initializeLanguageObject();
+
+        $afterPageTreeItemsPreparedEvent = null;
+
+        /** @var Container $container */
+        $container = $this->getContainer();
+        $container->set(
+            'after-page-tree-items-prepared-listener',
+            static function (AfterPageTreeItemsPreparedEvent $event) use (&$afterPageTreeItemsPreparedEvent) {
+                $afterPageTreeItemsPreparedEvent = $event;
+            }
+        );
+
+        $eventListener = $container->get(ListenerProvider::class);
+        $eventListener->addListener(AfterPageTreeItemsPreparedEvent::class, 'after-page-tree-items-prepared-listener');
+
+        $request = new ServerRequest(new Uri('https://example.com'));
+
+        (new TreeController())->fetchDataAction($request);
+
+        self::assertInstanceOf(AfterPageTreeItemsPreparedEvent::class, $afterPageTreeItemsPreparedEvent);
+        self::assertEquals($request, $afterPageTreeItemsPreparedEvent->getRequest());
+        self::assertCount(12, $afterPageTreeItemsPreparedEvent->getItems());
+        self::assertEquals('1000', $afterPageTreeItemsPreparedEvent->getItems()[1]['identifier']);
+        self::assertEquals('ACME Inc', $afterPageTreeItemsPreparedEvent->getItems()[1]['name']);
+    }
+
+    /**
      * @param int $workspaceId
      */
     private function setWorkspace(int $workspaceId): void
     {
         $this->backendUser->workspace = $workspaceId;
         $this->context->setAspect('workspace', new WorkspaceAspect($workspaceId));
-    }
-
-    /**
-     * Sorts tree array by index of each section item recursively.
-     *
-     * @param array $tree
-     * @return array
-     */
-    private function sortTreeArray(array $tree): array
-    {
-        ksort($tree);
-        return array_map(
-            function (array $item) {
-                foreach ($item as $propertyName => $propertyValue) {
-                    if (!is_array($propertyValue)) {
-                        continue;
-                    }
-                    $item[$propertyName] = $this->sortTreeArray($propertyValue);
-                }
-                return $item;
-            },
-            $tree
-        );
-    }
-
-    /**
-     * Normalizes a tree array, re-indexes numeric indexes, only keep given properties.
-     *
-     * @param array $tree Whole tree array
-     * @param array $keepProperties (property names to be used as indexes for array_intersect_key())
-     * @return array Normalized tree array
-     */
-    private function normalizeTreeArray(array $tree, array $keepProperties): array
-    {
-        return array_map(
-            function (array $item) use ($keepProperties) {
-                // only keep these property names
-                $item = array_intersect_key($item, $keepProperties);
-                foreach ($item as $propertyName => $propertyValue) {
-                    if (!is_array($propertyValue)) {
-                        continue;
-                    }
-                    // process recursively for nested array items (e.g. `_children`)
-                    $item[$propertyName] = $this->normalizeTreeArray($propertyValue, $keepProperties);
-                }
-                return $item;
-            },
-            // normalize numeric indexes (remove sorting markers)
-            array_values($tree)
-        );
     }
 }

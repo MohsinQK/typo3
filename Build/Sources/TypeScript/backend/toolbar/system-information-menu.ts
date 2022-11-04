@@ -47,7 +47,7 @@ class SystemInformationMenu {
     // ensure all default classes are available and previous
     // (at this time in processing unknown) class is removed
     $counter.removeClass();
-    $counter.addClass('t3js-systeminformation-counter toolbar-item-badge badge rounded-pill');
+    $counter.addClass('t3js-systeminformation-counter toolbar-item-badge badge');
     // badgeClass e.g. could be 'badge-info', 'badge-danger', ...
     if (badgeClass !== '') {
       $counter.addClass(badgeClass);
@@ -107,8 +107,8 @@ class SystemInformationMenu {
 
     moduleStorageObject[requestedModule] = {lastAccess: timestamp};
     $.extend(true, storedSystemInformationSettings, moduleStorageObject);
-    const $ajax = PersistentStorage.set('systeminformation', JSON.stringify(storedSystemInformationSettings));
-    $ajax.done((): void => {
+    const ajax = PersistentStorage.set('systeminformation', JSON.stringify(storedSystemInformationSettings));
+    ajax.then((): void => {
       // finally, open the module now
       TYPO3.ModuleMenu.App.showModule(requestedModule, moduleParams);
       Viewport.Topbar.refresh();

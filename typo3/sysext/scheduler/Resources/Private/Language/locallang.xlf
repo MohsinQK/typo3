@@ -220,7 +220,7 @@
 				<source>The end date is before the start date.</source>
 			</trans-unit>
 			<trans-unit id="msg.executed" resname="msg.executed">
-				<source>Executed: %s</source>
+				<source>Task "%s" with uid "%s" has been executed.</source>
 			</trans-unit>
 			<trans-unit id="msg.frequencyError" resname="msg.frequencyError">
 				<source>Invalid frequency. Please enter either a number of seconds or a valid cron command. The cron parser said: %1$s [code: %2$d].</source>
@@ -271,7 +271,7 @@
 				<source>No tasks defined yet.</source>
 			</trans-unit>
 			<trans-unit id="msg.notExecuted" resname="msg.notExecuted">
-				<source>Not executed: %s</source>
+				<source>Task "%s" with uid "%s" has not been executed.</source>
 			</trans-unit>
 			<trans-unit id="msg.executionFailed" resname="msg.executionFailed">
 				<source>Execution of task "%1$s" failed with the following message: %2$s</source>
@@ -416,18 +416,6 @@
 			</trans-unit>
 			<trans-unit id="action.run_task_cron" resname="action.run_task_cron">
 				<source>Run task on next cron job</source>
-			</trans-unit>
-			<trans-unit id="testTask.name" resname="testTask.name">
-				<source>Scheduler test task</source>
-			</trans-unit>
-			<trans-unit id="testTask.description" resname="testTask.description">
-				<source>The Scheduler test task just sends a mail to a given email address. It is designed to be used for testing purposes.</source>
-			</trans-unit>
-			<trans-unit id="sleepTask.name" resname="sleepTask.name">
-				<source>Scheduler sleep task</source>
-			</trans-unit>
-			<trans-unit id="sleepTask.description" resname="sleepTask.description">
-				<source>This task does nothing but put PHP to sleep for a number of seconds. It is designed to test multiple executions.</source>
 			</trans-unit>
 			<trans-unit id="cachingFrameworkGarbageCollection.name" resname="cachingFrameworkGarbageCollection.name">
 				<source>Caching framework garbage collection</source>

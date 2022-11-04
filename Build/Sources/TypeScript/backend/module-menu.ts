@@ -96,17 +96,16 @@ class ModuleMenu {
    * @param {boolean} collapse
    */
   private static toggleMenu(collapse?: boolean): void {
-    const $mainContainer = $(ScaffoldIdentifierEnum.scaffold);
+    const scaffold = document.querySelector(ScaffoldIdentifierEnum.scaffold);
     const expandedClass = 'scaffold-modulemenu-expanded';
 
     if (typeof collapse === 'undefined') {
-      collapse = $mainContainer.hasClass(expandedClass);
+      collapse = scaffold.classList.contains(expandedClass);
     }
-    $mainContainer.toggleClass(expandedClass, !collapse);
+    scaffold.classList.toggle(expandedClass, !collapse);
+
     if (!collapse) {
-      $('.scaffold')
-        .removeClass('scaffold-search-expanded')
-        .removeClass('scaffold-toolbar-expanded');
+      scaffold.classList.remove('scaffold-toolbar-expanded');
     }
 
     // Persist collapsed state in the UC of the current user
@@ -141,15 +140,36 @@ class ModuleMenu {
   }
 
   /**
-   * @param {string} module
+   * @param {string} identifier
    */
-  private static highlightModuleMenuItem(module: string): void {
-    $('.modulemenu-action.modulemenu-action-active')
-      .removeClass('modulemenu-action-active')
-      .removeAttr('aria-current');
-    $('#' + module)
-      .addClass('modulemenu-action-active')
-      .attr('aria-current', 'location');
+  private static highlightModuleMenuItem(identifier: string): void {
+    document.querySelectorAll('[data-modulename].modulemenu-action-active, [data-modulename].active').forEach((element: Element) => {
+      element.classList.remove('active');
+      element.classList.remove('modulemenu-action-active');
+      element.removeAttribute('aria-current');
+    });
+    const module = getRecordFromName(identifier);
+    this.highlightModule(module);
+  }
+
+  /**
+   * @param {Module} module
+   * @param {boolean} current
+   */
+  private static highlightModule(module: Module, current: boolean = true): void {
+    const moduleElement = document.getElementById(module.name);
+    if (moduleElement) {
+      const activeClass = moduleElement.classList.contains('modulemenu-action') ? 'modulemenu-action-active' : 'active';
+      moduleElement.classList.add(activeClass);
+      if (current) {
+        moduleElement.setAttribute('aria-current', 'location');
+        current = false;
+      }
+    }
+
+    if (module.parent !== '') {
+      this.highlightModule(getRecordFromName(module.parent), current);
+    }
   }
 
   private static getPreviousItem(item: HTMLButtonElement): HTMLButtonElement {
@@ -418,7 +438,10 @@ class ModuleMenu {
       }
 
       ModuleMenu.highlightModuleMenuItem(moduleName);
-      $('#' + moduleName).focus();
+      const moduleElement = document.getElementById(moduleName);
+      if (moduleElement) {
+        moduleElement.focus();
+      }
       this.loadedModule = moduleName;
 
       // Synchronise navigation container if module is a standalone module (linked via ModuleMenu).

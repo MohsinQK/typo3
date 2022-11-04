@@ -23,9 +23,6 @@ use TYPO3\CMS\Extbase\Persistence\PersistenceManagerInterface;
 use TYPO3\CMS\Extbase\Persistence\QueryInterface;
 use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
-/**
- * Test case
- */
 class QueryResultTest extends UnitTestCase
 {
     /**
@@ -222,7 +219,6 @@ class QueryResultTest extends UnitTestCase
      */
     public function initializeExecutesQueryWithArrayFetchMode(): void
     {
-        /** @var QueryResult|\PHPUnit\Framework\MockObject\MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface */
         $queryResult = $this->getAccessibleMock(QueryResult::class, ['dummy'], [], '', false);
         $queryResult->_set('persistenceManager', $this->mockPersistenceManager);
         $queryResult->_set('dataMapper', $this->mockDataMapper);

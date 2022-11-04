@@ -22,6 +22,7 @@ use TYPO3\CMS\Core\Database\Connection;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Messaging\FlashMessage;
 use TYPO3\CMS\Core\Messaging\FlashMessageQueue;
+use TYPO3\CMS\Core\Type\ContextualFeedbackSeverity;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 
 /**
@@ -123,7 +124,7 @@ class MySql extends AbstractPlatform
                     . ' You have to change that setting in your MySQL environment'
                     . ' or in $GLOBALS[\'TYPO3_CONF_VARS\'][\'DB\'][\'Connections\'][\'Default\'][\'initCommands\']',
                 'Incompatible SQL modes found!',
-                FlashMessage::ERROR
+                ContextualFeedbackSeverity::ERROR
             ));
         } else {
             $this->messageQueue->enqueue(new FlashMessage(
@@ -142,19 +143,27 @@ class MySql extends AbstractPlatform
     {
         $platformLabel = $this->getPlatformLabel($connection);
         $minimumVersion = $this->getMinimumVersion($connection);
-        preg_match('/MySQL ((\d+\.)*(\d+\.)*\d+)/', $connection->getServerVersion(), $match);
-        $currentMysqlVersion = $match[1];
-        if (version_compare($currentMysqlVersion, $minimumVersion, '<')) {
+        $serverVersion = $connection->getServerVersion();
+        preg_match('/MySQL (5\.5\.5-|)((\d+\.)*(\d+\.)*\d+)/', $serverVersion, $match);
+        $currentMysqlVersion = $match[2] ?? null;
+        if ($currentMysqlVersion === null) {
+            $this->messageQueue->enqueue(new FlashMessage(
+                'Your ' . $platformLabel . ' version could not be determined. Verify manually to have at least '
+                . $platformLabel . ' ' . $minimumVersion . ' installed. Version value: ' . $serverVersion,
+                $platformLabel . ' version invalid',
+                ContextualFeedbackSeverity::ERROR
+            ));
+        } elseif (version_compare($currentMysqlVersion, $minimumVersion, '<')) {
             $this->messageQueue->enqueue(new FlashMessage(
                 'Your ' . $platformLabel . ' version ' . $currentMysqlVersion . ' is too old. TYPO3 CMS does not run'
                     . ' with this version. Update to at least ' . $platformLabel . ' ' . $minimumVersion,
                 $platformLabel . ' version too low',
-                FlashMessage::ERROR
+                ContextualFeedbackSeverity::ERROR
             ));
         } else {
             $this->messageQueue->enqueue(new FlashMessage(
                 '',
-                $platformLabel . ' version is fine'
+                $platformLabel . ' version ' . $currentMysqlVersion . ' is fine'
             ));
         }
     }
@@ -172,7 +181,7 @@ class MySql extends AbstractPlatform
             ->where(
                 $queryBuilder->expr()->eq(
                     'SCHEMA_NAME',
-                    $queryBuilder->createNamedParameter($connection->getDatabase(), \PDO::PARAM_STR)
+                    $queryBuilder->createNamedParameter($connection->getDatabase())
                 )
             )
             ->setMaxResults(1)
@@ -188,7 +197,7 @@ class MySql extends AbstractPlatform
                     implode(' or ', $this->databaseCharsetToCheck)
                 ),
                 $platformLabel . ' database character set check failed',
-                FlashMessage::ERROR
+                ContextualFeedbackSeverity::ERROR
             ));
         } else {
             $this->messageQueue->enqueue(new FlashMessage(
@@ -227,7 +236,7 @@ class MySql extends AbstractPlatform
                     implode(' or ', $this->databaseServerCharsetToCheck)
                 ),
                 $platformLabel . ' database server character set check failed',
-                FlashMessage::INFO
+                ContextualFeedbackSeverity::INFO
             ));
         } else {
             $this->messageQueue->enqueue(new FlashMessage(
@@ -259,7 +268,7 @@ class MySql extends AbstractPlatform
                 'The given database name must not be longer than ' . static::SCHEMA_NAME_MAX_LENGTH . ' characters'
                 . ' and consist of the Unicode Basic Multilingual Plane (BMP), except U+0000',
                 'Database name not valid',
-                FlashMessage::ERROR
+                ContextualFeedbackSeverity::ERROR
             )
         );
     }

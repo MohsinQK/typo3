@@ -93,16 +93,16 @@ class SearchTermRestriction implements QueryRestrictionInterface
                     $searchConstraint = $this->queryBuilder->expr()->and(
                         $this->queryBuilder->expr()->like(
                             $tableAlias . '.' . $fieldName,
-                            $this->queryBuilder->createNamedParameter($like, \PDO::PARAM_STR)
+                            $this->queryBuilder->createNamedParameter($like)
                         )
                     );
                 } else {
                     $searchConstraint = $this->queryBuilder->expr()->and(
-                    // case insensitive
+                        // case insensitive
                         $this->queryBuilder->expr()->comparison(
                             'LOWER(' . $this->queryBuilder->quoteIdentifier($tableAlias . '.' . $fieldName) . ')',
                             'LIKE',
-                            $this->queryBuilder->createNamedParameter(mb_strtolower($like), \PDO::PARAM_STR)
+                            $this->queryBuilder->createNamedParameter(mb_strtolower($like))
                         )
                     );
                 }

@@ -24,6 +24,7 @@ use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
 use TYPO3\CMS\Backend\Utility\BackendUtility;
 use TYPO3\CMS\Core\Core\Bootstrap;
+use TYPO3\CMS\Core\Database\Connection;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Database\Query\Restriction\DeletedRestriction;
 use TYPO3\CMS\Core\DataHandling\DataHandler;
@@ -112,7 +113,7 @@ class WorkspaceVersionRecordsCommand extends Command
      * @param OutputInterface $output
      * @return int
      */
-    protected function execute(InputInterface $input, OutputInterface $output)
+    protected function execute(InputInterface $input, OutputInterface $output): int
     {
         // Make sure the _cli_ user is loaded
         Bootstrap::initializeBackendAuthentication();
@@ -215,15 +216,15 @@ class WorkspaceVersionRecordsCommand extends Command
                 $this->deleteRecords($this->foundRecords['versions_in_live'], $dryRun, $io);
                 break;
 
-            // All records that has been published and can therefore be removed permanently
-            // Subset of "versions" that is a count of 1 or more (has been published)
+                // All records that has been published and can therefore be removed permanently
+                // Subset of "versions" that is a count of 1 or more (has been published)
             case 'published_versions':
                 $io->section('Deleting published records in live workspace now. ' . ($dryRun ? ' (Not deleting now, just a dry run)' : ''));
                 $this->deleteRecords($this->foundRecords['published_versions'], $dryRun, $io);
                 break;
 
-            // Versions that has lost their connection to a workspace in TYPO3.
-            // Subset of "versions" that doesn't belong to an existing workspace [Warning: Fix by move to live workspace]
+                // Versions that has lost their connection to a workspace in TYPO3.
+                // Subset of "versions" that doesn't belong to an existing workspace [Warning: Fix by move to live workspace]
             case 'invalid_workspace':
                 $io->section('Moving versions in invalid workspaces to live workspace now. ' . ($dryRun ? ' (Not deleting now, just a dry run)' : ''));
                 $this->resetRecordsWithoutValidWorkspace($this->foundRecords['invalid_workspace'], $dryRun, $io);
@@ -234,7 +235,7 @@ class WorkspaceVersionRecordsCommand extends Command
                 break;
         }
         $io->success('All done!');
-        return 0;
+        return Command::SUCCESS;
     }
 
     /**
@@ -257,7 +258,7 @@ class WorkspaceVersionRecordsCommand extends Command
                 't3ver_wsid'
             )
             ->from('pages')
-            ->where($queryBuilder->expr()->eq('uid', $queryBuilder->createNamedParameter($rootID, \PDO::PARAM_INT)))
+            ->where($queryBuilder->expr()->eq('uid', $queryBuilder->createNamedParameter($rootID, Connection::PARAM_INT)))
             ->executeQuery()
             ->fetchAssociative();
 
@@ -292,7 +293,7 @@ class WorkspaceVersionRecordsCommand extends Command
                         ->where(
                             $queryBuilder->expr()->eq(
                                 'pid',
-                                $queryBuilder->createNamedParameter($rootID, \PDO::PARAM_INT)
+                                $queryBuilder->createNamedParameter($rootID, Connection::PARAM_INT)
                             )
                         )
                         ->executeQuery();
@@ -301,7 +302,7 @@ class WorkspaceVersionRecordsCommand extends Command
                         $versions = BackendUtility::selectVersionsOfRecord($tableName, $rowSub['uid'], 'uid,t3ver_wsid' . (($GLOBALS['TCA'][$tableName]['ctrl']['delete'] ?? false) ? ',' . $GLOBALS['TCA'][$tableName]['ctrl']['delete'] : ''), null, true);
                         if (is_array($versions)) {
                             foreach ($versions as $verRec) {
-                                if (!$verRec['_CURRENT_VERSION']) {
+                                if (!($verRec['_CURRENT_VERSION'] ?? false)) {
                                     // Register version
                                     $this->foundRecords['all_versioned_records'][$tableName][$verRec['uid']] = $verRec['uid'];
                                     $workspaceId = (int)$verRec['t3ver_wsid'];
@@ -333,7 +334,7 @@ class WorkspaceVersionRecordsCommand extends Command
                 ->where(
                     $queryBuilder->expr()->eq(
                         'pid',
-                        $queryBuilder->createNamedParameter($rootID, \PDO::PARAM_INT)
+                        $queryBuilder->createNamedParameter($rootID, Connection::PARAM_INT)
                     )
                 )
                 ->orderBy('sorting');
@@ -348,7 +349,7 @@ class WorkspaceVersionRecordsCommand extends Command
             $versions = BackendUtility::selectVersionsOfRecord('pages', $rootID, 'uid,t3ver_oid,t3ver_wsid', null, true);
             if (is_array($versions)) {
                 foreach ($versions as $verRec) {
-                    if (!$verRec['_CURRENT_VERSION']) {
+                    if (!($verRec['_CURRENT_VERSION'] ?? false)) {
                         $this->traversePageTreeForVersionedRecords((int)$verRec['uid'], $depth, true, true);
                     }
                 }
@@ -430,7 +431,7 @@ class WorkspaceVersionRecordsCommand extends Command
                         ->where(
                             $queryBuilder->expr()->eq(
                                 'uid',
-                                $queryBuilder->createNamedParameter($uid, \PDO::PARAM_INT)
+                                $queryBuilder->createNamedParameter($uid, Connection::PARAM_INT)
                             )
                         )
                         ->set('t3ver_wsid', 0)

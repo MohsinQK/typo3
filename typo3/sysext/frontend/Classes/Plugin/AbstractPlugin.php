@@ -39,6 +39,8 @@ use TYPO3\CMS\Frontend\Controller\TypoScriptFrontendController;
  * Most legacy frontend plugins are extension classes of this one.
  * This class contains functions which assists these plugins in creating lists, searching, displaying menus, page-browsing (next/previous/1/2/3) and handling links.
  * Functions are all prefixed "pi_" which is reserved for this class. Those functions can of course be overridden in the extension classes (that is the point...)
+ *
+ * @internal This class is not maintained anymore and may be removed in future versions.
  */
 class AbstractPlugin
 {
@@ -228,7 +230,6 @@ class AbstractPlugin
         }
         $this->LLkey = $this->frontendController->getLanguage()->getTypo3Language();
 
-        /** @var Locales $locales */
         $locales = GeneralUtility::makeInstance(Locales::class);
         if (in_array($this->LLkey, $locales->getLocales())) {
             foreach ($locales->getLocaleDependencies($this->LLkey) as $language) {
@@ -924,10 +925,10 @@ class AbstractPlugin
                 $word = $this->LOCAL_LANG['default'][$key][0]['target'];
             } else {
                 // Return alternative string or empty
-                $word = isset($this->LLtestPrefixAlt) ? $this->LLtestPrefixAlt . $alternativeLabel : $alternativeLabel;
+                $word = !empty($this->LLtestPrefixAlt) ? $this->LLtestPrefixAlt . $alternativeLabel : $alternativeLabel;
             }
         }
-        return isset($this->LLtestPrefix) ? $this->LLtestPrefix . $word : $word;
+        return !empty($this->LLtestPrefix) ? $this->LLtestPrefix . $word : $word;
     }
 
     /**
@@ -950,7 +951,6 @@ class AbstractPlugin
             $languageFilePath = 'EXT:' . $this->extKey . '/' . PathUtility::dirname($this->scriptRelPath) . '/locallang.xlf';
         }
         if ($languageFilePath !== '') {
-            /** @var LocalizationFactory $languageFactory */
             $languageFactory = GeneralUtility::makeInstance(LocalizationFactory::class);
             $this->LOCAL_LANG = $languageFactory->getParsedData($languageFilePath, $this->LLkey);
             $alternativeLanguageKeys = GeneralUtility::trimExplode(',', $this->altLLkey, true);
@@ -1029,12 +1029,13 @@ class AbstractPlugin
                             $queryBuilder->createNamedParameter($pidList, Connection::PARAM_INT_ARRAY)
                         )
                     );
-                if (strcmp($mm_cat['catUidList'], '')) {
+                $catUidList = (string)($mm_cat['catUidList'] ?? '');
+                if ($catUidList !== '') {
                     $queryBuilder->andWhere(
                         $queryBuilder->expr()->in(
                             $mm_cat['table'] . '.uid',
                             $queryBuilder->createNamedParameter(
-                                GeneralUtility::intExplode(',', $mm_cat['catUidList'], true),
+                                GeneralUtility::intExplode(',', $catUidList, true),
                                 Connection::PARAM_INT_ARRAY
                             )
                         )
@@ -1179,7 +1180,7 @@ class AbstractPlugin
             ->where(
                 $queryBuilder->expr()->eq(
                     'pid',
-                    $queryBuilder->createNamedParameter($pid, \PDO::PARAM_INT)
+                    $queryBuilder->createNamedParameter($pid, Connection::PARAM_INT)
                 ),
                 QueryHelper::stripLogicalOperatorPrefix($whereClause)
             );
@@ -1196,7 +1197,7 @@ class AbstractPlugin
         }
 
         if (!empty($limit)) {
-            $limitValues = GeneralUtility::intExplode(',', $limit, true);
+            $limitValues = GeneralUtility::intExplode(',', (string)$limit, true);
             if (count($limitValues) === 1) {
                 $queryBuilder->setMaxResults($limitValues[0]);
             } else {
@@ -1301,9 +1302,10 @@ class AbstractPlugin
      */
     public function pi_initPIflexForm($field = 'pi_flexform')
     {
-        // Converting flexform data into array:
-        if (!is_array($this->cObj->data[$field]) && $this->cObj->data[$field]) {
-            $this->cObj->data[$field] = GeneralUtility::xml2array($this->cObj->data[$field]);
+        // Converting flexform data into array
+        $fieldData = $this->cObj->data[$field] ?? null;
+        if (!is_array($fieldData) && $fieldData) {
+            $this->cObj->data[$field] = GeneralUtility::xml2array((string)$fieldData);
             if (!is_array($this->cObj->data[$field])) {
                 $this->cObj->data[$field] = [];
             }
@@ -1354,10 +1356,10 @@ class AbstractPlugin
                         $c++;
                     }
                 }
-            } else {
+            } elseif (isset($tempArr[$v])) {
                 $tempArr = $tempArr[$v];
             }
         }
-        return $tempArr[$value];
+        return $tempArr[$value] ?? '';
     }
 }

@@ -23,9 +23,6 @@ use TYPO3\CMS\Backend\Form\Exception\DatabaseRecordWorkspaceDeletePlaceholderExc
 use TYPO3\CMS\Backend\Form\FormDataProvider\DatabaseEditRow;
 use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
-/**
- * Test case
- */
 class DatabaseEditRowTest extends UnitTestCase
 {
     /**
@@ -35,6 +32,7 @@ class DatabaseEditRowTest extends UnitTestCase
 
     protected function setUp(): void
     {
+        parent::setUp();
         $this->subject = $this->getMockBuilder(DatabaseEditRow::class)
             ->onlyMethods(['getDatabaseRow'])
             ->getMock();

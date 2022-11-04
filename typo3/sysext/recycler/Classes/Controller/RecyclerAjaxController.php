@@ -19,10 +19,12 @@ namespace TYPO3\CMS\Recycler\Controller;
 
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
+use TYPO3\CMS\Backend\History\RecordHistory;
 use TYPO3\CMS\Backend\Utility\BackendUtility;
 use TYPO3\CMS\Backend\View\BackendViewFactory;
 use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
 use TYPO3\CMS\Core\Cache\Frontend\FrontendInterface;
+use TYPO3\CMS\Core\Database\Connection;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\DataHandling\History\RecordHistoryStore;
 use TYPO3\CMS\Core\Http\JsonResponse;
@@ -102,7 +104,7 @@ class RecyclerAjaxController
 
                 $view = $this->backendViewFactory->create($request);
                 $view->assign('showTableHeader', empty($this->conf['table']));
-                $view->assign('showTableName', $GLOBALS['TYPO3_CONF_VARS']['BE']['debug'] && $this->getBackendUser()->isAdmin());
+                $view->assign('showTableName', $this->getBackendUser()->shallDisplayDebugInformation());
                 $view->assign('allowDelete', $allowDelete);
                 $view->assign('groupedRecords', $this->transform($deletedRowsArray));
                 $content = [
@@ -160,6 +162,7 @@ class RecyclerAjaxController
         $groupedRecords = [];
         $lang = $this->getLanguageService();
 
+        $recordHistory = GeneralUtility::makeInstance(RecordHistory::class);
         foreach ($deletedRowsArray as $table => $rows) {
             $groupedRecords[$table]['information'] = [
                 'table' => $table,
@@ -167,7 +170,9 @@ class RecyclerAjaxController
             ];
             foreach ($rows as $row) {
                 $pageTitle = $this->getPageTitle((int)$row['pid']);
-                $backendUserName = $this->getBackendUserInformation((int)$row[$GLOBALS['TCA'][$table]['ctrl']['cruser_id']]);
+                $ownerInformation = $recordHistory->getCreationInformationForRecord($table, $row);
+                $ownerUid = (int)(is_array($ownerInformation) && $ownerInformation['actiontype'] === 'BE' ? $ownerInformation['userid'] : 0);
+                $backendUserName = $this->getBackendUserInformation($ownerUid);
                 $userIdWhoDeleted = $this->getUserWhoDeleted($table, (int)$row['uid']);
 
                 $groupedRecords[$table]['records'][] = [
@@ -178,7 +183,7 @@ class RecyclerAjaxController
                     'crdate' => BackendUtility::datetime($row[$GLOBALS['TCA'][$table]['ctrl']['crdate']]),
                     'tstamp' => BackendUtility::datetime($row[$GLOBALS['TCA'][$table]['ctrl']['tstamp']]),
                     'owner' => $backendUserName,
-                    'owner_uid' => $row[$GLOBALS['TCA'][$table]['ctrl']['cruser_id']],
+                    'owner_uid' => $ownerUid,
                     'title' => BackendUtility::getRecordTitle($table, $row),
                     'path' => $this->getRecordPath((int)$row['pid']),
                     'delete_user_uid' => $userIdWhoDeleted,
@@ -237,6 +242,7 @@ class RecyclerAjaxController
 
     /**
      * Get the user uid of the user who deleted the record
+     * @todo: move this to RecordHistory class
      */
     protected function getUserWhoDeleted(string $table, int $uid): int
     {
@@ -246,19 +252,19 @@ class RecyclerAjaxController
             ->where(
                 $queryBuilder->expr()->eq(
                     'tablename',
-                    $queryBuilder->createNamedParameter($table, \PDO::PARAM_STR)
+                    $queryBuilder->createNamedParameter($table)
                 ),
                 $queryBuilder->expr()->eq(
                     'usertype',
-                    $queryBuilder->createNamedParameter('BE', \PDO::PARAM_STR)
+                    $queryBuilder->createNamedParameter('BE')
                 ),
                 $queryBuilder->expr()->eq(
                     'recuid',
-                    $queryBuilder->createNamedParameter($uid, \PDO::PARAM_INT)
+                    $queryBuilder->createNamedParameter($uid, Connection::PARAM_INT)
                 ),
                 $queryBuilder->expr()->eq(
                     'actiontype',
-                    $queryBuilder->createNamedParameter(RecordHistoryStore::ACTION_DELETE, \PDO::PARAM_INT)
+                    $queryBuilder->createNamedParameter(RecordHistoryStore::ACTION_DELETE, Connection::PARAM_INT)
                 )
             )
             ->setMaxResults(1);
@@ -305,7 +311,7 @@ class RecyclerAjaxController
             $queryBuilder
                 ->select('uid', 'pid', 'title', 'deleted', 't3ver_oid', 't3ver_wsid', 't3ver_state')
                 ->from('pages')
-                ->where($queryBuilder->expr()->eq('uid', $queryBuilder->createNamedParameter($uid, \PDO::PARAM_INT)));
+                ->where($queryBuilder->expr()->eq('uid', $queryBuilder->createNamedParameter($uid, Connection::PARAM_INT)));
             $row = $queryBuilder->executeQuery()->fetchAssociative();
             if ($row !== false) {
                 BackendUtility::workspaceOL('pages', $row);
@@ -339,7 +345,7 @@ class RecyclerAjaxController
         $deleted = $queryBuilder
             ->select('deleted')
             ->from('pages')
-            ->where($queryBuilder->expr()->eq('uid', $queryBuilder->createNamedParameter($pid, \PDO::PARAM_INT)))
+            ->where($queryBuilder->expr()->eq('uid', $queryBuilder->createNamedParameter($pid, Connection::PARAM_INT)))
             ->executeQuery()
             ->fetchOne();
 
@@ -369,7 +375,7 @@ class RecyclerAjaxController
                     ->where(
                         $queryBuilder->expr()->neq(
                             $deletedField,
-                            $queryBuilder->createNamedParameter(0, \PDO::PARAM_INT)
+                            $queryBuilder->createNamedParameter(0, Connection::PARAM_INT)
                         )
                     )
                     ->executeQuery()

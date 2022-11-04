@@ -1,5 +1,7 @@
 .. include:: /Includes.rst.txt
 
+.. _feature-96688:
+
 ====================================================
 Feature: #96688 - Attributes for Extbase Annotations
 ====================================================
@@ -9,17 +11,18 @@ See :issue:`96688`
 Description
 ===========
 
-Since PHP 8, native attributes are supported. In comparison to doc comments, attributes have auto-completion, are better readable and were "invented" for storing meta-information about properties. For more info on attributes see https://stitcher.io/blog/attributes-in-php-8 and https://www.php.net/manual/en/language.attributes.overview.php
+Since PHP 8, native attributes are supported. In comparison to doc comments, attributes have auto-completion,
+are better readable and were "invented" for storing meta-information about properties.
+For more info on attributes see https://stitcher.io/blog/attributes-in-php-8 and https://www.php.net/manual/en/language.attributes.overview.php
 
 Extbase annotations are already nearly 1:1 translatable to attributes.
-
 
 Impact
 ======
 
-In addition to their usage as annotations, the following extbase annotations have been enriched for usage as attributes:
+In addition to their usage as annotations, the following Extbase annotations have been enriched for usage as attributes:
 
-.. code-block:: php
+..  code-block:: php
 
     @Extbase\ORM\Transient
     @Extbase\ORM\Cascade
@@ -42,7 +45,7 @@ Annotations::
      * @Extbase\ORM\Transient()
      */
 
-Attribute::
+Attributes::
 
     use TYPO3\CMS\Extbase\Annotation as Extbase;
 
@@ -99,7 +102,7 @@ With promoted properties in constructor::
         public readonly string $dummyPromotedProperty
     )
     {
-
+        // your code here
     }
 
 .. index:: PHP-API, ext:extbase

@@ -17,6 +17,7 @@ declare(strict_types=1);
 
 namespace TYPO3\CMS\Tstemplate\Controller;
 
+use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use TYPO3\CMS\Backend\Routing\PreviewUriBuilder;
 use TYPO3\CMS\Backend\Routing\UriBuilder;
@@ -24,12 +25,13 @@ use TYPO3\CMS\Backend\Template\Components\ButtonBar;
 use TYPO3\CMS\Backend\Template\ModuleTemplate;
 use TYPO3\CMS\Backend\Utility\BackendUtility;
 use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
+use TYPO3\CMS\Core\Database\Connection;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Database\Query\QueryBuilder;
 use TYPO3\CMS\Core\Database\Query\Restriction\DeletedRestriction;
-use TYPO3\CMS\Core\Database\Query\Restriction\WorkspaceRestriction;
 use TYPO3\CMS\Core\DataHandling\DataHandler;
 use TYPO3\CMS\Core\Domain\Repository\PageRepository;
+use TYPO3\CMS\Core\Http\RedirectResponse;
 use TYPO3\CMS\Core\Imaging\Icon;
 use TYPO3\CMS\Core\Imaging\IconFactory;
 use TYPO3\CMS\Core\Localization\LanguageService;
@@ -45,6 +47,7 @@ abstract class AbstractTemplateModuleController
     protected IconFactory $iconFactory;
     protected UriBuilder $uriBuilder;
     protected ConnectionPool $connectionPool;
+    private DataHandler $dataHandler;
 
     public function injectIconFactory(IconFactory $iconFactory): void
     {
@@ -59,6 +62,56 @@ abstract class AbstractTemplateModuleController
     public function injectConnectionPool(ConnectionPool $connectionPool)
     {
         $this->connectionPool = $connectionPool;
+    }
+
+    public function injectDataHandler(DataHandler $dataHandler)
+    {
+        $this->dataHandler = $dataHandler;
+    }
+
+    /**
+     * Action shared by info/modify ond constant editor to create a new "extension template"
+     */
+    protected function createExtensionTemplateAction(ServerRequestInterface $request, string $redirectTarget): ResponseInterface
+    {
+        $pageUid = (int)($request->getQueryParams()['id'] ?? 0);
+        if ($pageUid === 0) {
+            throw new \RuntimeException('No proper page uid given', 1661333864);
+        }
+        $recordData['sys_template']['NEW'] = [
+            'pid' => $pageUid,
+            'title' => '+ext',
+        ];
+        $this->dataHandler->start($recordData, []);
+        $this->dataHandler->process_datamap();
+        return new RedirectResponse($this->uriBuilder->buildUriFromRoute($redirectTarget, ['id' => $pageUid]));
+    }
+
+    /**
+     * Action shared by info/modify ond constant editor to create a new "site template"
+     */
+    protected function createNewWebsiteTemplateAction(ServerRequestInterface $request, string $redirectTarget): ResponseInterface
+    {
+        $languageService = $this->getLanguageService();
+        $pageUid = (int)($request->getQueryParams()['id'] ?? 0);
+        if ($pageUid === 0) {
+            throw new \RuntimeException('No proper page uid given', 1661333863);
+        }
+        $recordData['sys_template']['NEW'] = [
+            'pid' => $pageUid,
+            'title' => $languageService->sL('LLL:EXT:tstemplate/Resources/Private/Language/locallang.xlf:titleNewSite'),
+            'sorting' => 0,
+            'root' => 1,
+            'clear' => 3,
+            'config' => "\n"
+                . "# Default PAGE object:\n"
+                . "page = PAGE\n"
+                . "page.10 = TEXT\n"
+                . "page.10.value = HELLO WORLD!\n",
+        ];
+        $this->dataHandler->start($recordData, []);
+        $this->dataHandler->process_datamap();
+        return new RedirectResponse($this->uriBuilder->buildUriFromRoute($redirectTarget, ['id' => $pageUid]));
     }
 
     protected function addPreviewButtonToDocHeader(ModuleTemplate $view, int $pageId, int $dokType): void
@@ -89,6 +142,7 @@ abstract class AbstractTemplateModuleController
                 ->setHref('#')
                 ->setDataAttributes($previewDataAttributes ?? [])
                 ->setTitle($languageService->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.showPage'))
+                ->setShowLabelText(true)
                 ->setIcon($this->iconFactory->getIcon('actions-view-page', Icon::SIZE_SMALL));
             $buttonBar->addButton($viewButton, ButtonBar::BUTTON_POSITION_LEFT, 99);
         }
@@ -109,40 +163,6 @@ abstract class AbstractTemplateModuleController
             ->setDisplayName($shortcutTitle)
             ->setArguments(['id' => $pageId]);
         $buttonBar->addButton($shortcutButton);
-    }
-
-    /**
-     * Create template if requested.
-     */
-    protected function createTemplateIfRequested(ServerRequestInterface $request, int $pageId, int $afterExistingTemplateId = 0): int
-    {
-        $languageService = $this->getLanguageService();
-        $dataHandler = GeneralUtility::makeInstance(DataHandler::class);
-        $recordData = [];
-        if ($request->getParsedBody()['createExtension'] ?? $request->getQueryParams()['createExtension'] ?? false) {
-            $recordData['sys_template']['NEW'] = [
-                'pid' => $afterExistingTemplateId ? -1 * $afterExistingTemplateId : $pageId,
-                'title' => '+ext',
-            ];
-            $dataHandler->start($recordData, []);
-            $dataHandler->process_datamap();
-        } elseif ($request->getParsedBody()['newWebsite'] ?? $request->getQueryParams()['newWebsite'] ?? false) {
-            $recordData['sys_template']['NEW'] = [
-                'pid' => $pageId,
-                'title' => $languageService->sL('LLL:EXT:tstemplate/Resources/Private/Language/locallang.xlf:titleNewSite'),
-                'sorting' => 0,
-                'root' => 1,
-                'clear' => 3,
-                'config' => "\n"
-                    . "# Default PAGE object:\n"
-                    . "page = PAGE\n"
-                    . "page.10 = TEXT\n"
-                    . "page.10.value = HELLO WORLD!\n",
-            ];
-            $dataHandler->start($recordData, []);
-            $dataHandler->process_datamap();
-        }
-        return (int)($dataHandler->substNEWwithIDs['NEW'] ?? 0);
     }
 
     /**
@@ -170,10 +190,7 @@ abstract class AbstractTemplateModuleController
         $result = $this->getTemplateQueryBuilder($pageId)->executeQuery();
         $templateRows = [];
         while ($row = $result->fetchAssociative()) {
-            BackendUtility::workspaceOL('sys_template', $row);
-            if (is_array($row)) {
-                $templateRows[] = $row;
-            }
+            $templateRows[] = $row;
         }
         return $templateRows;
     }
@@ -195,12 +212,10 @@ abstract class AbstractTemplateModuleController
         $queryBuilder = $this->getTemplateQueryBuilder($pageId)->setMaxResults(1);
         if ($templateUid) {
             $queryBuilder->andWhere(
-                $queryBuilder->expr()->eq('uid', $queryBuilder->createNamedParameter($templateUid, \PDO::PARAM_INT))
+                $queryBuilder->expr()->eq('uid', $queryBuilder->createNamedParameter($templateUid, Connection::PARAM_INT))
             );
         }
-        $row = $queryBuilder->executeQuery()->fetchAssociative();
-        BackendUtility::workspaceOL('sys_template', $row);
-        return $row;
+        return $queryBuilder->executeQuery()->fetchAssociative();
     }
 
     /**
@@ -208,16 +223,14 @@ abstract class AbstractTemplateModuleController
      */
     protected function getTemplateQueryBuilder(int $pid): QueryBuilder
     {
-        $backendUser = $this->getBackendUser();
         $queryBuilder = $this->connectionPool->getQueryBuilderForTable('sys_template');
         $queryBuilder->getRestrictions()
             ->removeAll()
-            ->add(GeneralUtility::makeInstance(DeletedRestriction::class))
-            ->add(GeneralUtility::makeInstance(WorkspaceRestriction::class, $backendUser->workspace));
+            ->add(GeneralUtility::makeInstance(DeletedRestriction::class));
         return $queryBuilder->select('*')
             ->from('sys_template')
             ->where(
-                $queryBuilder->expr()->eq('pid', $queryBuilder->createNamedParameter($pid, \PDO::PARAM_INT))
+                $queryBuilder->expr()->eq('pid', $queryBuilder->createNamedParameter($pid, Connection::PARAM_INT))
             )
             ->orderBy($GLOBALS['TCA']['sys_template']['ctrl']['sortby']);
     }

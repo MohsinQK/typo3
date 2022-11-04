@@ -17,11 +17,11 @@ declare(strict_types=1);
 
 namespace TYPO3\CMS\Extensionmanager\Tests\Unit\Report;
 
-use Prophecy\Argument;
-use Prophecy\PhpUnit\ProphecyTrait;
+use PHPUnit\Framework\MockObject\MockObject;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use TYPO3\CMS\Core\Localization\LanguageService;
 use TYPO3\CMS\Core\Localization\LanguageServiceFactory;
+use TYPO3\CMS\Core\Type\ContextualFeedbackSeverity;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Extensionmanager\Domain\Model\Extension;
 use TYPO3\CMS\Extensionmanager\Remote\RemoteRegistry;
@@ -32,16 +32,8 @@ use TYPO3\CMS\Reports\Status;
 use TYPO3\CMS\Reports\StatusProviderInterface;
 use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
-/**
- * Test case
- */
 class ExtensionStatusTest extends UnitTestCase
 {
-    use ProphecyTrait;
-
-    /**
-     * Set up
-     */
     protected function setUp(): void
     {
         parent::setUp();
@@ -107,15 +99,17 @@ class ExtensionStatusTest extends UnitTestCase
      */
     public function getStatusCallsMainRepositoryForMainRepositoryStatusResult(): void
     {
-        $languageServiceFactoryProphecy = $this->prophesize(LanguageServiceFactory::class);
-        $languageServiceFactoryProphecy->createFromUserPreferences(Argument::cetera())->willReturn($this->prophesize(LanguageService::class)->reveal());
-        GeneralUtility::addInstance(LanguageServiceFactory::class, $languageServiceFactoryProphecy->reveal());
+        $languageServiceFactoryMock = $this->createMock(LanguageServiceFactory::class);
+        $languageServiceFactoryMock->method('createFromUserPreferences')->with(self::anything())
+            ->willReturn($this->createMock(LanguageService::class));
+        GeneralUtility::addInstance(LanguageServiceFactory::class, $languageServiceFactoryMock);
 
-        $remoteRegistryProphecy = $this->setUpRegistryStatusTests();
-        $subject = new ExtensionStatus($remoteRegistryProphecy->reveal());
+        $remoteRegistryMock = $this->setUpRegistryStatusTests();
+        $remoteRegistryMock->method('getDefaultRemote')->willReturn($this->getDefaultTerExtensionRemote());
+        $remoteRegistryMock->expects(self::atLeastOnce())->method('hasDefaultRemote');
+
+        $subject = new ExtensionStatus($remoteRegistryMock);
         $subject->getStatus();
-
-        $remoteRegistryProphecy->hasDefaultRemote()->shouldHaveBeenCalled();
     }
 
     /**
@@ -123,16 +117,18 @@ class ExtensionStatusTest extends UnitTestCase
      */
     public function getStatusReturnsErrorStatusIfRepositoryIsNotFound(): void
     {
-        $languageServiceFactoryProphecy = $this->prophesize(LanguageServiceFactory::class);
-        $languageServiceFactoryProphecy->createFromUserPreferences(Argument::cetera())->willReturn($this->prophesize(LanguageService::class)->reveal());
-        GeneralUtility::addInstance(LanguageServiceFactory::class, $languageServiceFactoryProphecy->reveal());
+        $languageServiceFactoryMock = $this->createMock(LanguageServiceFactory::class);
+        $languageServiceFactoryMock->method('createFromUserPreferences')->with(self::anything())
+            ->willReturn($this->createMock(LanguageService::class));
+        GeneralUtility::addInstance(LanguageServiceFactory::class, $languageServiceFactoryMock);
 
-        $remoteRegistryProphecy = $this->setUpRegistryStatusTests(0, true, false);
-        $subject = new ExtensionStatus($remoteRegistryProphecy->reveal());
+        $remoteRegistryMock = $this->setUpRegistryStatusTests(0, true, false);
+        $remoteRegistryMock->method('getDefaultRemote')->willReturn($this->getDefaultTerExtensionRemote());
+        $subject = new ExtensionStatus($remoteRegistryMock);
         $status = $subject->getStatus();
         $statusObject = $status['mainRepositoryStatus'];
         self::assertInstanceOf(Status::class, $statusObject);
-        self::assertEquals(Status::ERROR, $statusObject->getSeverity());
+        self::assertEquals(ContextualFeedbackSeverity::ERROR, $statusObject->getSeverity());
     }
 
     /**
@@ -140,8 +136,12 @@ class ExtensionStatusTest extends UnitTestCase
      */
     public function getStatusReturnsNoticeIfRepositoryUpdateIsLongerThanSevenDaysAgo(): void
     {
-        $remoteRegistryProphecy = $this->setUpRegistryStatusTests();
-        $remote = new class() extends TerExtensionRemote {
+        $languageServiceFactoryMock = $this->createMock(LanguageServiceFactory::class);
+        $languageServiceFactoryMock->method('createFromUserPreferences')->with(self::anything())
+            ->willReturn($this->createMock(LanguageService::class));
+        GeneralUtility::addInstance(LanguageServiceFactory::class, $languageServiceFactoryMock);
+
+        $remote = new class () extends TerExtensionRemote {
             public function __construct()
             {
             }
@@ -157,16 +157,13 @@ class ExtensionStatusTest extends UnitTestCase
             }
         };
 
-        $languageServiceFactoryProphecy = $this->prophesize(LanguageServiceFactory::class);
-        $languageServiceFactoryProphecy->createFromUserPreferences(Argument::cetera())->willReturn($this->prophesize(LanguageService::class)->reveal());
-        GeneralUtility::addInstance(LanguageServiceFactory::class, $languageServiceFactoryProphecy->reveal());
-
-        $remoteRegistryProphecy->getDefaultRemote()->willReturn($remote);
-        $subject = new ExtensionStatus($remoteRegistryProphecy->reveal());
+        $remoteRegistryMock = $this->setUpRegistryStatusTests();
+        $remoteRegistryMock->method('getDefaultRemote')->willReturn($remote);
+        $subject = new ExtensionStatus($remoteRegistryMock);
         $status = $subject->getStatus();
         $statusObject = $status['mainRepositoryStatus'];
         self::assertInstanceOf(Status::class, $statusObject);
-        self::assertEquals(Status::NOTICE, $statusObject->getSeverity());
+        self::assertEquals(ContextualFeedbackSeverity::NOTICE, $statusObject->getSeverity());
     }
 
     /**
@@ -174,16 +171,18 @@ class ExtensionStatusTest extends UnitTestCase
      */
     public function getStatusReturnsOkForLoadedExtensionIfNoInsecureExtensionIsLoaded(): void
     {
-        $languageServiceFactoryProphecy = $this->prophesize(LanguageServiceFactory::class);
-        $languageServiceFactoryProphecy->createFromUserPreferences(Argument::cetera())->willReturn($this->prophesize(LanguageService::class)->reveal());
-        GeneralUtility::addInstance(LanguageServiceFactory::class, $languageServiceFactoryProphecy->reveal());
+        $languageServiceFactoryMock = $this->createMock(LanguageServiceFactory::class);
+        $languageServiceFactoryMock->method('createFromUserPreferences')->with(self::anything())
+            ->willReturn($this->createMock(LanguageService::class));
+        GeneralUtility::addInstance(LanguageServiceFactory::class, $languageServiceFactoryMock);
 
-        $remoteRegistryProphecy = $this->setUpRegistryStatusTests();
-        $subject = new ExtensionStatus($remoteRegistryProphecy->reveal());
+        $remoteRegistryMock = $this->setUpRegistryStatusTests();
+        $remoteRegistryMock->method('getDefaultRemote')->willReturn($this->getDefaultTerExtensionRemote());
+        $subject = new ExtensionStatus($remoteRegistryMock);
         $status = $subject->getStatus();
         $statusObject = $status['mainRepositoryStatus'];
         self::assertInstanceOf(Status::class, $statusObject);
-        self::assertEquals(Status::OK, $statusObject->getSeverity());
+        self::assertEquals(ContextualFeedbackSeverity::OK, $statusObject->getSeverity());
     }
 
     /**
@@ -191,20 +190,20 @@ class ExtensionStatusTest extends UnitTestCase
      */
     public function getStatusReturnsErrorForLoadedExtensionIfInsecureExtensionIsLoaded(): void
     {
-        $languageServiceProphecy = $this->prophesize(LanguageService::class);
-        $languageServiceProphecy->includeLLFile(Argument::any())->willReturn('');
-        $languageServiceProphecy->getLL(Argument::any())->willReturn('');
-        $languageServiceProphecy->getLLL(Argument::any())->willReturn('');
-        $languageServiceFactoryProphecy = $this->prophesize(LanguageServiceFactory::class);
-        $languageServiceFactoryProphecy->createFromUserPreferences(Argument::cetera())->willReturn($languageServiceProphecy->reveal());
-        GeneralUtility::addInstance(LanguageServiceFactory::class, $languageServiceFactoryProphecy->reveal());
+        $languageServiceMock = $this->createMock(LanguageService::class);
+        $languageServiceMock->method('includeLLFile')->with(self::anything())->willReturn('');
+        $languageServiceMock->method('getLL')->with(self::anything())->willReturn('');
+        $languageServiceFactoryMock = $this->createMock(LanguageServiceFactory::class);
+        $languageServiceFactoryMock->method('createFromUserPreferences')->with(self::anything())->willReturn($languageServiceMock);
+        GeneralUtility::addInstance(LanguageServiceFactory::class, $languageServiceFactoryMock);
 
-        $remoteRegistryProphecy = $this->setUpRegistryStatusTests(-1);
-        $subject = new ExtensionStatus($remoteRegistryProphecy->reveal());
+        $remoteRegistryMock = $this->setUpRegistryStatusTests(-1);
+        $remoteRegistryMock->method('getDefaultRemote')->willReturn($this->getDefaultTerExtensionRemote());
+        $subject = new ExtensionStatus($remoteRegistryMock);
         $status = $subject->getStatus();
         $statusObject = $status['extensionsSecurityStatusInstalled'];
         self::assertInstanceOf(Status::class, $statusObject);
-        self::assertEquals(Status::ERROR, $statusObject->getSeverity());
+        self::assertEquals(ContextualFeedbackSeverity::ERROR, $statusObject->getSeverity());
     }
 
     /**
@@ -212,20 +211,20 @@ class ExtensionStatusTest extends UnitTestCase
      */
     public function getStatusReturnsOkForExistingExtensionIfNoInsecureExtensionExists(): void
     {
-        $languageServiceProphecy = $this->prophesize(LanguageService::class);
-        $languageServiceProphecy->includeLLFile(Argument::any())->willReturn('');
-        $languageServiceProphecy->getLL(Argument::any())->willReturn('');
-        $languageServiceProphecy->getLLL(Argument::any())->willReturn('');
-        $languageServiceFactoryProphecy = $this->prophesize(LanguageServiceFactory::class);
-        $languageServiceFactoryProphecy->createFromUserPreferences(Argument::cetera())->willReturn($languageServiceProphecy->reveal());
-        GeneralUtility::addInstance(LanguageServiceFactory::class, $languageServiceFactoryProphecy->reveal());
+        $languageServiceMock = $this->createMock(LanguageService::class);
+        $languageServiceMock->method('includeLLFile')->with(self::anything())->willReturn('');
+        $languageServiceMock->method('getLL')->with(self::anything())->willReturn('');
+        $languageServiceFactoryMock = $this->createMock(LanguageServiceFactory::class);
+        $languageServiceFactoryMock->method('createFromUserPreferences')->with(self::anything())->willReturn($languageServiceMock);
+        GeneralUtility::addInstance(LanguageServiceFactory::class, $languageServiceFactoryMock);
 
-        $remoteRegistryProphecy = $this->setUpRegistryStatusTests(0, false);
-        $subject = new ExtensionStatus($remoteRegistryProphecy->reveal());
+        $remoteRegistryMock = $this->setUpRegistryStatusTests(0, false);
+        $remoteRegistryMock->method('getDefaultRemote')->willReturn($this->getDefaultTerExtensionRemote());
+        $subject = new ExtensionStatus($remoteRegistryMock);
         $status = $subject->getStatus();
         foreach ($status as $statusObject) {
             self::assertInstanceOf(Status::class, $statusObject);
-            self::assertEquals(Status::OK, $statusObject->getSeverity());
+            self::assertEquals(ContextualFeedbackSeverity::OK, $statusObject->getSeverity());
         }
     }
 
@@ -234,20 +233,20 @@ class ExtensionStatusTest extends UnitTestCase
      */
     public function getStatusReturnsWarningForExistingExtensionIfInsecureExtensionExistsButIsNotLoaded(): void
     {
-        $languageServiceProphecy = $this->prophesize(LanguageService::class);
-        $languageServiceProphecy->includeLLFile(Argument::any())->willReturn('');
-        $languageServiceProphecy->getLL(Argument::any())->willReturn('');
-        $languageServiceProphecy->getLLL(Argument::any())->willReturn('');
-        $languageServiceFactoryProphecy = $this->prophesize(LanguageServiceFactory::class);
-        $languageServiceFactoryProphecy->createFromUserPreferences(Argument::cetera())->willReturn($languageServiceProphecy->reveal());
-        GeneralUtility::addInstance(LanguageServiceFactory::class, $languageServiceFactoryProphecy->reveal());
+        $languageServiceMock = $this->createMock(LanguageService::class);
+        $languageServiceMock->method('includeLLFile')->with(self::anything())->willReturn('');
+        $languageServiceMock->method('getLL')->with(self::anything())->willReturn('');
+        $languageServiceFactoryMock = $this->createMock(LanguageServiceFactory::class);
+        $languageServiceFactoryMock->method('createFromUserPreferences')->with(self::anything())->willReturn($languageServiceMock);
+        GeneralUtility::addInstance(LanguageServiceFactory::class, $languageServiceFactoryMock);
 
-        $remoteRegistryProphecy = $this->setUpRegistryStatusTests(-1, false);
-        $subject = new ExtensionStatus($remoteRegistryProphecy->reveal());
+        $remoteRegistryMock = $this->setUpRegistryStatusTests(-1, false);
+        $remoteRegistryMock->method('getDefaultRemote')->willReturn($this->getDefaultTerExtensionRemote());
+        $subject = new ExtensionStatus($remoteRegistryMock);
         $status = $subject->getStatus();
         $statusObject = $status['extensionsSecurityStatusNotInstalled'];
         self::assertInstanceOf(Status::class, $statusObject);
-        self::assertEquals(Status::WARNING, $statusObject->getSeverity());
+        self::assertEquals(ContextualFeedbackSeverity::WARNING, $statusObject->getSeverity());
     }
 
     /**
@@ -255,20 +254,20 @@ class ExtensionStatusTest extends UnitTestCase
      */
     public function getStatusReturnsWarningForLoadedExtensionIfOutdatedExtensionIsLoaded(): void
     {
-        $languageServiceProphecy = $this->prophesize(LanguageService::class);
-        $languageServiceProphecy->includeLLFile(Argument::any())->willReturn('');
-        $languageServiceProphecy->getLL(Argument::any())->willReturn('');
-        $languageServiceProphecy->getLLL(Argument::any())->willReturn('');
-        $languageServiceFactoryProphecy = $this->prophesize(LanguageServiceFactory::class);
-        $languageServiceFactoryProphecy->createFromUserPreferences(Argument::cetera())->willReturn($languageServiceProphecy->reveal());
-        GeneralUtility::addInstance(LanguageServiceFactory::class, $languageServiceFactoryProphecy->reveal());
+        $languageServiceMock = $this->createMock(LanguageService::class);
+        $languageServiceMock->method('includeLLFile')->with(self::anything())->willReturn('');
+        $languageServiceMock->method('getLL')->with(self::anything())->willReturn('');
+        $languageServiceFactoryMock = $this->createMock(LanguageServiceFactory::class);
+        $languageServiceFactoryMock->method('createFromUserPreferences')->with(self::anything())->willReturn($languageServiceMock);
+        GeneralUtility::addInstance(LanguageServiceFactory::class, $languageServiceFactoryMock);
 
-        $remoteRegistryProphecy = $this->setUpRegistryStatusTests(-2, true);
-        $subject = new ExtensionStatus($remoteRegistryProphecy->reveal());
+        $remoteRegistryMock = $this->setUpRegistryStatusTests(-2, true);
+        $remoteRegistryMock->method('getDefaultRemote')->willReturn($this->getDefaultTerExtensionRemote());
+        $subject = new ExtensionStatus($remoteRegistryMock);
         $status = $subject->getStatus();
         $statusObject = $status['extensionsOutdatedStatusInstalled'];
         self::assertInstanceOf(Status::class, $statusObject);
-        self::assertEquals(Status::WARNING, $statusObject->getSeverity());
+        self::assertEquals(ContextualFeedbackSeverity::WARNING, $statusObject->getSeverity());
     }
 
     /**
@@ -276,35 +275,32 @@ class ExtensionStatusTest extends UnitTestCase
      */
     public function getStatusReturnsErrorForExistingExtensionIfOutdatedExtensionExists(): void
     {
-        $languageServiceProphecy = $this->prophesize(LanguageService::class);
-        $languageServiceProphecy->includeLLFile(Argument::any())->willReturn('');
-        $languageServiceProphecy->getLL(Argument::any())->willReturn('');
-        $languageServiceProphecy->getLLL(Argument::any())->willReturn('');
-        $languageServiceFactoryProphecy = $this->prophesize(LanguageServiceFactory::class);
-        $languageServiceFactoryProphecy->createFromUserPreferences(Argument::cetera())->willReturn($languageServiceProphecy->reveal());
-        GeneralUtility::addInstance(LanguageServiceFactory::class, $languageServiceFactoryProphecy->reveal());
+        $languageServiceMock = $this->createMock(LanguageService::class);
+        $languageServiceMock->method('includeLLFile')->with(self::anything())->willReturn('');
+        $languageServiceMock->method('getLL')->with(self::anything())->willReturn('');
+        $languageServiceFactoryMock = $this->createMock(LanguageServiceFactory::class);
+        $languageServiceFactoryMock->method('createFromUserPreferences')->with(self::anything())->willReturn($languageServiceMock);
+        GeneralUtility::addInstance(LanguageServiceFactory::class, $languageServiceFactoryMock);
 
-        $remoteRegistryProphecy = $this->setUpRegistryStatusTests(-2, false);
-        $subject = new ExtensionStatus($remoteRegistryProphecy->reveal());
+        $remoteRegistryMock = $this->setUpRegistryStatusTests(-2, false);
+        $remoteRegistryMock->method('getDefaultRemote')->willReturn($this->getDefaultTerExtensionRemote());
+        $subject = new ExtensionStatus($remoteRegistryMock);
         $status = $subject->getStatus();
         $statusObject = $status['extensionsOutdatedStatusNotInstalled'];
         self::assertInstanceOf(Status::class, $statusObject);
-        self::assertEquals(Status::WARNING, $statusObject->getSeverity());
+        self::assertEquals(ContextualFeedbackSeverity::WARNING, $statusObject->getSeverity());
     }
 
-    /**
-     * @param int $reviewState
-     * @param bool $installed
-     * @param bool $setupRepositoryStatusOk
-     * @throws \TYPO3\CMS\Extbase\Object\Exception
-     */
-    protected function setUpRegistryStatusTests(int $reviewState = 0, bool $installed = true, bool $setupRepositoryStatusOk = true): \Prophecy\Prophecy\ObjectProphecy
-    {
+    protected function setUpRegistryStatusTests(
+        int $reviewState = 0,
+        bool $installed = true,
+        bool $setupRepositoryStatusOk = true
+    ): RemoteRegistry&MockObject {
         $mockTerObject = new Extension();
         $mockTerObject->setVersion('1.0.6');
         $mockTerObject->setReviewState($reviewState);
 
-        $eventDispatcher = $this->prophesize(EventDispatcherInterface::class)->reveal();
+        $eventDispatcher = $this->createMock(EventDispatcherInterface::class);
         $mockListUtility = $this->getMockBuilder(ListUtility::class)->getMock();
         $mockListUtility->injectEventDispatcher($eventDispatcher);
         $mockListUtility
@@ -318,27 +314,32 @@ class ExtensionStatusTest extends UnitTestCase
             ]);
 
         GeneralUtility::setSingletonInstance(ListUtility::class, $mockListUtility);
-        $remoteRegistryProphecy = $this->prophesize(RemoteRegistry::class);
+        $remoteRegistryMock = $this->createMock(RemoteRegistry::class);
         if ($setupRepositoryStatusOk) {
-            $remote = new class() extends TerExtensionRemote {
-                public function __construct()
-                {
-                }
-                public function getLastUpdate(): \DateTimeInterface
-                {
-                    return new \DateTimeImmutable('-4days');
-                }
-                protected function isDownloadedExtensionListUpToDate(): bool
-                {
-                    return true;
-                }
-            };
-            $remoteRegistryProphecy->hasRemote(Argument::cetera())->willReturn(true);
-            $remoteRegistryProphecy->hasDefaultRemote()->willReturn(true);
-            $remoteRegistryProphecy->getDefaultRemote()->willReturn($remote);
+            $remoteRegistryMock->method('hasRemote')->with(self::anything())->willReturn(true);
+            $remoteRegistryMock->method('hasDefaultRemote')->willReturn(true);
         } else {
-            $remoteRegistryProphecy->hasDefaultRemote()->willReturn(false);
+            $remoteRegistryMock->method('hasDefaultRemote')->willReturn(false);
         }
-        return $remoteRegistryProphecy;
+        return $remoteRegistryMock;
+    }
+
+    private function getDefaultTerExtensionRemote(): TerExtensionRemote
+    {
+        return new class () extends TerExtensionRemote {
+            public function __construct()
+            {
+            }
+
+            public function getLastUpdate(): \DateTimeInterface
+            {
+                return new \DateTimeImmutable('-4days');
+            }
+
+            protected function isDownloadedExtensionListUpToDate(): bool
+            {
+                return true;
+            }
+        };
     }
 }

@@ -1,5 +1,7 @@
 .. include:: /Includes.rst.txt
 
+.. _breaking-96616:
+
 =======================================================
 Breaking: #96616 - Remove Frontend Login Mode for pages
 =======================================================
@@ -10,7 +12,7 @@ Description
 ===========
 
 In order to reduce complexity for frontend requests,
-the rarely used "frontend user login mode" functionality has been removed.
+the rarely used `frontend user login mode` functionality has been removed.
 
 It previously allowed to define branches, which should behave as if a user
 or usergroup was not logged in, even though a user was kept logged in as the cookie was
@@ -27,7 +29,6 @@ the following public methods have been removed:
 Additionally, the following TypoScript configuration has no effect anymore:
 
 - :typoscript:`config.sendCacheHeaders_onlyWhenLoginDeniedInBranch`
-
 
 Impact
 ======

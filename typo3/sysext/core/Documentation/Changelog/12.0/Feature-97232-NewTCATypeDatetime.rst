@@ -1,5 +1,7 @@
 .. include:: /Includes.rst.txt
 
+.. _feature-97232:
+
 =========================================
 Feature: #97232 - New TCA type "datetime"
 =========================================
@@ -39,17 +41,17 @@ The TCA type :php:`datetime` features the following column configuration:
 
 .. note::
 
-   The :php:`eval=int` option is now automatically set for the element in
-   case no specific :php:`dbType` has been defined. It should therefore be
-   removed from the TCA configuration.
+   The :php:`eval=integer` option is now automatically set for the element
+   in case no specific :php:`dbType` has been defined. It should therefore
+   be removed from the TCA configuration.
 
 .. note::
 
    The :php:`format` option defines how the display of the field value
    will be in e.g. FormEngine. The storage format is defined via :php:`dbType`
-   or :php:`eval=int`.
+   and falls back to :php:`eval=integer`.
 
-The following column configuration can be overwritten by Page TSconfig:
+The following column configuration can be overwritten by page TSconfig:
 
 - :typoscript:`readOnly`
 - :typoscript:`size`
@@ -57,7 +59,7 @@ The following column configuration can be overwritten by Page TSconfig:
 A complete migration from :php:`renderType=inputDateTime` to :php:`type=datetime`
 looks like the following:
 
-.. code-block:: php
+..  code-block:: php
 
     // Before
 
@@ -99,13 +101,13 @@ where code adoption has to take place.
     extension scanner will report any usage, which should then be migrated.
 
 Automatic database fields
-^^^^^^^^^^^^^^^^^^^^^^^^^
+-------------------------
 
 TYPO3 automatically creates database fields for TCA type :php:`datetime`
-columns, if they have not already been defined in an extensions'
+columns, if they have not already been defined in an extension's
 :file:`ext_tables.sql` file. This also supports columns, having a
 native database type (:php:`dbType`) defined. Fields without a native
-type do always define :sql:`default 0` and are always signed (to allow
+type always define :sql:`default 0` and are always signed (to allow
 negative timestamps). As long as a column does not use :php:`nullable=true`,
 the fields are also always defined as :sql:`NOT NULL`.
 
@@ -113,7 +115,7 @@ Impact
 ======
 
 It's now possible to simplify the TCA configuration by using the new
-dedicated TCA type :php:`datetime`. Next to reduced TCA configuration
-does the new type allow to omit the corresponding database field definition.
+dedicated TCA type :php:`datetime`. Next to reduced TCA configuration,
+the new type allows to omit the corresponding database field definition.
 
 .. index:: Backend, TCA, ext:backend

@@ -1,5 +1,7 @@
 .. include:: /Includes.rst.txt
 
+.. _feature-94544:
+
 =====================================================
 Feature: #94544 - Add new SMTP configuration settings
 =====================================================
@@ -26,11 +28,12 @@ A few more SMTP options are now supported by TYPO3 and can be set in the Install
 Do not set the threshold too low, as the SMTP server may drop the connection if there are too many
 non-mail commands (like pinging the server with NOOP).
 
-It is now also possible to define an array with SMTP stream options in the AdditionalConfiguration.php.
+It is now also possible to define an array with SMTP stream options in the
+:file:`AdditionalConfiguration.php` file.
 
 Configuration Example:
 
-.. code-block:: php
+..  code-block:: php
 
     return [
         //....
@@ -47,10 +50,9 @@ Configuration Example:
         //....
     ];
 
-
 Impact
 ======
 
-Now it is possible to set more options for some smtp cases.
+Now it is possible to set more options for some SMTP cases.
 
 .. index:: LocalConfiguration, ext:core

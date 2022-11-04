@@ -17,29 +17,25 @@ declare(strict_types=1);
 
 namespace TYPO3\CMS\Frontend\Tests\Functional\ContentObject;
 
-use Prophecy\PhpUnit\ProphecyTrait;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Log\NullLogger;
 use TYPO3\CMS\Core\Context\Context;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Domain\Repository\PageRepository;
+use TYPO3\CMS\Core\Http\NormalizedParams;
+use TYPO3\CMS\Core\Http\ServerRequest;
 use TYPO3\CMS\Core\Resource\FileReference;
 use TYPO3\CMS\Core\Routing\PageArguments;
 use TYPO3\CMS\Core\Site\SiteFinder;
 use TYPO3\CMS\Core\Tests\Functional\SiteHandling\SiteBasedTestTrait;
-use TYPO3\CMS\Core\TypoScript\TemplateService;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Frontend\Authentication\FrontendUserAuthentication;
 use TYPO3\CMS\Frontend\ContentObject\ContentObjectRenderer;
 use TYPO3\CMS\Frontend\Controller\TypoScriptFrontendController;
 use TYPO3\TestingFramework\Core\Functional\FunctionalTestCase;
 
-/**
- * Testcase for TYPO3\CMS\Frontend\ContentObject\ContentObjectRenderer
- */
 class ContentObjectRendererTest extends FunctionalTestCase
 {
-    use ProphecyTrait;
     use SiteBasedTestTrait;
 
     /**
@@ -54,17 +50,13 @@ class ContentObjectRendererTest extends FunctionalTestCase
      */
     protected $subject;
 
-    /**
-     * @var TypoScriptFrontendController
-     */
-    protected $typoScriptFrontendController;
-
     protected array $pathsToProvideInTestInstance = ['typo3/sysext/frontend/Tests/Functional/Fixtures/Images' => 'fileadmin/user_upload'];
 
     protected function setUp(): void
     {
         parent::setUp();
-        $this->setUpBackendUserFromFixture(1);
+        $this->importCSVDataSet(__DIR__ . '/../Fixtures/be_users.csv');
+        $this->setUpBackendUser(1);
         $this->writeSiteConfiguration(
             'test',
             $this->buildSiteConfiguration(1, '/'),
@@ -73,13 +65,10 @@ class ContentObjectRendererTest extends FunctionalTestCase
             ],
             $this->buildErrorHandlingConfiguration('Fluid', [404]),
         );
-        $_SERVER['HTTP_HOST'] = 'example.com';
-        $_SERVER['REQUEST_URI'] = '/en/';
-        $_GET['id'] = 1;
         GeneralUtility::flushInternalRuntimeCaches();
         $site = GeneralUtility::makeInstance(SiteFinder::class)->getSiteByIdentifier('test');
 
-        $this->typoScriptFrontendController = GeneralUtility::makeInstance(
+        $typoScriptFrontendController = GeneralUtility::makeInstance(
             TypoScriptFrontendController::class,
             GeneralUtility::makeInstance(Context::class),
             $site,
@@ -87,10 +76,15 @@ class ContentObjectRendererTest extends FunctionalTestCase
             new PageArguments(1, '0', []),
             GeneralUtility::makeInstance(FrontendUserAuthentication::class)
         );
-        $this->typoScriptFrontendController->sys_page = GeneralUtility::makeInstance(PageRepository::class);
-        $this->typoScriptFrontendController->tmpl = GeneralUtility::makeInstance(TemplateService::class);
-        $this->subject = GeneralUtility::makeInstance(ContentObjectRenderer::class, $this->typoScriptFrontendController);
-        $this->subject->setRequest($this->prophesize(ServerRequestInterface::class)->reveal());
+        $typoScriptFrontendController->sys_page = GeneralUtility::makeInstance(PageRepository::class);
+        $this->subject = GeneralUtility::makeInstance(ContentObjectRenderer::class, $typoScriptFrontendController);
+        $this->subject->setRequest($this->getPreparedRequest());
+    }
+
+    protected function getPreparedRequest(): ServerRequestInterface
+    {
+        $request = new ServerRequest('http://example.com/en/', 'GET', null, [], ['HTTP_HOST' => 'example.com', 'REQUEST_URI' => '/en/']);
+        return $request->withQueryParams(['id' => 1])->withAttribute('normalizedParams', NormalizedParams::createFromRequest($request));
     }
 
     /**
@@ -338,6 +332,7 @@ class ContentObjectRendererTest extends FunctionalTestCase
     {
         $expected = '<a href="mailto:test@example.com">Send me an email</a>';
         $subject = new ContentObjectRenderer();
+        $subject->setRequest($this->getPreparedRequest());
         $result = $subject->typoLink('Send me an email', ['parameter' => 'mailto:test@example.com']);
         self::assertEquals($expected, $result);
 
@@ -352,8 +347,9 @@ class ContentObjectRendererTest extends FunctionalTestCase
     {
         $tsfe = $this->getMockBuilder(TypoScriptFrontendController::class)->disableOriginalConstructor()->getMock();
         $subject = new ContentObjectRenderer($tsfe);
+        $subject->setRequest($this->getPreparedRequest());
 
-        $tsfe->spamProtectEmailAddresses = 1;
+        $tsfe->config['config']['spamProtectEmailAddresses'] = 1;
         $result = $subject->typoLink('Send me an email', ['parameter' => 'mailto:test@example.com']);
         self::assertEquals('<a href="#" data-mailto-token="nbjmup+uftuAfybnqmf/dpn" data-mailto-vector="1">Send me an email</a>', $result);
     }
@@ -365,7 +361,7 @@ class ContentObjectRendererTest extends FunctionalTestCase
     {
         $tsfe = $this->getMockBuilder(TypoScriptFrontendController::class)->disableOriginalConstructor()->getMock();
         $subject = new ContentObjectRenderer($tsfe);
-        $subject->start([], 'tt_content');
+        $subject->start([], 'tt_content', $this->getPreparedRequest());
 
         $expected = '';
         $actual = $subject->searchWhere('ab', 'header,bodytext', 'tt_content');
@@ -379,7 +375,7 @@ class ContentObjectRendererTest extends FunctionalTestCase
     {
         $tsfe = $this->getMockBuilder(TypoScriptFrontendController::class)->disableOriginalConstructor()->getMock();
         $subject = new ContentObjectRenderer($tsfe);
-        $subject->setRequest($this->prophesize(ServerRequestInterface::class)->reveal());
+        $subject->setRequest($this->getPreparedRequest());
         $subject->setLogger(new NullLogger());
         $input = 'This is a simple inline text, no wrapping configured';
         $result = $subject->parseFunc($input, $this->getLibParseFunc());
@@ -534,7 +530,7 @@ And another one';
                 $imageTag . '</a>' => true,
                 'data-window-features="' . $windowFeatures => true,
                 'data-window-target="thePicture"' => true,
-                ' target="' . 'thePicture' => true,
+                ' target="thePicture' => true,
             ],
         ];
 
@@ -661,7 +657,6 @@ And another one';
      */
     public function imageLinkWrapWrapsTheContentAsConfigured(string $content, array $configuration, array $expected, array $expectedParams = []): void
     {
-        $GLOBALS['TSFE'] = $this->typoScriptFrontendController;
         $this->importCSVDataSet(__DIR__ . '/DataSet/FileReferences.csv');
         $fileReferenceData = [
             'uid' => 1,
@@ -670,6 +665,7 @@ And another one';
         ];
         $fileReference = new FileReference($fileReferenceData);
         $this->subject->setCurrentFile($fileReference);
+        $this->subject->setRequest($this->getPreparedRequest());
         $result = $this->subject->imageLinkWrap($content, $fileReference, $configuration);
 
         foreach ($expected as $expectedString => $shouldContain) {

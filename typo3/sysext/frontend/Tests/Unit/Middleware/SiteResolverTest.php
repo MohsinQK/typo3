@@ -17,7 +17,6 @@ declare(strict_types=1);
 
 namespace TYPO3\CMS\Frontend\Tests\Unit\Middleware;
 
-use Prophecy\PhpUnit\ProphecyTrait;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
@@ -36,8 +35,6 @@ use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 class SiteResolverTest extends UnitTestCase
 {
-    use ProphecyTrait;
-
     protected bool $resetSingletonInstances = true;
 
     /**
@@ -58,12 +55,12 @@ class SiteResolverTest extends UnitTestCase
         $this->siteFinder = $this->getAccessibleMock(SiteFinder::class, ['dummy'], [], '', false);
 
         // A request handler which expects a site to be found.
-        $this->siteFoundRequestHandler = new class() implements RequestHandlerInterface {
+        $this->siteFoundRequestHandler = new class () implements RequestHandlerInterface {
             public function handle(ServerRequestInterface $request): ResponseInterface
             {
                 /** @var Site $site */
-                /** @var SiteLanguage $language */
                 $site = $request->getAttribute('site', false);
+                /** @var SiteLanguage $language */
                 $language = $request->getAttribute('language', false);
                 if ($site && $language) {
                     return new JsonResponse(
@@ -79,8 +76,8 @@ class SiteResolverTest extends UnitTestCase
             }
         };
 
-        $cacheManagerProphecy = $this->prophesize(CacheManager::class);
-        GeneralUtility::setSingletonInstance(CacheManager::class, $cacheManagerProphecy->reveal());
+        $cacheManagerMock = $this->getMockBuilder(CacheManager::class)->disableOriginalConstructor()->getMock();
+        GeneralUtility::setSingletonInstance(CacheManager::class, $cacheManagerMock);
     }
 
     protected function tearDown(): void

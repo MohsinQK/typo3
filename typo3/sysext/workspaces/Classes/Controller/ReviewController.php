@@ -93,15 +93,15 @@ class ReviewController
         }
         $availableWorkspaces = $this->workspaceService->getAvailableWorkspaces();
         $customWorkspaceExists = $this->customWorkspaceExists($availableWorkspaces);
-        $activeWorkspace = (int)$backendUser->workspace;
-        $activeWorkspaceTitle = WorkspaceService::getWorkspaceTitle($activeWorkspace);
+        $activeWorkspace = $backendUser->workspace;
+        $activeWorkspaceTitle = $this->workspaceService->getWorkspaceTitle($activeWorkspace);
         $workspaceSwitched = '';
         if (isset($queryParams['workspace'])) {
             $switchWs = (int)$queryParams['workspace'];
             if (array_key_exists($switchWs, $availableWorkspaces) && $activeWorkspace !== $switchWs) {
                 $activeWorkspace = $switchWs;
                 $backendUser->setWorkspace($activeWorkspace);
-                $activeWorkspaceTitle = WorkspaceService::getWorkspaceTitle($activeWorkspace);
+                $activeWorkspaceTitle = $this->workspaceService->getWorkspaceTitle($activeWorkspace);
                 $workspaceSwitched = GeneralUtility::jsonEncodeForHtmlAttribute(['id' => $activeWorkspace, 'title' => $activeWorkspaceTitle]);
             }
         }
@@ -122,6 +122,7 @@ class ReviewController
             'availableStages' => $this->stagesService->getStagesForWSUser(),
             'availableSelectStages' => $this->getAvailableSelectStages(),
             'stageActions' => $this->getStageActions(),
+            'showEntireWorkspaceDropDown' => !(($backendUser->workspaceRec['publish_access'] ?? 0) & 4),
             'selectedLanguage' => $selectedLanguage,
             'selectedDepth' => (int)$moduleData->get('depth', ($pageUid === 0 ? 999 : 1)),
             'selectedStage' => (int)$moduleData->get('stage'),
@@ -180,7 +181,7 @@ class ReviewController
     {
         $buttonBar = $view->getDocHeaderComponent()->getButtonBar();
         $shortcutButton = $buttonBar->makeShortcutButton()
-            ->setRouteIdentifier('web_WorkspacesWorkspaces')
+            ->setRouteIdentifier('workspaces_admin')
             ->setDisplayName(sprintf('%s: %s [%d]', $activeWorkspaceTitle, $pageTitle, $pageId))
             ->setArguments(['id' => (int)$pageId]);
         $buttonBar->addButton($shortcutButton);
@@ -219,7 +220,7 @@ class ReviewController
                         $activeWorkspace => 'edit',
                     ],
                 ],
-                'returnUrl' => (string)$this->uriBuilder->buildUriFromRoute('web_WorkspacesWorkspaces', ['id' => $pageUid]),
+                'returnUrl' => (string)$this->uriBuilder->buildUriFromRoute('workspaces_admin', ['id' => $pageUid]),
             ]);
             $editSettingsButton = $buttonBar->makeLinkButton()
                 ->setHref($editWorkspaceRecordUrl)
@@ -242,7 +243,7 @@ class ReviewController
         if ($workspaceId !== null) {
             $parameters['workspace'] = $workspaceId;
         }
-        return (string)$this->uriBuilder->buildUriFromRoute('web_WorkspacesWorkspaces', $parameters);
+        return (string)$this->uriBuilder->buildUriFromRoute('workspaces_admin', $parameters);
     }
 
     /**

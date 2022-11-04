@@ -17,7 +17,8 @@ declare(strict_types=1);
 
 namespace TYPO3\CMS\Core\Tests\Unit\DataHandling;
 
-use Prophecy\Argument;
+use Prophecy\PhpUnit\ProphecyTrait;
+use Psr\EventDispatcher\EventDispatcherInterface;
 use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
 use TYPO3\CMS\Core\Cache\CacheManager;
 use TYPO3\CMS\Core\Cache\Frontend\FrontendInterface;
@@ -31,17 +32,15 @@ use TYPO3\CMS\Core\SysLog\Error as SystemLogErrorClassification;
 use TYPO3\CMS\Core\Tests\Unit\DataHandling\Fixtures\AllowAccessHookFixture;
 use TYPO3\CMS\Core\Tests\Unit\DataHandling\Fixtures\InvalidHookFixture;
 use TYPO3\CMS\Core\Tests\Unit\DataHandling\Fixtures\UserOddNumberFilter;
+use TYPO3\CMS\Core\Tests\Unit\Fixtures\EventDispatcher\MockEventDispatcher;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Core\Utility\StringUtility;
 use TYPO3\TestingFramework\Core\AccessibleObjectInterface;
 use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
-/**
- * Test case
- */
 class DataHandlerTest extends UnitTestCase
 {
-    use \Prophecy\PhpUnit\ProphecyTrait;
+    use ProphecyTrait;
 
     protected bool $resetSingletonInstances = true;
 
@@ -622,7 +621,6 @@ class DataHandlerTest extends UnitTestCase
      */
     public function processDatamapForFrozenNonZeroWorkspaceReturnsFalse(): void
     {
-        /** @var DataHandler $subject */
         $subject = $this->getMockBuilder(DataHandler::class)
             ->onlyMethods(['log'])
             ->getMock();
@@ -644,40 +642,31 @@ class DataHandlerTest extends UnitTestCase
         $hookMock->expects(self::once())->method('checkFlexFormValue_beforeMerge');
         $GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['t3lib/class.t3lib_tcemain.php']['checkFlexFormValue'][] = $hookClass;
         GeneralUtility::addInstance($hookClass, $hookMock);
-        $flexFormToolsProphecy = $this->prophesize(FlexFormTools::class);
-        $flexFormToolsProphecy->getDataStructureIdentifier(Argument::cetera())->willReturn('anIdentifier');
-        $flexFormToolsProphecy->parseDataStructureByIdentifier('anIdentifier')->willReturn([]);
-        GeneralUtility::addInstance(FlexFormTools::class, $flexFormToolsProphecy->reveal());
+
+        $eventDispatcher = new MockEventDispatcher();
+        GeneralUtility::addInstance(EventDispatcherInterface::class, $eventDispatcher);
+        $flexFormTools = new class ($eventDispatcher) extends FlexFormTools {
+            public function getDataStructureIdentifier(...$args): string
+            {
+                return 'anIdentifier';
+            }
+
+            public function parseDataStructureByIdentifier(string $identifier): array
+            {
+                return [];
+            }
+        };
+        // FlexFormTools gets called through GeneralUtility::makeInstance() twice, so we need
+        // to register it twice.
+        GeneralUtility::addInstance(FlexFormTools::class, $flexFormTools);
+        GeneralUtility::addInstance(FlexFormTools::class, $flexFormTools);
+
         $this->subject->_call('checkValueForFlex', [], [], [], '', 0, '', '', 0, 0, 0, '');
     }
 
     public function checkValue_flex_procInData_travDSDataProvider(): iterable
     {
-        yield 'Flat structure with TCEForms' => [
-            'dataValues' => [
-                'field1' => [
-                    'vDEF' => 'wrong input',
-                ],
-            ],
-            'DSelements' => [
-                'field1' => [
-                    'TCEforms' => [
-                        'label' => 'A field',
-                        'config' => [
-                            'type' => 'number',
-                            'required' => true,
-                        ],
-                    ],
-                ],
-            ],
-            'expected' => [
-                'field1' => [
-                    'vDEF' => 0,
-                ],
-            ],
-        ];
-
-        yield 'Flat structure without TCEForms' => [
+        yield 'Flat structure' => [
             'dataValues' => [
                 'field1' => [
                     'vDEF' => 'wrong input',
@@ -699,7 +688,7 @@ class DataHandlerTest extends UnitTestCase
             ],
         ];
 
-        yield 'Array structure with TCEforms key' => [
+        yield 'Array structure' => [
             'dataValues' => [
                 'section' => [
                     'el' => [
@@ -724,61 +713,6 @@ class DataHandlerTest extends UnitTestCase
                             'type' => 'array',
                             'el' => [
                                 'field1' => [
-                                    'TCEforms' => [
-                                        'label' => 'A field',
-                                        'config' => [
-                                            'type' => 'number',
-                                            'required' => true,
-                                        ],
-                                    ],
-                                ],
-                            ],
-                        ],
-                    ],
-                ],
-            ],
-            'expected' => [
-                'section' => [
-                    'el' => [
-                        '1' => [
-                            'container1' => [
-                                'el' => [
-                                    'field1' => [
-                                        'vDEF' => 0,
-                                    ],
-                                ],
-                            ],
-                        ],
-                    ],
-                ],
-            ],
-        ];
-
-        yield 'Array structure without TCEforms key' => [
-            'dataValues' => [
-                'section' => [
-                    'el' => [
-                        '1' => [
-                            'container_1' => [
-                                'el' => [
-                                    'field1' => [
-                                        'vDEF' => 'wrong input',
-                                    ],
-                                ],
-                            ],
-                        ],
-                    ],
-                ],
-            ],
-            'DSelements' => [
-                'section' => [
-                    'type' => 'array',
-                    'section' => true,
-                    'el' => [
-                        'container_1' => [
-                            'type' => 'array',
-                            'el' => [
-                                'field1' => [
                                     'label' => 'A field',
                                     'config' => [
                                         'type' => 'number',
@@ -794,7 +728,7 @@ class DataHandlerTest extends UnitTestCase
                 'section' => [
                     'el' => [
                         '1' => [
-                            'container_1' => [
+                            'container1' => [
                                 'el' => [
                                     'field1' => [
                                         'vDEF' => 0,
@@ -1110,7 +1044,6 @@ class DataHandlerTest extends UnitTestCase
      */
     public function deletePagesOnRootLevelIsDenied(): void
     {
-        /** @var DataHandler|\PHPUnit\Framework\MockObject\MockObject|AccessibleObjectInterface $dataHandlerMock */
         $dataHandlerMock = $this->getMockBuilder(DataHandler::class)
             ->onlyMethods(['canDeletePage', 'log'])
             ->getMock();
@@ -1139,15 +1072,13 @@ class DataHandlerTest extends UnitTestCase
             ],
         ];
 
-        /** @var \TYPO3\CMS\Core\Database\RelationHandler $mockRelationHandler */
         $mockRelationHandler = $this->createMock(RelationHandler::class);
         $mockRelationHandler->itemArray = [
             '1' => ['table' => StringUtility::getUniqueId('bar_'), 'id' => 67],
         ];
 
-        /** @var DataHandler|\PHPUnit\Framework\MockObject\MockObject|AccessibleObjectInterface $mockDataHandler */
-        $mockDataHandler = $this->getAccessibleMock(DataHandler::class, ['getInlineFieldType', 'deleteAction', 'createRelationHandlerInstance'], [], '', false);
-        $mockDataHandler->expects(self::once())->method('getInlineFieldType')->willReturn('field');
+        $mockDataHandler = $this->getAccessibleMock(DataHandler::class, ['getRelationFieldType', 'deleteAction', 'createRelationHandlerInstance'], [], '', false);
+        $mockDataHandler->expects(self::once())->method('getRelationFieldType')->willReturn('field');
         $mockDataHandler->expects(self::once())->method('createRelationHandlerInstance')->willReturn($mockRelationHandler);
         $mockDataHandler->expects(self::never())->method('deleteAction');
         $mockDataHandler->deleteRecord_procBasedOnFieldType($table, 42, 'bar', $conf);

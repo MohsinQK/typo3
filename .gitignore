@@ -23,9 +23,10 @@ nbproject
 .settings
 .TemporaryItems
 .webprj
+.fleet
 #
 # Temporary files and folders
-.cache
+/.cache
 .php_cs.cache
 .php-cs-fixer.cache
 .sass-cache
@@ -34,6 +35,7 @@ nbproject
 #
 # Ignore build stuff
 /.ddev/*
+/Build/.cache
 /Build/phpunit/FunctionalTests-Job-*
 /Build/bower_components/*
 /Build/node_modules/*
@@ -43,7 +45,7 @@ nbproject
 /Build/testing-docker/local/macos_passwd
 /typo3/sysext/*/Resources/Private/TypeScript/*.js
 /typo3/sysext/*/Resources/Public/JavaScript/*.js.map
-typo3/sysext/core/Tests/Acceptance/AcceptanceTests-Job-*
+/typo3/sysext/core/Tests/AcceptanceTests-Job-*
 #
 # TypeScript stuff
 .baseDir.ts
@@ -59,6 +61,9 @@ typo3/sysext/core/Tests/Acceptance/AcceptanceTests-Job-*
 # Ignore common TYPO3 CMS files/directories
 /typo3temp/*
 /typo3conf/*
+!/typo3conf/ext
+/typo3conf/ext/*
+!/typo3conf/ext/styleguide
 /fileadmin/*
 /uploads/*
 /FIRST_INSTALL

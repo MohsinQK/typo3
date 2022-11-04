@@ -473,7 +473,7 @@ class GraphicalFunctions
     {
         $cpW = imagesx($cpImg);
         $cpH = imagesy($cpImg);
-        $tile = GeneralUtility::intExplode(',', $conf['tile'] ?? '');
+        $tile = GeneralUtility::intExplode(',', (string)($conf['tile'] ?? ''));
         $tile[0] = MathUtility::forceIntegerInRange($tile[0], 1, 20);
         $tile[1] = MathUtility::forceIntegerInRange($tile[1] ?? 0, 1, 20);
         $cpOff = $this->objPosition($conf, $workArea, [$cpW * $tile[0], $cpH * $tile[1]]);
@@ -715,7 +715,7 @@ class GraphicalFunctions
                 $result[0] = 0;
                 $result[1] = 0;
         }
-        $result = $this->applyOffset($result, GeneralUtility::intExplode(',', $conf['offset'] ?? ''));
+        $result = $this->applyOffset($result, GeneralUtility::intExplode(',', (string)($conf['offset'] ?? '')));
         $result = $this->applyOffset($result, $workArea);
         return $result;
     }
@@ -1079,7 +1079,7 @@ class GraphicalFunctions
                             // Initialize range:
                             $ranges = GeneralUtility::trimExplode(',', $cfg['value'], true);
                             foreach ($ranges as $i => $rangeDef) {
-                                $ranges[$i] = GeneralUtility::intExplode('-', (string)$ranges[$i]);
+                                $ranges[$i] = GeneralUtility::intExplode('-', $rangeDef);
                                 if (!isset($ranges[$i][1])) {
                                     $ranges[$i][1] = $ranges[$i][0];
                                 }
@@ -1385,7 +1385,7 @@ class GraphicalFunctions
     {
         $conf['color'] = $conf['highColor'];
         $this->makeShadow($im, $conf, $workArea, $txtConf);
-        $newOffset = GeneralUtility::intExplode(',', $conf['offset']);
+        $newOffset = GeneralUtility::intExplode(',', (string)($conf['offset'] ?? ''));
         $newOffset[0] *= -1;
         $newOffset[1] *= -1;
         $conf['offset'] = implode(',', $newOffset);
@@ -1407,7 +1407,7 @@ class GraphicalFunctions
      */
     public function makeShadow(&$im, $conf, $workArea, $txtConf)
     {
-        $workArea = $this->applyOffset($workArea, GeneralUtility::intExplode(',', $conf['offset']));
+        $workArea = $this->applyOffset($workArea, GeneralUtility::intExplode(',', (string)($conf['offset'])));
         $blurRate = MathUtility::forceIntegerInRange((int)$conf['blur'], 0, 99);
         // No effects if ImageMagick ver. 5+
         if (!$blurRate || !$this->processorEffectsEnabled) {
@@ -2056,7 +2056,7 @@ class GraphicalFunctions
             default:
                 $result[1] = 0;
         }
-        $result = $this->applyOffset($result, GeneralUtility::intExplode(',', $conf['offset'] ?? ''));
+        $result = $this->applyOffset($result, GeneralUtility::intExplode(',', (string)($conf['offset'] ?? '')));
         $result = $this->applyOffset($result, $workArea);
         return $result;
     }
@@ -2069,7 +2069,7 @@ class GraphicalFunctions
     /**
      * Converts $imagefile to another file in temp-dir of type $newExt (extension).
      *
-     * @param string $imagefile The image filepath
+     * @param string $imagefile The absolute image filepath
      * @param string $newExt New extension, eg. "gif", "png", "jpg", "tif". If $newExt is NOT set, the new imagefile will be of the original format. If newExt = 'WEB' then one of the web-formats is applied.
      * @param string $w Width. $w / $h is optional. If only one is given the image is scaled proportionally. If an 'm' exists in the $w or $h and if both are present the $w and $h is regarded as the Maximum w/h and the proportions will be kept
      * @param string $h Height. See $w
@@ -2178,7 +2178,6 @@ class GraphicalFunctions
                 $info = $this->getImageDimensions($info[3]);
             }
             if ($info[2] == $this->gifExtension && !$this->dontCompress) {
-                // Compress with IM (lzw) or GD (rle)  (Workaround for the absence of lzw-compression in GD)
                 self::gifCompress($info[3], '');
             }
             return $info;
@@ -2189,8 +2188,8 @@ class GraphicalFunctions
     /**
      * Gets the input image dimensions.
      *
-     * @param string $imageFile The image filepath
-     * @return array|null Returns an array where [0]/[1] is w/h, [2] is extension and [3] is the filename.
+     * @param string $imageFile The absolute image filepath
+     * @return array|null Returns an array where [0]/[1] is w/h, [2] is extension and [3] is the absolute filepath.
      * @see imageMagickConvert()
      * @see \TYPO3\CMS\Frontend\ContentObject\ContentObjectRenderer::getImgResource()
      */
@@ -2243,7 +2242,7 @@ class GraphicalFunctions
     /**
      * Fetches the cached image dimensions from the cache. Does not check if the image file exists.
      *
-     * @param string $filePath Image file path, relative to public web path
+     * @param string $filePath The absolute image file path
      *
      * @return array|bool an array where [0]/[1] is w/h, [2] is extension and [3] is the file name,
      *                    or FALSE for a cache miss
@@ -2280,19 +2279,19 @@ class GraphicalFunctions
      *
      * This method does not check if the image file actually exists.
      *
-     * @param string $filePath Image file path, relative to public web path
+     * @param string $filePath Absolute image file path
      *
      * @return string the hash key (an SHA1 hash), will not be empty
      */
     protected function generateCacheKeyForImageFile($filePath)
     {
-        return sha1($filePath);
+        return sha1(PathUtility::stripPathSitePrefix($filePath));
     }
 
     /**
      * Creates the status hash to check whether a file has been changed.
      *
-     * @param string $filePath Image file path, relative to public web path
+     * @param string $filePath Absolute image file path
      *
      * @return string the status hash (an SHA1 hash)
      */
@@ -2319,8 +2318,8 @@ class GraphicalFunctions
         $out = [];
         $max = str_contains($w . $h, 'm') ? 1 : 0;
         if (str_contains($w . $h, 'c')) {
-            $out['cropH'] = (int)substr((string)strstr($w, 'c'), 1);
-            $out['cropV'] = (int)substr((string)strstr($h, 'c'), 1);
+            $out['cropH'] = (int)substr((string)strstr((string)$w, 'c'), 1);
+            $out['cropV'] = (int)substr((string)strstr((string)$h, 'c'), 1);
             $crs = true;
         } else {
             $crs = false;
@@ -2538,12 +2537,12 @@ class GraphicalFunctions
     }
 
     /**
-     * Compressing a GIF file if not already LZW compressed.
+     * Compressing a GIF file if not already compressed.
      * This function is a workaround for the fact that ImageMagick and/or GD does not compress GIF-files to their minimum size (that is RLE or no compression used)
      *
      * The function takes a file-reference, $theFile, and saves it again through GD or ImageMagick in order to compress the file
      * GIF:
-     * If $type is not set, the compression is done with ImageMagick (provided that $GLOBALS['TYPO3_CONF_VARS']['GFX']['processor_path_lzw'] is pointing to the path of a lzw-enabled version of 'convert') else with GD (should be RLE-enabled!)
+     * If $type is not set, the compression is done with ImageMagick
      * If $type is set to either 'IM' or 'GD' the compression is done with ImageMagick and GD respectively
      * PNG:
      * No changes.
@@ -2562,7 +2561,7 @@ class GraphicalFunctions
             return '';
         }
 
-        if (($type === 'IM' || !$type) && $gfxConf['processor_enabled'] && $gfxConf['processor_path_lzw']) {
+        if (($type === 'IM' || !$type) && $gfxConf['processor_enabled']) {
             // Use temporary file to prevent problems with read and write lock on same file on network file systems
             $temporaryName = PathUtility::dirname($theFile) . '/' . md5(StringUtility::getUniqueId()) . '.gif';
             // Rename could fail, if a simultaneous thread is currently working on the same thing
@@ -2570,7 +2569,7 @@ class GraphicalFunctions
                 $cmd = CommandUtility::imageMagickCommand(
                     'convert',
                     ImageMagickFile::fromFilePath($temporaryName) . ' ' . CommandUtility::escapeShellArgument($theFile),
-                    $gfxConf['processor_path_lzw']
+                    $gfxConf['processor_path']
                 );
                 CommandUtility::exec($cmd);
                 unlink($temporaryName);
@@ -2681,7 +2680,7 @@ class GraphicalFunctions
      * Used in GIFBUILDER
      * Uses $this->setup['reduceColors'] for gif/png images and $this->setup['quality'] for jpg images to reduce size/quality if needed.
      *
-     * @param string $file The filename to write to.
+     * @param string $file The absolute filename to write to
      * @return string Returns input filename
      * @see \TYPO3\CMS\Frontend\Imaging\GifBuilder::gifBuild()
      */
@@ -2733,21 +2732,10 @@ class GraphicalFunctions
     }
 
     /**
-     * Returns Image Tag for input image information array.
-     *
-     * @param array $imgInfo Image information array, key 0/1 is width/height and key 3 is the src value
-     * @return string Image tag for the input image information array.
-     */
-    public function imgTag($imgInfo)
-    {
-        return '<img src="' . $imgInfo[3] . '" width="' . $imgInfo[0] . '" height="' . $imgInfo[1] . '" border="0" alt="" />';
-    }
-
-    /**
      * Writes the input GDlib image pointer to file
      *
      * @param resource $destImg The GDlib image resource pointer
-     * @param string $theImage The filename to write to
+     * @param string $theImage The absolute file path to write to
      * @param int $quality The image quality (for JPEGs)
      * @return bool The output of either imageGif, imagePng or imageJpeg based on the filename to write
      * @see maskImageOntoImage()

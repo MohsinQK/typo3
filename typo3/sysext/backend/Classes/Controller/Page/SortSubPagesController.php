@@ -23,6 +23,7 @@ use TYPO3\CMS\Backend\Routing\PreviewUriBuilder;
 use TYPO3\CMS\Backend\Template\ModuleTemplateFactory;
 use TYPO3\CMS\Backend\Utility\BackendUtility;
 use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
+use TYPO3\CMS\Core\Database\Connection;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Database\Query\Restriction\DeletedRestriction;
 use TYPO3\CMS\Core\DataHandling\DataHandler;
@@ -51,7 +52,7 @@ class SortSubPagesController
     {
         $view = $this->moduleTemplateFactory->create($request);
         $backendUser = $this->getBackendUser();
-        $parentPageUid = (int)$request->getQueryParams()['id'];
+        $parentPageUid = (int)($request->getQueryParams()['id'] ?? 0);
 
         // Show only if there is a valid page and if this page may be viewed by the user
         $pageInformation = BackendUtility::readPageAccess($parentPageUid, $backendUser->getPagePermsClause(Permission::PAGE_SHOW));
@@ -69,6 +70,7 @@ class SortSubPagesController
         $viewButton = $buttonBar->makeLinkButton()
             ->setDataAttributes($previewDataAttributes ?? [])
             ->setTitle($this->getLanguageService()->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.showPage'))
+            ->setShowLabelText(true)
             ->setIcon($this->iconFactory->getIcon('actions-view-page', Icon::SIZE_SMALL))
             ->setHref('#');
         $buttonBar->addButton($viewButton);
@@ -185,7 +187,7 @@ class SortSubPagesController
                 $queryBuilder->expr()->eq('sys_language_uid', 0),
                 $queryBuilder->expr()->eq(
                     'pid',
-                    $queryBuilder->createNamedParameter($parentPageUid, \PDO::PARAM_INT)
+                    $queryBuilder->createNamedParameter($parentPageUid, Connection::PARAM_INT)
                 )
             )
             ->orderBy($orderBy)

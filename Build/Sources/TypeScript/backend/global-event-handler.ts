@@ -34,7 +34,11 @@ type HTMLFormChildElement = HTMLInputElement | HTMLSelectElement | HTMLTextAreaE
  *     + `$form=~s/$value/` URL taken from `form[action]`,
  *        substituting literal `${value}` and `$[value]` taken from `data-value-selector`
  * + `data-global-event="click"`
- *   + @todo
+ *   + `data-action-focus="..."` focus form field
+ *   + `data-action-submit="..."` submits form data
+ *     + `$form` parent form element of current element is submitted
+ *     + `<any CSS selector>` queried element is submitted (if implementing HTMLFormElement)
+ *   + `data-submit-values="{&quot;key&quot;:&quot;value&quot;}"` JSON encoded object (key/value pairs)
  *
  * @example
  * <form action="..." id="...">
@@ -63,12 +67,13 @@ class GlobalEventHandler {
 
   private handleChangeEvent(evt: Event, resolvedTarget: HTMLElement): void {
     evt.preventDefault();
-    this.handleFormChildSubmitAction(evt, resolvedTarget)
+    this.handleFormChildAction(evt, resolvedTarget)
       || this.handleFormChildNavigateAction(evt, resolvedTarget);
   }
 
   private handleClickEvent(evt: Event, resolvedTarget: HTMLElement): void {
     evt.preventDefault();
+    this.handleFormChildAction(evt, resolvedTarget);
   }
 
   private handleSubmitEvent(evt: Event, resolvedTarget: HTMLFormElement): void {
@@ -76,22 +81,70 @@ class GlobalEventHandler {
     this.handleFormNavigateAction(evt, resolvedTarget);
   }
 
-  private handleFormChildSubmitAction(evt: Event, resolvedTarget: HTMLElement): boolean {
+  private handleFormChildAction(evt: Event, resolvedTarget: HTMLElement): boolean {
     const actionSubmit: string = resolvedTarget.dataset.actionSubmit;
-    if (!actionSubmit) {
+    const actionFocus: string = resolvedTarget.dataset.actionFocus;
+    if (!actionSubmit && !actionFocus) {
       return false;
     }
-    // @example [data-action-submit]="$form"
-    if (actionSubmit === '$form' && this.isHTMLFormChildElement(resolvedTarget)) {
-      (resolvedTarget as HTMLFormChildElement).form.submit();
-      return true;
+
+    let form: HTMLFormElement = null;
+    const parentForm = resolvedTarget.closest('form');
+
+    if (actionSubmit) {
+      const formCandidate = actionSubmit !== '$form' ? document.querySelector(actionSubmit) : null;
+
+      // @example `data-action-submit="$form"`
+      if (actionSubmit === '$form' && this.isHTMLFormChildElement(resolvedTarget)) {
+        form = (resolvedTarget as HTMLFormChildElement).form;
+      } else if (actionSubmit === '$form' && parentForm) {
+        form = parentForm;
+        // @example `data-action-submit="form#identifier"`
+      } else if (formCandidate instanceof HTMLFormElement) {
+        form = formCandidate;
+      }
+      if (!(form instanceof HTMLFormElement)) {
+        return false;
+      }
+      this.assignFormValues(form, resolvedTarget);
+      form.submit();
     }
-    const formCandidate = document.querySelector(actionSubmit);
-    if (formCandidate instanceof HTMLFormElement) {
-      formCandidate.submit();
-      return true;
+
+    if (actionFocus && parentForm) {
+      if (!(parentForm instanceof HTMLFormElement)) {
+        return false;
+      }
+
+      const formFieldElement: HTMLElement|null = parentForm.querySelector(actionFocus);
+      if (formFieldElement === null) {
+        return false;
+      }
+
+      formFieldElement.focus();
     }
-    return false;
+    return true;
+  }
+
+  private assignFormValues(form: HTMLFormElement, resolvedTarget: HTMLElement): boolean {
+    const formValuesJson = resolvedTarget.dataset.formValues;
+    const formValues = formValuesJson ? JSON.parse(formValuesJson) : null;
+    if (formValues === null || !(formValues instanceof Object)) {
+      return false;
+    }
+    // assign optional key/value pairs from `data-submit-values="{&quot;key&quot;:&quot;value&quot;}"`
+    Object.entries(formValues).forEach(([name, value]) => {
+      let item = form.querySelector('[name=' + CSS.escape(name) + ']');
+      if (item instanceof HTMLElement) {
+        this.assignHTMLFormChildElementValue(item as HTMLElement, value.toString());
+      } else {
+        item = document.createElement('input');
+        item.setAttribute('type', 'hidden');
+        item.setAttribute('name', name);
+        item.setAttribute('value', value.toString());
+        form.appendChild(item);
+      }
+    });
+    return true;
   }
 
   private handleFormChildNavigateAction(evt: Event, resolvedTarget: HTMLElement): boolean {
@@ -166,6 +219,29 @@ class GlobalEventHandler {
       return element.value;
     }
     return null;
+  }
+
+  private assignHTMLFormChildElementValue(element: HTMLElement, value: string): void {
+    const type: string = element.getAttribute('type');
+    if (element instanceof HTMLSelectElement) {
+      Array.from(element.options).some((option: HTMLOptionElement, index: number) => {
+        if (option.value === value) {
+          element.selectedIndex = index;
+          return true;
+        }
+        return false;
+      });
+    } else if (element instanceof HTMLInputElement && type === 'checkbox') {
+      // used for representing unchecked state as e.g. `data-empty-value="0"`
+      const emptyValue: string = element.dataset.emptyValue;
+      if (typeof emptyValue !== 'undefined' && emptyValue === value) {
+        element.checked = false;
+      } else if (element.value === value) {
+        element.checked = true;
+      }
+    } else if (element instanceof HTMLInputElement) {
+      element.value = value;
+    }
   }
 }
 

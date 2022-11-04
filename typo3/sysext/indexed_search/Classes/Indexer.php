@@ -37,7 +37,6 @@ use TYPO3\CMS\IndexedSearch\Utility\IndexedSearchUtility;
  */
 class Indexer
 {
-
     /**
      * @var array
      */
@@ -1420,21 +1419,21 @@ class Indexer
             ->where(
                 $queryBuilder->expr()->eq(
                     'phash',
-                    $queryBuilder->createNamedParameter($hash, \PDO::PARAM_INT)
+                    $queryBuilder->createNamedParameter($hash, Connection::PARAM_INT)
                 ),
                 $queryBuilder->expr()->or(
                     $queryBuilder->expr()->eq(
                         'hash_gr_list',
                         $queryBuilder->createNamedParameter(
                             IndexedSearchUtility::md5inthash($this->defaultGrList),
-                            \PDO::PARAM_INT
+                            Connection::PARAM_INT
                         )
                     ),
                     $queryBuilder->expr()->eq(
                         'hash_gr_list',
                         $queryBuilder->createNamedParameter(
                             IndexedSearchUtility::md5inthash($this->conf['gr_list']),
-                            \PDO::PARAM_INT
+                            Connection::PARAM_INT
                         )
                     )
                 )
@@ -1466,11 +1465,11 @@ class Indexer
             ->where(
                 $queryBuilder->expr()->eq(
                     'phash',
-                    $queryBuilder->createNamedParameter($hash, \PDO::PARAM_INT)
+                    $queryBuilder->createNamedParameter($hash, Connection::PARAM_INT)
                 ),
                 $queryBuilder->expr()->eq(
                     'page_id',
-                    $queryBuilder->createNamedParameter($this->conf['id'], \PDO::PARAM_INT)
+                    $queryBuilder->createNamedParameter($this->conf['id'], Connection::PARAM_INT)
                 )
             )
             ->executeQuery()
@@ -1530,12 +1529,12 @@ class Indexer
                 ->fetchAssociative();
             // If there was an indexing of the page...:
             if (!empty($row)) {
-                if ($this->tstamp_maxAge && $row['tstamp'] + $this->tstamp_maxAge < $GLOBALS['EXEC_TIME']) {
+                if ($this->tstamp_maxAge && $GLOBALS['EXEC_TIME'] > $row['tstamp'] + $this->tstamp_maxAge) {
                     // If max age is exceeded, index the page
                     // The configured max-age was exceeded for the document and thus it's indexed.
                     $result = 1;
                 } else {
-                    if (!$this->tstamp_minAge || $row['tstamp'] + $this->tstamp_minAge < $GLOBALS['EXEC_TIME']) {
+                    if (!$this->tstamp_minAge || $GLOBALS['EXEC_TIME'] > $row['tstamp'] + $this->tstamp_minAge) {
                         // if minAge is not set or if minAge is exceeded, consider at mtime
                         if ($mtime) {
                             // It mtime is set, then it's tested. If not, the page must clearly be indexed.
@@ -1881,7 +1880,7 @@ class Indexer
         $result = $queryBuilder->select('wid')
             ->from('index_words')
             ->where(
-                $queryBuilder->expr()->neq('is_stopword', $queryBuilder->createNamedParameter(0, \PDO::PARAM_INT))
+                $queryBuilder->expr()->neq('is_stopword', $queryBuilder->createNamedParameter(0, Connection::PARAM_INT))
             )
             ->groupBy('wid')
             ->executeQuery();

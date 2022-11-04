@@ -29,9 +29,6 @@ use TYPO3\CMS\Core\Localization\LanguageService;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
-/**
- * Test case
- */
 class DatetimeElementTest extends UnitTestCase
 {
     use ProphecyTrait;
@@ -49,6 +46,7 @@ class DatetimeElementTest extends UnitTestCase
      */
     protected function setUp(): void
     {
+        parent::setUp();
         $this->timezoneBackup = date_default_timezone_get();
     }
 

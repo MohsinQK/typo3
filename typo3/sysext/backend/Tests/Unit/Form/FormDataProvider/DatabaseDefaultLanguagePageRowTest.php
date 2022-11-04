@@ -21,9 +21,6 @@ use PHPUnit\Framework\MockObject\MockObject;
 use TYPO3\CMS\Backend\Form\FormDataProvider\DatabaseDefaultLanguagePageRow;
 use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
-/**
- * Test case
- */
 class DatabaseDefaultLanguagePageRowTest extends UnitTestCase
 {
     /**
@@ -33,6 +30,7 @@ class DatabaseDefaultLanguagePageRowTest extends UnitTestCase
 
     protected function setUp(): void
     {
+        parent::setUp();
         $GLOBALS['TCA']['pages']['ctrl']['transOrigPointerField'] = 'l10n_parent';
         $this->subject = $this->getMockBuilder(DatabaseDefaultLanguagePageRow::class)
             ->onlyMethods(['getDatabaseRow'])

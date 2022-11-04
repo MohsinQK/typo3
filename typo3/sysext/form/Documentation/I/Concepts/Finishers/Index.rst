@@ -10,7 +10,7 @@ The form framework ships a bunch of finishers, which will be briefly
 described here. For more details, please head to the API reference and check
 out the section regarding :ref:`Finisher Options<apireference-finisheroptions>`.
 
-.. note::
+.. important::
 
    Finishers are executed in the order defined in your form definition. This is
    especially important when you are using the ``Redirect finisher``. Make sure
@@ -50,8 +50,9 @@ within your TYPO3 installation.
 
 .. note::
 
-   Finishers are only executed on successfully submitted forms. If a user uploads a file but
-   does not finish the form successfully, the uploaded files will not be deleted.
+   Finishers are only executed on successfully submitted forms. If a user uploads
+   a file but does not finish the form successfully, the uploaded files will not
+   be deleted.
 
 
 .. _concepts-finishers-emailfinisher:
@@ -155,7 +156,7 @@ Redirect finisher
 The 'Redirect finisher' is a simple finisher that redirects to another page.
 Additional link parameters can be added to the URL.
 
-.. note::
+.. important::
 
    This finisher stops the execution of all subsequent finishers in order to perform
    the redirect. Therefore, this finisher should always be the last finisher to be
@@ -206,8 +207,6 @@ Here is an example for adding uploads to ext:news (fal_related_files and fal_med
             mapOnDatabaseColumn: uid_local
             skipIfValueIsEmpty: true
         databaseColumnMappings:
-          table_local:
-            value: sys_file
           tablenames:
             value: tx_news_domain_model_news
           fieldname:
@@ -228,8 +227,6 @@ Here is an example for adding uploads to ext:news (fal_related_files and fal_med
             mapOnDatabaseColumn: uid_local
             skipIfValueIsEmpty: true
         databaseColumnMappings:
-          table_local:
-            value: sys_file
           tablenames:
             value: tx_news_domain_model_news
           fieldname:
@@ -273,14 +270,11 @@ utilized to load the finisher implementation.
 
 .. code-block:: yaml
 
-   TYPO3:
-     CMS:
-       Form:
-         prototypes:
-           standard:
-             finishersDefinition:
-               CustomFinisher:
-                 implementationClassName: 'VENDOR\MySitePackage\Domain\Finishers\CustomFinisher'
+   prototypes:
+     standard:
+       finishersDefinition:
+         CustomFinisher:
+           implementationClassName: 'VENDOR\MySitePackage\Domain\Finishers\CustomFinisher'
 
 If the finisher requires options, you can define those within the
 ``options`` property. The options will be used as default values and can
@@ -290,16 +284,13 @@ Define the default value:
 
 .. code-block:: yaml
 
-   TYPO3:
-     CMS:
-       Form:
-         prototypes:
-           standard:
-             finishersDefinition:
-               CustomFinisher:
-                 implementationClassName: 'VENDOR\MySitePackage\Domain\Finishers\CustomFinisher'
-                 options:
-                   yourCustomOption: 'Ralf'
+   prototypes:
+     standard:
+       finishersDefinition:
+         CustomFinisher:
+           implementationClassName: 'VENDOR\MySitePackage\Domain\Finishers\CustomFinisher'
+           options:
+             yourCustomOption: 'Ralf'
 
 Override the option using the ``form definition``:
 
@@ -536,71 +527,68 @@ following to the backend yaml setup:
 
 .. code-block:: yaml
 
-   TYPO3:
-      CMS:
-       Form:
-         prototypes:
-           standard:
-             formElementsDefinition:
-               Form:
-                 formEditor:
-                   editors:
-                     900:
-                       # Extend finisher drop down
-                       selectOptions:
-                         35:
-                           value: 'CustomFinisher'
-                           label: 'Custom Finisher'
-                   propertyCollections:
-                     finishers:
-                        # add finisher fields
-                        25:
-                           identifier: 'CustomFinisher'
-                           editors:
-                              __inheritances:
-                                 10: 'TYPO3.CMS.Form.mixins.formElementMixins.BaseCollectionEditorsMixin'
-                              100:
-                                label: "Custom Finisher"
-                              # custom field (input, required)
-                              110:
-                                identifier: 'customField'
-                                templateName: 'Inspector-TextEditor'
-                                label: 'Custom Field'
-                                propertyPath: 'options.customField'
-                                propertyValidators:
-                                  10: 'NotEmpty'
-                              # email field
-                              120:
-                                identifier: 'email'
-                                templateName: 'Inspector-TextEditor'
-                                label: 'Subscribers email'
-                                propertyPath: 'options.email'
-                                enableFormelementSelectionButton: true
-                                propertyValidators:
-                                  10: 'NotEmpty'
-                                  20: 'FormElementIdentifierWithinCurlyBracesInclusive'
-
-                finishersDefinition:
-                  CustomFinisher:
-                    formEditor:
-                      iconIdentifier: 'form-finisher'
-                      label: 'Custom Finisher'
-                      predefinedDefaults:
-                        options:
-                          customField: ''
-                          email: ''
-                    # displayed when overriding finisher settings
-                    FormEngine:
-                      label: 'Custom Finisher'
-                      elements:
-                        customField:
+   prototypes:
+     standard:
+       formElementsDefinition:
+         Form:
+           formEditor:
+             editors:
+               900:
+                 # Extend finisher drop down
+                 selectOptions:
+                   35:
+                     value: 'CustomFinisher'
+                     label: 'Custom Finisher'
+             propertyCollections:
+               finishers:
+                  # add finisher fields
+                  25:
+                     identifier: 'CustomFinisher'
+                     editors:
+                        __inheritances:
+                           10: 'mixins.formElementMixins.BaseCollectionEditorsMixin'
+                        100:
+                          label: "Custom Finisher"
+                        # custom field (input, required)
+                        110:
+                          identifier: 'customField'
+                          templateName: 'Inspector-TextEditor'
                           label: 'Custom Field'
-                          config:
-                            type: 'text'
-                        email:
+                          propertyPath: 'options.customField'
+                          propertyValidators:
+                            10: 'NotEmpty'
+                        # email field
+                        120:
+                          identifier: 'email'
+                          templateName: 'Inspector-TextEditor'
                           label: 'Subscribers email'
-                          config:
-                            type: 'text'
+                          propertyPath: 'options.email'
+                          enableFormelementSelectionButton: true
+                          propertyValidators:
+                            10: 'NotEmpty'
+                            20: 'FormElementIdentifierWithinCurlyBracesInclusive'
+
+          finishersDefinition:
+            CustomFinisher:
+              formEditor:
+                iconIdentifier: 'form-finisher'
+                label: 'Custom Finisher'
+                predefinedDefaults:
+                  options:
+                    customField: ''
+                    email: ''
+              # displayed when overriding finisher settings
+              FormEngine:
+                label: 'Custom Finisher'
+                elements:
+                  customField:
+                    label: 'Custom Field'
+                    config:
+                      type: 'text'
+                  email:
+                    label: 'Subscribers email'
+                    config:
+                      type: 'text'
 
 Make sure the setup file is registered in the backend:
 

@@ -339,14 +339,8 @@
 			<trans-unit id="titleText_formlabel" resname="titleText_formlabel">
 				<source>Titles (one per line)</source>
 			</trans-unit>
-			<trans-unit id="image_longdescURL" resname="image_longdescURL">
-				<source>Long Description URL</source>
-			</trans-unit>
 			<trans-unit id="images.addFileReference" resname="images.addFileReference">
 				<source>Add image</source>
-			</trans-unit>
-			<trans-unit id="longdescURL_formlabel" resname="longdescURL_formlabel">
-				<source>Long Description URLs (one per line)</source>
 			</trans-unit>
 			<trans-unit id="cols" resname="cols">
 				<source>Columns</source>
@@ -587,18 +581,6 @@
 			</trans-unit>
 			<trans-unit id="ALT.imgDimensions" resname="ALT.imgDimensions">
 				<source>Image Dimensions</source>
-			</trans-unit>
-			<trans-unit id="select_key_formlabel" resname="select_key_formlabel">
-				<source>Plugin Mode</source>
-			</trans-unit>
-			<trans-unit id="select_key.ALT.uploads" resname="select_key.ALT.uploads">
-				<source>Read from Path</source>
-			</trans-unit>
-			<trans-unit id="select_key.ALT.uploads_formlabel" resname="select_key.ALT.uploads_formlabel">
-				<source>Path</source>
-			</trans-unit>
-			<trans-unit id="select_key.ALT.script_formlabel" resname="select_key.ALT.script_formlabel">
-				<source>PHP Code</source>
 			</trans-unit>
 			<trans-unit id="imagecaption.ALT.uploads" resname="imagecaption.ALT.uploads">
 				<source>Descriptions</source>

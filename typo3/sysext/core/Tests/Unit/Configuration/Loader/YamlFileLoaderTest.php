@@ -20,9 +20,6 @@ namespace TYPO3\CMS\Core\Tests\Unit\Configuration\Loader;
 use TYPO3\CMS\Core\Configuration\Loader\YamlFileLoader;
 use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
-/**
- * Test case for the YAML file loader class
- */
 class YamlFileLoaderTest extends UnitTestCase
 {
     /**
@@ -140,9 +137,6 @@ options:
             ],
             'betterthanbefore' => 1,
         ];
-
-        // Make sure, feature toggle is activated
-        $GLOBALS['TYPO3_CONF_VARS']['SYS']['features']['yamlImportsFollowDeclarationOrder'] = true;
 
         // Accessible mock to $subject since getFileContents calls GeneralUtility methods
         $subject = $this->getAccessibleMock(YamlFileLoader::class, ['getFileContents', 'getStreamlinedFileName']);
@@ -284,6 +278,25 @@ betterthanbefore: \'%env(foo)%\'
                 'optionBefore',
                 'option1',
                 'option2',
+            ],
+        ];
+
+        self::assertSame($expected, $output);
+    }
+
+    /**
+     * Method checking for imports with placeholder values in the file name
+     * @test
+     */
+    public function loadWithImportAndPlaceholderInFileName(): void
+    {
+        $loader = new YamlFileLoader();
+        $output = $loader->load(__DIR__ . '/Fixtures/Placeholder/Berta.yml');
+
+        $expected = [
+            'loadedWithPlaceholder' => 1,
+            'settings' => [
+                'dynamicOption' => 'Foo',
             ],
         ];
 

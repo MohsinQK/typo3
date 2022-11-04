@@ -6,7 +6,6 @@
  */
 declare namespace TYPO3 {
   export let Backend: any;
-  export let DebugConsole: any;
   export let ExtensionManager: any;
   export let FormEngine: any;
   export let Icons: any;
@@ -125,6 +124,29 @@ declare module '@typo3/backend/form-engine' {
   export default _exported;
 }
 
+declare module '@typo3/ckeditor5-bundle' {
+  import ClassicEditor from '@ckeditor/ckeditor5-editor-classic/src/classiceditor.js';
+  export class CKEditor5 extends ClassicEditor {
+    // using `any` due to type-hell
+    static builtinPlugins: any[];
+  }
+
+  export * as UI from '@ckeditor/ckeditor5-ui';
+  export * as Core from '@ckeditor/ckeditor5-core';
+  export * as Engine from '@ckeditor/ckeditor5-engine';
+  export * as Utils from '@ckeditor/ckeditor5-utils';
+
+  export * as Clipboard from '@ckeditor/ckeditor5-clipboard';
+  export * as Essentials from '@ckeditor/ckeditor5-essentials';
+  export * as Link from '@ckeditor/ckeditor5-link';
+  export * as LinkUtils from '@ckeditor/ckeditor5-link/src/utils';
+  export * as Typing from '@ckeditor/ckeditor5-typing'
+  export * as Widget from '@ckeditor/ckeditor5-widget';
+
+  // single or prefixed exports
+  export { default as WordCount } from '@ckeditor/ckeditor5-word-count/src/wordcount';
+}
+
 // type definition for global namespace object
 interface Window {
   TYPO3: any;
@@ -149,8 +171,12 @@ declare module 'flatpickr/locales';
 declare module 'moment';
 declare module '@typo3/backend/legacy-tree';
 declare module '@typo3/install/chosen.jquery.min';
-declare module '@typo3/recordlist/link-browser';
+declare module '@typo3/backend/link-browser';
 declare module '@typo3/dashboard/contrib/chartjs';
+
+declare module '@typo3/t3editor/stream-parser/typoscript';
+declare module '@typo3/t3editor/autocomplete/ts-code-completion';
+
 interface Taboverride {
   set(elems: HTMLElement|HTMLElement[], enable?: boolean): Taboverride
 }

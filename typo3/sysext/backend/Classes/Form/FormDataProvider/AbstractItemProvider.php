@@ -34,6 +34,7 @@ use TYPO3\CMS\Core\Resource\ResourceStorage;
 use TYPO3\CMS\Core\Site\Entity\Site;
 use TYPO3\CMS\Core\Site\Entity\SiteInterface;
 use TYPO3\CMS\Core\Type\Bitmask\Permission;
+use TYPO3\CMS\Core\Type\ContextualFeedbackSeverity;
 use TYPO3\CMS\Core\Utility\ArrayUtility;
 use TYPO3\CMS\Core\Utility\Exception\MissingArrayPathException;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
@@ -105,15 +106,13 @@ abstract class AbstractItemProvider
                 $fieldLabel,
                 $exception->getMessage()
             );
-            /** @var FlashMessage $flashMessage */
             $flashMessage = GeneralUtility::makeInstance(
                 FlashMessage::class,
                 $message,
                 '',
-                FlashMessage::ERROR,
+                ContextualFeedbackSeverity::ERROR,
                 true
             );
-            /** @var \TYPO3\CMS\Core\Messaging\FlashMessageService $flashMessageService */
             $flashMessageService = GeneralUtility::makeInstance(FlashMessageService::class);
             $defaultFlashMessageQueue = $flashMessageService->getMessageQueueByIdentifier();
             $defaultFlashMessageQueue->enqueue($flashMessage);
@@ -278,9 +277,7 @@ abstract class AbstractItemProvider
             $msg = $databaseError . '. ';
             $msg .= $languageService->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:error.database_schema_mismatch');
             $msgTitle = $languageService->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:error.database_schema_mismatch_title');
-            /** @var FlashMessage $flashMessage */
-            $flashMessage = GeneralUtility::makeInstance(FlashMessage::class, $msg, $msgTitle, FlashMessage::ERROR, true);
-            /** @var FlashMessageService $flashMessageService */
+            $flashMessage = GeneralUtility::makeInstance(FlashMessage::class, $msg, $msgTitle, ContextualFeedbackSeverity::ERROR, true);
             $flashMessageService = GeneralUtility::makeInstance(FlashMessageService::class);
             $defaultFlashMessageQueue = $flashMessageService->getMessageQueueByIdentifier();
             $defaultFlashMessageQueue->enqueue($flashMessage);
@@ -305,18 +302,15 @@ abstract class AbstractItemProvider
                 // If the foreign table sets selicon_field, this field can contain an image
                 // that represents this specific row.
                 $iconFieldName = '';
-                $isReferenceField = false;
+                $isFileReference = false;
                 if (!empty($GLOBALS['TCA'][$foreignTable]['ctrl']['selicon_field'])) {
                     $iconFieldName = $GLOBALS['TCA'][$foreignTable]['ctrl']['selicon_field'];
-                    if (isset($GLOBALS['TCA'][$foreignTable]['columns'][$iconFieldName]['config']['type'])
-                        && $GLOBALS['TCA'][$foreignTable]['columns'][$iconFieldName]['config']['type'] === 'inline'
-                        && $GLOBALS['TCA'][$foreignTable]['columns'][$iconFieldName]['config']['foreign_table'] === 'sys_file_reference'
-                    ) {
-                        $isReferenceField = true;
+                    if (($GLOBALS['TCA'][$foreignTable]['columns'][$iconFieldName]['config']['type'] ?? '') === 'file') {
+                        $isFileReference = true;
                     }
                 }
                 $icon = '';
-                if ($isReferenceField) {
+                if ($isFileReference) {
                     $references = $fileRepository->findByRelation($foreignTable, $iconFieldName, $foreignRow['uid']);
                     if (is_array($references) && !empty($references)) {
                         $icon = reset($references);
@@ -543,7 +537,6 @@ abstract class AbstractItemProvider
         $foreignTableClauseArray = $this->processForeignTableClause($result, $foreignTableName, $localFieldName);
 
         $fieldList = BackendUtility::getCommonSelectFields($foreignTableName, $foreignTableName . '.');
-        /** @var QueryBuilder $queryBuilder */
         $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)
             ->getQueryBuilderForTable($foreignTableName);
 
@@ -596,14 +589,14 @@ abstract class AbstractItemProvider
             $queryBuilder->andWhere(
                 $queryBuilder->expr()->neq(
                     $foreignTableName . '.pid',
-                    $queryBuilder->createNamedParameter(-1, \PDO::PARAM_INT)
+                    $queryBuilder->createNamedParameter(-1, Connection::PARAM_INT)
                 )
             );
         } elseif ($rootLevel === 1) {
             $queryBuilder->andWhere(
                 $queryBuilder->expr()->eq(
                     $foreignTableName . '.pid',
-                    $queryBuilder->createNamedParameter(0, \PDO::PARAM_INT)
+                    $queryBuilder->createNamedParameter(0, Connection::PARAM_INT)
                 )
             );
         } else {
@@ -626,7 +619,7 @@ abstract class AbstractItemProvider
                 ->andWhere(
                     $queryBuilder->expr()->neq(
                         $foreignTableName . '.t3ver_state',
-                        $queryBuilder->createNamedParameter(VersionState::MOVE_POINTER, \PDO::PARAM_INT)
+                        $queryBuilder->createNamedParameter(VersionState::MOVE_POINTER, Connection::PARAM_INT)
                     )
                 );
         }
@@ -677,7 +670,7 @@ abstract class AbstractItemProvider
                             // is now an array containing uid + table + title + row.
                             // See TcaGroup data provider for details.
                             // Pick the first one (always on 0), and use uid only.
-                            $rowFieldValue = $rowFieldValue[0]['uid'] ?? $rowFieldValue[0];
+                            $rowFieldValue = $rowFieldValue[0]['uid'] ?? $rowFieldValue[0] ?? '';
                         }
                         if (substr($whereClauseParts[0], -1) === '\'' && $whereClauseSubParts[1][0] === '\'') {
                             $whereClauseParts[0] = substr($whereClauseParts[0], 0, -1);
@@ -890,7 +883,7 @@ abstract class AbstractItemProvider
                     return implode(',', array_map('intval', $value));
                 }
 
-                return implode(',', GeneralUtility::intExplode(',', $value, true));
+                return implode(',', GeneralUtility::intExplode(',', (string)$value, true));
             }, $parsedSiteConfiguration));
             $resolvedStartingPoints = $this->replaceParsedSiteConfiguration($fieldConfig['config']['treeConfig']['startingPoints'], $parsedSiteConfiguration);
             // Add the resolved starting points while removing empty values
@@ -948,7 +941,6 @@ abstract class AbstractItemProvider
         }
 
         if (isset($fieldConfig['config']['foreign_table']) && !empty($fieldConfig['config']['foreign_table'])) {
-            /** @var RelationHandler $relationHandler */
             $relationHandler = GeneralUtility::makeInstance(RelationHandler::class);
             $relationHandler->registerNonTableValues = !empty($fieldConfig['config']['allowNonIdValues']);
             if (!empty($fieldConfig['config']['MM']) && $result['command'] !== 'new') {
@@ -1003,14 +995,16 @@ abstract class AbstractItemProvider
         $languageService = $this->getLanguageService();
 
         foreach ($itemArray as $key => $item) {
-            if (isset($result['pageTsConfig']['TCEFORM.'][$table . '.'][$fieldName . '.']['altLabels.'][$item[1]])
-                && !empty($result['pageTsConfig']['TCEFORM.'][$table . '.'][$fieldName . '.']['altLabels.'][$item[1]])
+            $labelIndex = $item[1] ?? '';
+
+            if (isset($result['pageTsConfig']['TCEFORM.'][$table . '.'][$fieldName . '.']['altLabels.'][$labelIndex])
+                && !empty($result['pageTsConfig']['TCEFORM.'][$table . '.'][$fieldName . '.']['altLabels.'][$labelIndex])
             ) {
-                $label = $languageService->sL($result['pageTsConfig']['TCEFORM.'][$table . '.'][$fieldName . '.']['altLabels.'][$item[1]]);
+                $label = $languageService->sL($result['pageTsConfig']['TCEFORM.'][$table . '.'][$fieldName . '.']['altLabels.'][$labelIndex]);
             } else {
-                $label = $languageService->sL(trim($item[0]));
+                $label = $languageService->sL(trim($item[0] ?? ''));
             }
-            $value = strlen((string)$item[1]) > 0 ? $item[1] : '';
+            $value = strlen((string)($item[1] ?? '')) > 0 ? $item[1] : '';
             $icon = !empty($item[2]) ? $item[2] : null;
             $groupId = $item[3] ?? null;
             $helpText = null;

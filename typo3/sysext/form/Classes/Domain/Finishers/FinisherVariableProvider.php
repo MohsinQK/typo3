@@ -29,7 +29,6 @@ use TYPO3\CMS\Core\Utility\Exception\MissingArrayPathException;
  */
 final class FinisherVariableProvider implements \ArrayAccess, \IteratorAggregate, \Countable
 {
-
     /**
      * Two-dimensional object array storing the values. The first dimension is the finisher identifier,
      * and the second dimension is the identifier for the data the finisher wants to store.
@@ -97,7 +96,7 @@ final class FinisherVariableProvider implements \ArrayAccess, \IteratorAggregate
     public function exists($finisherIdentifier, $key): bool
     {
         try {
-            ArrayUtility::getValueByPath($this->objects[$finisherIdentifier], $key, '.');
+            ArrayUtility::getValueByPath($this->objects[$finisherIdentifier] ?? [], $key, '.');
         } catch (MissingArrayPathException $e) {
             return false;
         }

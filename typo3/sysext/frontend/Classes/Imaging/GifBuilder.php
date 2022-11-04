@@ -28,7 +28,6 @@ use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Core\Utility\MathUtility;
 use TYPO3\CMS\Core\Utility\PathUtility;
 use TYPO3\CMS\Frontend\ContentObject\ContentObjectRenderer;
-use TYPO3\CMS\Frontend\Controller\TypoScriptFrontendController;
 use TYPO3\CMS\Frontend\Resource\FilePathSanitizer;
 
 /**
@@ -130,19 +129,16 @@ class GifBuilder extends GraphicalFunctions
                 $ref = $this; // introduced for phpstan to not lose type information when passing $this into callUserFunction
                 $this->setup = GeneralUtility::callUserFunction($_funcRef, $_params, $ref);
             }
-            // Initializing global Char Range Map
+            // Initializing Char Range Map
             $this->charRangeMap = [];
-            if (($GLOBALS['TSFE'] ?? null) instanceof TypoScriptFrontendController && is_array($GLOBALS['TSFE']->tmpl->setup['_GIFBUILDER.']['charRangeMap.'] ?? null)) {
-                foreach ($GLOBALS['TSFE']->tmpl->setup['_GIFBUILDER.']['charRangeMap.'] as $cRMcfgkey => $cRMcfg) {
-                    if (is_array($cRMcfg)) {
-                        // Initializing:
-                        $cRMkey = $GLOBALS['TSFE']->tmpl->setup['_GIFBUILDER.']['charRangeMap.'][substr($cRMcfgkey, 0, -1)];
-                        $this->charRangeMap[$cRMkey] = [];
-                        $this->charRangeMap[$cRMkey]['charMapConfig'] = $cRMcfg['charMapConfig.'] ?? [];
-                        $this->charRangeMap[$cRMkey]['cfgKey'] = substr($cRMcfgkey, 0, -1);
-                        $this->charRangeMap[$cRMkey]['multiplicator'] = (double)$cRMcfg['fontSizeMultiplicator'];
-                        $this->charRangeMap[$cRMkey]['pixelSpace'] = (int)$cRMcfg['pixelSpaceFontSizeRef'];
-                    }
+            foreach (($conf['charRangeMap.'] ?? []) as $cRMcfgkey => $cRMcfg) {
+                if (is_array($cRMcfg)) {
+                    $cRMkey = $conf['charRangeMap.'][substr($cRMcfgkey, 0, -1)];
+                    $this->charRangeMap[$cRMkey] = [];
+                    $this->charRangeMap[$cRMkey]['charMapConfig'] = $cRMcfg['charMapConfig.'] ?? [];
+                    $this->charRangeMap[$cRMkey]['cfgKey'] = substr($cRMcfgkey, 0, -1);
+                    $this->charRangeMap[$cRMkey]['multiplicator'] = (float)$cRMcfg['fontSizeMultiplicator'];
+                    $this->charRangeMap[$cRMkey]['pixelSpace'] = (int)$cRMcfg['pixelSpaceFontSizeRef'];
                 }
             }
             // Getting sorted list of TypoScript keys from setup.
@@ -329,27 +325,28 @@ class GifBuilder extends GraphicalFunctions
      * Gets filename from fileName() and if file exists in typo3temp/assets/images/ dir it will - of course - not be rendered again.
      * Otherwise rendering means calling ->make(), then ->output(), then ->destroy()
      *
-     * @return string The filename for the created GIF/PNG file. The filename will be prefixed "GB_
+     * @return string The filename for the created GIF/PNG file.
      * @see make()
      * @see fileName()
      */
     public function gifBuild()
     {
-        if ($this->setup) {
-            // Relative to Environment::getPublicPath()
-            $gifFileName = $this->fileName('assets/images/');
-            // File exists
-            if (!file_exists($gifFileName)) {
-                // Create temporary directory if not done:
-                GeneralUtility::mkdir_deep(Environment::getPublicPath() . '/typo3temp/assets/images/');
-                // Create file:
-                $this->make();
-                $this->output($gifFileName);
-                $this->destroy();
-            }
-            return $gifFileName;
+        if (!$this->setup) {
+            return '';
         }
-        return '';
+
+        // Relative to Environment::getPublicPath()
+        $gifFileName = $this->fileName('assets/images/');
+
+        if (!file_exists(Environment::getPublicPath() . '/' . $gifFileName)) {
+            // Create temporary directory if not done
+            GeneralUtility::mkdir_deep(Environment::getPublicPath() . '/typo3temp/assets/images/');
+            // Create file
+            $this->make();
+            $this->output(Environment::getPublicPath() . '/' . $gifFileName);
+            $this->destroy();
+        }
+        return $gifFileName;
     }
 
     /**
@@ -538,7 +535,7 @@ class GifBuilder extends GraphicalFunctions
      * Performs caseshift if any.
      *
      * @param array $conf GIFBUILDER object TypoScript properties
-     * @return array Modified $conf array IF the "text" property is not blank
+     * @return array|null Modified $conf array IF the "text" property is not blank
      * @internal
      */
     public function checkTextObj($conf)
@@ -791,14 +788,14 @@ class GifBuilder extends GraphicalFunctions
             } elseif ($sign === '+') {
                 $calculatedValue += $theVal;
             } elseif ($sign === '/' && $theVal) {
-                $calculatedValue = $calculatedValue / $theVal;
+                $calculatedValue /= $theVal;
             } elseif ($sign === '*') {
-                $calculatedValue = $calculatedValue * $theVal;
+                $calculatedValue *= $theVal;
             } elseif ($sign === '%' && $theVal) {
                 $calculatedValue %= $theVal;
             }
         }
-        return round($calculatedValue);
+        return (int)round($calculatedValue);
     }
 
     /**

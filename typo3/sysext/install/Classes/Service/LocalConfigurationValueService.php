@@ -31,7 +31,6 @@ use TYPO3\CMS\Core\Utility\GeneralUtility;
  */
 class LocalConfigurationValueService
 {
-
     /**
      * Get up configuration data. Prepares main TYPO3_CONF_VARS
      * array to be displayed and merges is with the description file
@@ -123,7 +122,7 @@ class LocalConfigurationValueService
                             ? implode(',', $value)
                             : (string)$value;
                         break;
-                    // Check if the setting is a PHP error code, will trigger a view helper in fluid
+                        // Check if the setting is a PHP error code, will trigger a view helper in fluid
                     case 'errors':
                         $itemData['type'] = 'input';
                         $itemData['value'] = $value;

@@ -51,7 +51,7 @@ final class CssViewHelper extends AbstractTagBasedViewHelper
      *
      * @var bool
      */
-    protected $escapeChildren = false;
+    protected $escapeChildren = true;
 
     protected AssetCollector $assetCollector;
 
@@ -64,7 +64,7 @@ final class CssViewHelper extends AbstractTagBasedViewHelper
     {
         // Add a tag builder, that does not html encode values, because rendering with encoding happens in AssetRenderer
         $this->setTagBuilder(
-            new class() extends TagBuilder {
+            new class () extends TagBuilder {
                 public function addAttribute($attributeName, $attributeValue, $escapeSpecialCharacters = false): void
                 {
                     parent::addAttribute($attributeName, $attributeValue, false);
@@ -116,7 +116,7 @@ final class CssViewHelper extends AbstractTagBasedViewHelper
             $attributes['disabled'] = 'disabled';
         }
 
-        $file = $this->tag->getAttribute('href');
+        $file = $attributes['href'] ?? null;
         unset($attributes['href']);
         $options = [
             'priority' => $this->arguments['priority'],

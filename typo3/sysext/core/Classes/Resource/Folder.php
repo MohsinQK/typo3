@@ -68,13 +68,13 @@ class Folder implements FolderInterface
     /**
      * Modes for filter usage in getFiles()/getFolders()
      */
-    const FILTER_MODE_NO_FILTERS = 0;
+    public const FILTER_MODE_NO_FILTERS = 0;
     // Merge local filters into storage's filters
-    const FILTER_MODE_USE_OWN_AND_STORAGE_FILTERS = 1;
+    public const FILTER_MODE_USE_OWN_AND_STORAGE_FILTERS = 1;
     // Only use the filters provided by the storage
-    const FILTER_MODE_USE_STORAGE_FILTERS = 2;
+    public const FILTER_MODE_USE_STORAGE_FILTERS = 2;
     // Only use the filters provided by the current class
-    const FILTER_MODE_USE_OWN_FILTERS = 3;
+    public const FILTER_MODE_USE_OWN_FILTERS = 3;
 
     /**
      * Initialization of the folder
@@ -282,13 +282,11 @@ class Folder implements FolderInterface
     }
 
     /**
-     * Returns a list of subfolders
-     *
      * @param int $start The item to start at
      * @param int $numberOfItems The number of items to return
      * @param int $filterMode The filter mode to use for the filelist.
      * @param bool $recursive
-     * @return Folder[]
+     * @return array<string|int, Folder>
      */
     public function getSubfolders($start = 0, $numberOfItems = 0, $filterMode = self::FILTER_MODE_USE_OWN_AND_STORAGE_FILTERS, $recursive = false)
     {
@@ -549,6 +547,7 @@ class Folder implements FolderInterface
      * The parent folder of the root folder is the root folder.
      *
      * @return FolderInterface
+     * @throws InsufficientFolderAccessPermissionsException
      */
     public function getParentFolder()
     {

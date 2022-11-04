@@ -1,5 +1,7 @@
 .. include:: /Includes.rst.txt
 
+.. _breaking-97320:
+
 =======================================================================
 Breaking: #97320 - Register Report and Status via Service Configuration
 =======================================================================
@@ -20,7 +22,6 @@ Additionally, to be able to use autoconfiguration, the following interfaces have
 - :php:`TYPO3\CMS\Reports\ReportInterface`: :php:`getIdentifier`, :php:`getIconIdentifier`, :php:`getTitle`, :php:`getDescription`
 - :php:`TYPO3\CMS\Reports\StatusProviderInterface`: :php:`getLabel`
 
-
 Impact
 ======
 
@@ -31,7 +32,6 @@ Registration of custom `status` via :php:`$GLOBALS['TYPO3_CONF_VARS']['SC_OPTION
 are not evaluated anymore.
 
 :php:`ReportInterface` and :php:`StatusProviderInterface`: are extended by the mentioned methods. If the required methods are not implemented it will lead to fatal errors.
-
 
 Affected Installations
 ======================
@@ -57,7 +57,7 @@ Report
 If :yaml:`autoconfigure` is not enabled in your :file:`Configuration/Services.(yaml|php)`,
 add the tag :yaml:`reports.report` manually to your `reports` service.
 
-.. code-block:: yaml
+..  code-block:: yaml
 
     Vendor\Extension\Report\MyReport:
       tags:
@@ -66,7 +66,7 @@ add the tag :yaml:`reports.report` manually to your `reports` service.
 The old registration can be removed, if support for TYPO3 v11 or lower is not
 necessary.
 
-.. code-block:: php
+..  code-block:: php
 
     // Before in ext_localconf.php
 
@@ -79,7 +79,7 @@ necessary.
 
 Additionally, make sure to implement all methods of :php:`TYPO3\CMS\Reports\ReportInterface`.
 
-.. code-block:: php
+..  code-block:: php
 
     // Changes for the report
 
@@ -111,7 +111,7 @@ Additionally, make sure to implement all methods of :php:`TYPO3\CMS\Reports\Repo
         }
     }
 
-Refer to the :doc:`Icon API <Feature-94692-RegisteringIconsViaServiceContainer>`
+Refer to the :ref:`Icon API <feature-94692-1657826754>`
 on how to register the icon.
 
 Status
@@ -120,7 +120,7 @@ Status
 If :yaml:`autoconfigure` is not enabled in your :file:`Configuration/Services.(yaml|php)`,
 add the tag :yaml:`reports.status` manually to your `status` service.
 
-.. code-block:: yaml
+..  code-block:: yaml
 
     Vendor\Extension\Status\MyStatus:
       tags:
@@ -129,7 +129,7 @@ add the tag :yaml:`reports.status` manually to your `status` service.
 The old registration can be removed, if support for TYPO3 v11 or lower is not
 necessary.
 
-.. code-block:: php
+..  code-block:: php
 
     // Before in ext_localconf.php
 
@@ -139,21 +139,21 @@ necessary.
 
 Additionally, make sure to implement all methods of :php:`TYPO3\CMS\Reports\StatusProviderInterface`.
 
-.. code-block:: php
+..  code-block:: php
 
     // Changes for the Status
 
     class Status implements StatusProviderInterface
     {
-            public function getStatus(): array
-            {
-                return [];
-            }
+        public function getStatus(): array
+        {
+            return [];
+        }
 
-            public function getLabel(): string
-            {
-                return 'label';
-            }
+        public function getLabel(): string
+        {
+            return 'label';
+        }
     }
 
 .. index:: Backend, LocalConfiguration, PHP-API, FullyScanned, ext:reports

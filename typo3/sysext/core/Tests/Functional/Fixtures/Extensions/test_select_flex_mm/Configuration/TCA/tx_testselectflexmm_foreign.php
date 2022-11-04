@@ -6,15 +6,17 @@ return [
         'label' => 'title',
         'tstamp' => 'tstamp',
         'crdate' => 'crdate',
-        'cruser_id' => 'cruser_id',
         'delete' => 'deleted',
         'sortby' => 'sorting',
-        'iconfile' => 'EXT:test_select_flex_mm/Resources/Public/Icons/Extension.gif',
+        'iconfile' => 'EXT:test_select_flex_mm/Resources/Public/Icons/Extension.svg',
         'versioningWS' => true,
         'origUid' => 't3_origuid',
         'languageField' => 'sys_language_uid',
         'transOrigPointerField' => 'l10n_parent',
         'translationSource' => 'l10n_source',
+        'security' => [
+            'ignorePageTypeRestriction' => true,
+        ],
     ],
 
     'columns' => [

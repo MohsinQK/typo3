@@ -26,9 +26,6 @@ GFX:
         processor_path:
             type: text
             description: 'Path to the IM tools ''convert'', ''combine'', ''identify''.'
-        processor_path_lzw:
-            type: text
-            description: 'Path to the IM tool ''convert'' with LZW enabled! See ''gif_compress''. If your version 4.2.9 of ImageMagick is compiled with LZW you may leave this field blank AND disable the flag ''gif_compress''! Tip: You can call LZW ''convert'' with a prefix like ''myver_convert'' by setting this path with it, eg. <code>/usr/bin/myver_</code> instead of just <code>/usr/bin/</code>.'
         processor:
             type: dropdown
             allowedValues:
@@ -96,6 +93,12 @@ SYS:
         hhmm:
             type: text
             description: 'Format of Hours-Minutes - see PHP-function <a href="https://php.net/date" target="_blank" rel="noreferrer">date()</a>'
+        defaultScheme:
+            type: text
+            allowedValues:
+              'http': 'http'
+              'https': 'https'
+            description: 'Default URI scheme to be used in case none was given, e.g. "www.typo3.org" becomes "http://www.typo3.org"'
         loginCopyrightWarrantyProvider:
             type: text
             description: 'If you provide warranty for TYPO3 to your customers insert you (company) name here. It will appear in the login-dialog as the warranty provider. (You must also set URL below).'
@@ -190,9 +193,6 @@ SYS:
             type: container
             description: 'New features of TYPO3 that are activated on new installations but upgrading installations can still use the old behaviour'
             items:
-              subrequestPageErrors:
-                type: bool
-                description: 'If on, error pages in the Frontend (such as 404 pages) will be requested internally via the TYPO3 Frontend instead of using an external HTTP request. It may be enabled on an experimental basis, as there are some cases where stateful information is not correctly reset for the subrequest. Disable this feature if you have trouble with stateful services or when some custom extensions overriding PHPs global variables.'
               redirects.hitCount:
                 type: bool
                 description: 'If on, and if extension "redirects" is loaded, each performed redirect is counted and last hit time is logged to the database.'
@@ -204,12 +204,15 @@ SYS:
                 description: 'If on, HTTP referrer headers are enforced for backend and install tool requests to mitigate
                   potential same-site request forgery attacks. The behavior can be disabled in case HTTP proxies filter
                   required `Referer` header. As this is a potential security risk, it is recommended to enable this option.'
-              yamlImportsFollowDeclarationOrder:
-                type: bool
-                description: 'If on, the YAML imports are imported in the order they are defined in the importing YAML configuration.'
         availablePasswordHashAlgorithms:
             type: array
-            description: 'A list of available password hash mechanisms. Extensions may register additional mechanisms here. This is usually not extended in LocalConfiguration.php.'
+            description: 'A list of available password hash mechanisms. Extensions may register additional mechanisms here. This is usually not extended in system/settings.php.'
+        lang:
+          type: container
+          description: 'Settings related to XLF labels'
+          requireApprovedLocalizations:
+            type: bool
+            description: 'If set, translations are only taken into account if the according "approved" attribute is set to "yes" within the XLF file. Otherwise, all available translations are used.'
 EXT:
     type: container
     description: 'Extension Installation'
@@ -277,10 +280,13 @@ BE:
             '5 minutes': '5 minutes'
             '15 minutes': '15 minutes'
             '30 minutes': '30 minutes'
-          description: 'Allowed time interval for the configured rate limit. Individual values using PHP relative formats can be set in AdditionalConfiguration.php.'
+          description: 'Allowed time interval for the configured rate limit. Individual values using PHP relative formats can be set in system/additional.php.'
         loginRateLimitIpExcludeList:
           type: list
           description: 'IP-numbers (with *-wildcards) that are excluded from rate limiting. Syntax similar to [BE][IPmaskList]. An empty value disables the exclude list check.'
+        passwordPolicy:
+          type: text
+          description: 'Name of the password policy to use.'
         lockIP:
             type: int
             allowedValues:
@@ -344,7 +350,7 @@ BE:
             description: 'Don''t use exec() function (except for ImageMagick which is disabled by <a href="#GFX-im">[GFX][im]</a>=0). If set, all file operations are done by the default PHP-functions. This is necessary under Windows! On Unix the system commands by exec() can be used, unless this is disabled.'
         compressionLevel:
             type: text
-            description: 'Determines output compression of BE output. Makes output smaller but slows down the page generation depending on the compression level. Requires a) zlib in your PHP installation and b) special rewrite rules for .css.gzip and .js.gzip (please see <code>_.htaccess</code> for an example). Range 1-9, where 1 is least compression and 9 is greatest compression. ''true'' as value will set the compression based on the PHP default settings (usually 5). Suggested and most optimal value is 5.'
+            description: 'Determines output compression of BE output. Makes output smaller but slows down the page generation depending on the compression level. Requires a) zlib in your PHP installation and b) special rewrite rules for .css.gz and .js.gz (please see <code>_.htaccess</code> for an example). Range 1-9, where 1 is least compression and 9 is greatest compression. ''true'' as value will set the compression based on the PHP default settings (usually 5). Suggested and most optimal value is 5.'
         checkStoredRecords:
             type: bool
             description: 'If set, values of the record are validated after saving in DataHandler. Disable only if using a database in strict mode.'
@@ -354,9 +360,6 @@ BE:
         fileDenyPattern:
             type: text
             description: 'A perl-compatible and JavaScript-compatible regular expression (without delimiters "/"!) that - if it matches a filename - will deny the file upload/rename or whatever. For security reasons, files with multiple extensions have to be denied on an Apache environment with mod_alias, if the filename contains a valid php handler in an arbitrary position. Also, ".htaccess" files have to be denied. Matching is done case-insensitive. Default value is stored in PHP constant FILE_DENY_PATTERN_DEFAULT'
-        interfaces:
-            type: text
-            description: 'This determines which interface options are available in the login prompt (All options: "backend,frontend")'
         flexformForceCDATA:
             type: bool
             description: 'If set, will add CDATA to Flexform XML. Some versions of libxml have a bug that causes HTML entities to be stripped from any XML content and this setting will avoid the bug by adding CDATA.'
@@ -419,10 +422,13 @@ FE:
             '5 minutes': '5 minutes'
             '15 minutes': '15 minutes'
             '30 minutes': '30 minutes'
-          description: 'Allowed time interval for the configured rate limit. Individual values using PHP relative formats can be set in AdditionalConfiguration.php.'
+          description: 'Allowed time interval for the configured rate limit. Individual values using PHP relative formats can be set in system/additional.php.'
         loginRateLimitIpExcludeList:
           type: list
           description: 'IP-numbers (with *-wildcards) that are excluded from rate limiting. Syntax similar to [BE][IPmaskList]. An empty value disables the exclude list check.'
+        passwordPolicy:
+          type: text
+          description: 'Name of the password policy to use.'
         lockIP:
             type: int
             allowedValues:
@@ -599,7 +605,7 @@ MAIL:
           type: mixed
           description: |
             <em>only with transport=smtp</em>: Sets the stream context options for the smtp stream<br />
-            The configuration with an array must be made in the <code>AdditionalConfiguration.php</code>; see <a href="https://docs.typo3.org/m/typo3/reference-coreapi/master/en-us/ApiOverview/GlobalValues/Typo3ConfVars/Index.html#file-additionalconfiguration-php" target="_blank" rel="noreferrer">the documentation</a> for details.<br />
+            The configuration with an array must be made in the <code>system/additional.php</code>; see <a href="https://docs.typo3.org/m/typo3/reference-coreapi/main/en-us/Configuration/Typo3ConfVars/Index.html#file-additionalconfiguration-php" target="_blank" rel="noreferrer">the documentation</a> for details.<br />
         transport_sendmail_command:
             type: text
             description: '<em>only with transport=sendmail</em>: The command to call to send a mail locally.'
@@ -642,7 +648,7 @@ HTTP:
             description: |
               Default single proxy server as &quot;proxy.example.org&quot;.<br />
               Multiple proxies for different protocols can be added separately as array as well as authentication and port; see <a href="http://docs.guzzlephp.org/en/latest/request-options.html#proxy" target="_blank" rel="noreferrer">the documentation</a> for details.<br />
-              The configuration with an array must be made in the <code>AdditionalConfiguration.php</code>; see <a href="https://docs.typo3.org/m/typo3/reference-coreapi/master/en-us/ApiOverview/GlobalValues/Typo3ConfVars/Index.html#file-additionalconfiguration-php" target="_blank" rel="noreferrer">the documentation</a> for details.<br />
+              The configuration with an array must be made in the <code>system/additional.php</code>; see <a href="https://docs.typo3.org/m/typo3/reference-coreapi/main/en-us/ApiOverview/GlobalValues/Typo3ConfVars/Index.html#file-additionalconfiguration-php" target="_blank" rel="noreferrer">the documentation</a> for details.<br />
         ssl_key:
             type: mixed
             description: 'Mixed: Local certificate and an optional passphrase, see http://docs.guzzlephp.org/en/latest/request-options.html#ssl-key'

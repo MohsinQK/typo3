@@ -20,9 +20,15 @@ namespace TYPO3\CMS\Core\Tests\Unit\DependencyInjection\Fixtures;
 use Psr\Container\ContainerInterface;
 use TYPO3\CMS\Core\DependencyInjection\ServiceProviderInterface;
 
-function myFunctionFactory(): int
+function myFunctionFactory(): object
 {
-    return 42;
+    return new class () {
+        public int $number;
+        public function __construct()
+        {
+            $this->number = 42;
+        }
+    };
 }
 
 class TestServiceProvider implements ServiceProviderInterface
@@ -40,7 +46,7 @@ class TestServiceProvider implements ServiceProviderInterface
             'serviceC' => static function (ContainerInterface $container): \stdClass {
                 return new \stdClass();
             },
-            'serviceD' => new class() {
+            'serviceD' => new class () {
                 public function __invoke(ContainerInterface $container): \stdClass
                 {
                     return new \stdClass();

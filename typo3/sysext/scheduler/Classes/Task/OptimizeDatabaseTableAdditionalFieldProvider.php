@@ -18,7 +18,7 @@ namespace TYPO3\CMS\Scheduler\Task;
 use TYPO3\CMS\Core\Database\Connection;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Localization\LanguageService;
-use TYPO3\CMS\Core\Messaging\FlashMessage;
+use TYPO3\CMS\Core\Type\ContextualFeedbackSeverity;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Scheduler\AbstractAdditionalFieldProvider;
 use TYPO3\CMS\Scheduler\Controller\SchedulerModuleController;
@@ -96,14 +96,14 @@ class OptimizeDatabaseTableAdditionalFieldProvider extends AbstractAdditionalFie
             if (!empty($invalidTables)) {
                 $this->addMessage(
                     $this->getLanguageService()->sL($this->languageFile . ':msg.selectionOfNonExistingDatabaseTables'),
-                    FlashMessage::ERROR
+                    ContextualFeedbackSeverity::ERROR
                 );
                 $validData = false;
             }
         } else {
             $this->addMessage(
                 $this->getLanguageService()->sL($this->languageFile . ':msg.noDatabaseTablesSelected'),
-                FlashMessage::ERROR
+                ContextualFeedbackSeverity::ERROR
             );
             $validData = false;
         }
@@ -206,7 +206,7 @@ class OptimizeDatabaseTableAdditionalFieldProvider extends AbstractAdditionalFie
             ->where(
                 $queryBuilder->expr()->eq(
                     'TABLE_TYPE',
-                    $queryBuilder->createNamedParameter('BASE TABLE', \PDO::PARAM_STR)
+                    $queryBuilder->createNamedParameter('BASE TABLE')
                 ),
                 $queryBuilder->expr()->in(
                     'ENGINE',
@@ -214,7 +214,7 @@ class OptimizeDatabaseTableAdditionalFieldProvider extends AbstractAdditionalFie
                 ),
                 $queryBuilder->expr()->eq(
                     'TABLE_SCHEMA',
-                    $queryBuilder->createNamedParameter($connection->getDatabase(), \PDO::PARAM_STR)
+                    $queryBuilder->createNamedParameter($connection->getDatabase())
                 )
             );
 
@@ -222,7 +222,7 @@ class OptimizeDatabaseTableAdditionalFieldProvider extends AbstractAdditionalFie
             $queryBuilder->andWhere(
                 $queryBuilder->expr()->in(
                     'TABLE_NAME',
-                    $queryBuilder->createNamedParameter($tableNames, \PDO::PARAM_STR)
+                    $queryBuilder->createNamedParameter($tableNames)
                 )
             );
         }

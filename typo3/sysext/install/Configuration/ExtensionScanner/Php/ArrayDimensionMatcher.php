@@ -725,4 +725,225 @@ return [
             'Feature-97544-PSR-14EventsForModifyingPreviewURIs.rst',
         ],
     ],
+    '$GLOBALS[\'TYPO3_CONF_VARS\'][\'SC_OPTIONS\'][\'tslib/class.tslib_fe.php\'][\'determineId-PreProcessing\']' => [
+        'restFiles' => [
+            'Breaking-97737-Page-relatedHooksInTSFERemoved.rst',
+            'Feature-97737-PSR-14EventsWhenPageRootlineInFrontendIsResolved.rst',
+        ],
+    ],
+    '$GLOBALS[\'TYPO3_CONF_VARS\'][\'SC_OPTIONS\'][\'tslib/class.tslib_fe.php\'][\'fetchPageId-PostProcessing\']' => [
+        'restFiles' => [
+            'Breaking-97737-Page-relatedHooksInTSFERemoved.rst',
+            'Feature-97737-PSR-14EventsWhenPageRootlineInFrontendIsResolved.rst',
+        ],
+    ],
+    '$GLOBALS[\'TYPO3_CONF_VARS\'][\'SC_OPTIONS\'][\'tslib/class.tslib_fe.php\'][\'settingLanguage_preProcess\']' => [
+        'restFiles' => [
+            'Breaking-97737-Page-relatedHooksInTSFERemoved.rst',
+            'Feature-97737-PSR-14EventsWhenPageRootlineInFrontendIsResolved.rst',
+        ],
+    ],
+    '$GLOBALS[\'TYPO3_CONF_VARS\'][\'SC_OPTIONS\'][\'tslib/class.tslib_fe.php\'][\'determineId-PostProc\']' => [
+        'restFiles' => [
+            'Breaking-97737-Page-relatedHooksInTSFERemoved.rst',
+            'Feature-97737-PSR-14EventsWhenPageRootlineInFrontendIsResolved.rst',
+        ],
+    ],
+    '$GLOBALS[\'TYPO3_CONF_VARS\'][\'SC_OPTIONS\'][\'tslib/class.tslib_fe.php\'][\'settingLanguage_postProcess\']' => [
+        'restFiles' => [
+            'Breaking-97737-Page-relatedHooksInTSFERemoved.rst',
+            'Feature-97737-PSR-14EventsWhenPageRootlineInFrontendIsResolved.rst',
+        ],
+    ],
+    '$GLOBALS[\'TYPO3_CONF_VARS\'][\'GFX\'][\'processor_path_lzw\']' => [
+        'restFiles' => [
+            'Breaking-97797-GFXSettingProcessor_path_lzwRemoved.rst',
+        ],
+    ],
+    '$GLOBALS[\'TYPO3_CONF_VARS\'][\'SC_OPTIONS\'][\'tslib/class.tslib_fe.php\'][\'contentPostProc-cached\']' => [
+        'restFiles' => [
+            'Breaking-97862-HooksRelatedToGeneratingPageContentRemoved.rst',
+            'Feature-97862-NewPSR-14EventsForManipulatingFrontendPageGenerationAndCacheBehaviour.rst',
+        ],
+    ],
+    '$GLOBALS[\'TYPO3_CONF_VARS\'][\'SC_OPTIONS\'][\'tslib/class.tslib_fe.php\'][\'contentPostProc-all\']' => [
+        'restFiles' => [
+            'Breaking-97862-HooksRelatedToGeneratingPageContentRemoved.rst',
+            'Feature-97862-NewPSR-14EventsForManipulatingFrontendPageGenerationAndCacheBehaviour.rst',
+        ],
+    ],
+    '$GLOBALS[\'TYPO3_CONF_VARS\'][\'SC_OPTIONS\'][\'tslib/class.tslib_fe.php\'][\'usePageCache\']' => [
+        'restFiles' => [
+            'Breaking-97862-HooksRelatedToGeneratingPageContentRemoved.rst',
+            'Feature-97862-NewPSR-14EventsForManipulatingFrontendPageGenerationAndCacheBehaviour.rst',
+        ],
+    ],
+    '$GLOBALS[\'TYPO3_CONF_VARS\'][\'SC_OPTIONS\'][\'tslib/class.tslib_fe.php\'][\'insertPageIncache\']' => [
+        'restFiles' => [
+            'Breaking-97862-HooksRelatedToGeneratingPageContentRemoved.rst',
+            'Feature-97862-NewPSR-14EventsForManipulatingFrontendPageGenerationAndCacheBehaviour.rst',
+        ],
+    ],
+    '$GLOBALS[\'TYPO3_CONF_VARS\'][\'SC_OPTIONS\'][\'typo3/backend.php\'][\'constructorPostProcess\']' => [
+        'restFiles' => [
+            'Breaking-97451-RemoveBackendControllerPageHooks.rst',
+            'Feature-97451-PSR-14EventsForBackendPageController.rst',
+        ],
+    ],
+    '$GLOBALS[\'TYPO3_CONF_VARS\'][\'SC_OPTIONS\'][\'typo3/backend.php\'][\'renderPreProcess\']' => [
+        'restFiles' => [
+            'Breaking-97451-RemoveBackendControllerPageHooks.rst',
+            'Feature-97451-PSR-14EventsForBackendPageController.rst',
+        ],
+    ],
+    '$GLOBALS[\'TYPO3_CONF_VARS\'][\'SC_OPTIONS\'][\'typo3/backend.php\'][\'renderPostProcess\']' => [
+        'restFiles' => [
+            'Breaking-97451-RemoveBackendControllerPageHooks.rst',
+            'Feature-97451-PSR-14EventsForBackendPageController.rst',
+        ],
+    ],
+    '$GLOBALS[\'TYPO3_CONF_VARS\'][\'SC_OPTIONS\'][\'LinkBrowser\'][\'hooks\']' => [
+        'restFiles' => [
+            'Breaking-97454-RemoveLinkBrowserHooks.rst',
+            'Feature-97454-PSR14EventsForLinkBrowserLifecycle.rst',
+        ],
+    ],
+    '$GLOBALS[\'TYPO3_CONF_VARS\'][\'SC_OPTIONS\'][\'TYPO3\CMS\Workspaces\Service\WorkspaceService\'][\'hasPageRecordVersions\']' => [
+        'restFiles' => [
+            'Breaking-97945-RemovedWorkspaceServiceHooks.rst',
+            'Feature-97945-PSR14AfterPageTreeItemsPreparedEvent.rst',
+        ],
+    ],
+    '$GLOBALS[\'TYPO3_CONF_VARS\'][\'SC_OPTIONS\'][\'TYPO3\CMS\Workspaces\Service\WorkspaceService\'][\'fetchPagesWithVersionsInTable\']' => [
+        'restFiles' => [
+            'Breaking-97945-RemovedWorkspaceServiceHooks.rst',
+            'Feature-97945-PSR14AfterPageTreeItemsPreparedEvent.rst',
+        ],
+    ],
+    '$GLOBALS[\'TYPO3_CONF_VARS\'][\'SC_OPTIONS\'][\'t3lib/class.t3lib_tsparser.php\'][\'preParseFunc\']' => [
+        'restFiles' => [
+            'Breaking-98016-RemovedTypoScriptFunctionHook.rst',
+            'Feature-98016-PSR-14EvaluateModifierFunctionEvent.rst',
+        ],
+    ],
+    '$GLOBALS[\'TYPO3_CONF_VARS\'][\'BE\'][\'jsConcatenateHandler\']' => [
+        'restFiles' => [
+            'Breaking-98100-CompressionAndConcatenationOfJavaScriptAndCSSFilesForBackendRemoved.rst',
+        ],
+    ],
+    '$GLOBALS[\'TYPO3_CONF_VARS\'][\'BE\'][\'jsCompressHandler\']' => [
+        'restFiles' => [
+            'Breaking-98100-CompressionAndConcatenationOfJavaScriptAndCSSFilesForBackendRemoved.rst',
+        ],
+    ],
+    '$GLOBALS[\'TYPO3_CONF_VARS\'][\'BE\'][\'cssConcatenateHandler\']' => [
+        'restFiles' => [
+            'Breaking-98100-CompressionAndConcatenationOfJavaScriptAndCSSFilesForBackendRemoved.rst',
+        ],
+    ],
+    '$GLOBALS[\'TYPO3_CONF_VARS\'][\'BE\'][\'cssCompressHandler\']' => [
+        'restFiles' => [
+            'Breaking-98100-CompressionAndConcatenationOfJavaScriptAndCSSFilesForBackendRemoved.rst',
+        ],
+    ],
+    '$GLOBALS[\'TYPO3_CONF_VARS\'][\'BE\'][\'interfaces\']' => [
+        'restFiles' => [
+            'Breaking-98179-RemoveBackendInterfaceSelectorAndConfigurableRedirect.rst',
+        ],
+    ],
+    '$GLOBALS[\'TYPO3_CONF_VARS\'][\'SC_OPTIONS\'][\'TYPO3\CMS\Core\Configuration\FlexForm\FlexFormTools\'][\'flexParsing\']' => [
+        'restFiles' => [
+            'Breaking-97449-RemovedHookForModifyingFlexFormParsing.rst',
+            'Feature-97449-PSR-14EventsForModifyingFlexFormParsing.rst',
+        ],
+    ],
+    '$GLOBALS[\'TYPO3_CONF_VARS\'][\'SC_OPTIONS\'][\'t3lib/class.t3lib_page.php\'][\'getRecordOverlay\']' => [
+        'restFiles' => [
+            'Breaking-98303-RemovedHooksForLanguageOverlaysInPageRepository.rst',
+            'Deprecation-98303-InterfacesForPageRepositoryLanguageOverlayHooks.rst',
+            'Feature-98303-PSR-14EventsForModifyingLanguageOverlays.rst',
+        ],
+    ],
+    '$GLOBALS[\'TYPO3_CONF_VARS\'][\'SC_OPTIONS\'][\'t3lib/class.t3lib_page.php\'][\'getPageOverlay\']' => [
+        'restFiles' => [
+            'Breaking-98303-RemovedHooksForLanguageOverlaysInPageRepository.rst',
+            'Deprecation-98303-InterfacesForPageRepositoryLanguageOverlayHooks.rst',
+            'Feature-98303-PSR-14EventsForModifyingLanguageOverlays.rst',
+        ],
+    ],
+    '$GLOBALS[\'TYPO3_CONF_VARS\'][\'SC_OPTIONS\'][\'cms/layout/class.tx_cms_layout.php\'][\'record_is_used\']' => [
+        'restFiles' => [
+            'Breaking-98375-RemovedHooksInPageModule.rst',
+            'Feature-98375-PSR-14EventsInPageModule.rst',
+        ],
+    ],
+    '$GLOBALS[\'TYPO3_CONF_VARS\'][\'SC_OPTIONS\'][\'TYPO3\CMS\Backend\View\PageLayoutView\'][\'modifyQuery\']' => [
+        'restFiles' => [
+            'Breaking-98375-RemovedHooksInPageModule.rst',
+            'Feature-98375-PSR-14EventsInPageModule.rst',
+        ],
+    ],
+    '$GLOBALS[\'TYPO3_CONF_VARS\'][\'SC_OPTIONS\'][\'cms/layout/class.tx_cms_layout.php\'][\'tt_content_drawItem\']' => [
+        'restFiles' => [
+            'Breaking-98375-RemovedHooksInPageModule.rst',
+            'Feature-98375-PSR-14EventsInPageModule.rst',
+        ],
+    ],
+    '$GLOBALS[\'TYPO3_CONF_VARS\'][\'SC_OPTIONS\'][\'cms/layout/class.tx_cms_layout.php\'][\'list_type_Info\']' => [
+        'restFiles' => [
+            'Breaking-98375-RemovedHooksInPageModule.rst',
+            'Feature-98375-PSR-14EventsInPageModule.rst',
+        ],
+    ],
+    '$GLOBALS[\'TYPO3_CONF_VARS\'][\'SC_OPTIONS\'][\'cms/layout/class.tx_cms_layout.php\'][\'tt_content_drawFooter\']' => [
+        'restFiles' => [
+            'Breaking-98375-RemovedHooksInPageModule.rst',
+            'Feature-98375-PSR-14EventsInPageModule.rst',
+        ],
+    ],
+    '$GLOBALS[\'TYPO3_CONF_VARS\'][\'SC_OPTIONS\'][\'typo3/file_edit.php\'][\'preOutputProcessingHook\']' => [
+        'restFiles' => [
+            'Breaking-97452-RemovedEditFileControllerHooks.rst',
+            'Feature-98521-PSR-14EventToModifyFormDataForEditFileForm.rst',
+        ],
+    ],
+    '$GLOBALS[\'TYPO3_CONF_VARS\'][\'SC_OPTIONS\'][\'typo3/file_edit.php\'][\'postOutputProcessingHook\']' => [
+        'restFiles' => [
+            'Breaking-97452-RemovedEditFileControllerHooks.rst',
+        ],
+    ],
+    '$GLOBALS[\'TYPO3_CONF_VARS\'][\'SC_OPTIONS\'][\'typo3/alt_doc.php\'][\'makeEditForm_accessCheck\']' => [
+        'restFiles' => [
+            'Breaking-98304-RemovedHookForModifyingEditFormUserAccess.rst',
+            'Feature-98304-PSR-14EventForModifyingEditFormUserAccess.rst',
+        ],
+    ],
+    '$GLOBALS[\'TYPO3_CONF_VARS\'][\'SC_OPTIONS\'][\'GLOBAL\'][\'recStatInfoHooks\']' => [
+        'restFiles' => [
+            'Breaking-98441-HookRecStatInfoHooksRemoved.rst',
+        ],
+    ],
+    '$GLOBALS[\'TYPO3_CONF_VARS\'][\'EXTENSIONS\'][\'scheduler\'][\'showSampleTasks\']' => [
+        'restFiles' => [
+            'Breaking-98489-RemovalOfSleepTaskAndTestTask.rst',
+        ],
+    ],
+    '$GLOBALS[\'TYPO3_CONF_VARS\'][\'SC_OPTIONS\'][\'typo3/class.db_list_extra.inc\'][\'getTable\']' => [
+        'restFiles' => [
+            'Feature-98490-PSR-14EventToAlterTheRecordsRenderedInRecordListings.rst',
+            'Breaking-98490-VariousHooksAndMethodsChangedInDatabaseRecordList.rst',
+        ],
+    ],
+    '$GLOBALS[\'TYPO3_CONF_VARS\'][\'SC_OPTIONS\'][\'TYPO3\CMS\Recordlist\RecordList\DatabaseRecordList\'][\'modifyQuery\']' => [
+        'restFiles' => [
+            'Feature-98490-PSR-14EventToAlterTheRecordsRenderedInRecordListings.rst',
+            'Breaking-98490-VariousHooksAndMethodsChangedInDatabaseRecordList.rst',
+        ],
+    ],
+    '$GLOBALS[\'TYPO3_CONF_VARS\'][\'SC_OPTIONS\'][\'TYPO3\CMS\Recordlist\RecordList\DatabaseRecordList\'][\'makeSearchStringConstraints\']' => [
+        'restFiles' => [
+            'Feature-98490-PSR-14EventToAlterTheRecordsRenderedInRecordListings.rst',
+            'Breaking-98490-VariousHooksAndMethodsChangedInDatabaseRecordList.rst',
+        ],
+    ],
 ];

@@ -33,9 +33,6 @@ use TYPO3\CMS\Extbase\Configuration\ConfigurationManagerInterface;
 use TYPO3\CMS\Extbase\Utility\LocalizationUtility;
 use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
-/**
- * Test case
- */
 class LocalizationUtilityTest extends UnitTestCase
 {
     use ProphecyTrait;
@@ -97,6 +94,12 @@ class LocalizationUtilityTest extends UnitTestCase
                             'target' => 'English label with number %d',
                         ],
                     ],
+                    'keyWithPlaceholderAndNoArguments' => [
+                        [
+                            'source' => '%d/%m/%Y',
+                            'target' => '%d/%m/%Y',
+                        ],
+                    ],
                 ],
                 'dk' => [
                     'key1' => [
@@ -133,6 +136,12 @@ class LocalizationUtilityTest extends UnitTestCase
                     'keyWithPlaceholder' => [
                         [
                             'source' => 'English label with number %d',
+                        ],
+                    ],
+                    'keyWithPlaceholderAndNoArguments' => [
+                        [
+                            'source' => '%d/%m/%Y',
+                            'target' => '%d-%m-%Y',
                         ],
                     ],
                 ],
@@ -282,6 +291,12 @@ class LocalizationUtilityTest extends UnitTestCase
 
             'replace placeholder with argument' =>
             ['keyWithPlaceholder', 'default', 'English label with number 100', [], [100]],
+
+            'placeholder and empty arguments in default' =>
+            ['keyWithPlaceholderAndNoArguments', 'default', '%d/%m/%Y', [], []],
+
+            'placeholder and empty arguments in translation' =>
+            ['keyWithPlaceholderAndNoArguments', 'dk', '%d-%m-%Y', [], []],
 
             'get translated key from primary language' =>
             ['key1', 'dk', 'Dansk label for key1', ['dk_alt']],

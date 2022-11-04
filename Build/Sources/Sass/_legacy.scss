@@ -3,9 +3,6 @@
 //
 // known open todos:
 //
-// "scaffold-toolbar" (top right)
-//      - "Application Information" dropdown -> re-add colors
-//
 // forms module
 //      - missing progress bar styling (create new form layer) + cancel btn position
 //      - Step 2 "create new form layer" not working (JS loading spinner)
@@ -17,38 +14,8 @@
 // Backend Users module
 //      - table missing bottom footer divider line
 //
-// Reports module
-//      - Status report -> missing table 50-50 layout
-//      - adjust green saturation?
-//
 // DB Check module
 //      - Full search -> Advanced query -> fix form layouts
-
-//// Mixins
-@mixin panel-variant($border, $heading-text-color, $heading-bg-color, $heading-border) {
-    border-color: $border;
-
-    & > .panel-heading {
-        color: $gray-700;
-        background-color: $heading-bg-color;
-        border-color: $heading-border;
-
-        + .panel-collapse > .panel-body {
-            border-top-color: $border;
-        }
-
-        .badge {
-            color: $heading-bg-color;
-            background-color: $heading-text-color;
-        }
-    }
-
-    & > .panel-footer {
-        + .panel-collapse > .panel-body {
-            border-bottom-color: $border;
-        }
-    }
-}
 
 // Form control sizing
 //
@@ -101,10 +68,10 @@
     .form-control {
         border-color: $border-color;
 
-        @include box-shadow(inset 0 1px 1px rgba(0, 0, 0, 0.075)); // Redeclare so transitions work
+        @include box-shadow(inset 0 1px 1px rgba(0, 0, 0, .075)); // Redeclare so transitions work
         &:focus {
             border-color: darken($border-color, 10%);
-            $shadow: inset 0 1px 1px rgba(0, 0, 0, 0.075), 0 0 6px lighten($border-color, 20%);
+            $shadow: inset 0 1px 1px rgba(0, 0, 0, .075), 0 0 6px lighten($border-color, 20%);
 
             @include box-shadow($shadow);
         }
@@ -127,35 +94,24 @@ $grid-float-breakpoint: $screen-sm-min !default;
 $input-height-base: ($line-height-computed + ($padding-base-vertical * 2) + 2) !default;
 $popover-title-bg: darken($popover-bg, 3%) !default;
 
-// Typography
-$font-size-h1: $h1-font-size;
-$font-size-h2: $h2-font-size;
-$font-size-h3: $h3-font-size;
-$font-size-h4: $h4-font-size;
-
-// Components
-$border-radius-base: $border-radius;
-$border-radius-large: $border-radius-lg;
-$border-radius-small: $border-radius-sm;
-
 .hidden,
 .hide {
     display: none !important;
 }
 
 .form-group {
-    margin-bottom: 0.5rem;
+    margin-bottom: .5rem;
 }
 
 .caret {
     display: inline-block;
     width: 0;
     height: 0;
-    margin-left: 0.125rem;
+    margin-left: .125rem;
     vertical-align: middle;
-    border-top: 0.25rem dashed $gray-700;
-    border-right: 0.25rem solid transparent;
-    border-left: 0.25rem solid transparent;
+    border-top: .25rem dashed $gray-700;
+    border-right: .25rem solid transparent;
+    border-left: .25rem solid transparent;
 }
 
 .text-right {
@@ -181,38 +137,24 @@ label {
 // bootstrap v5 uses new class syntax -> .table-{themeColor}
 @mixin table-variant($state, $background) {
     // Remove accent background to keep striped table and its hover state
-    &.table-hover {
+    .table-hover {
         --bs-table-accent-bg: unset;
     }
 
     .#{$state} {
-        /* stylelint-disable custom-property-empty-line-before */
-        // todo: check why 'grunt formatsass' task is adding new empty lines
         $color: color-contrast(opaque($body-bg, $background));
-
         $hover-bg: mix($color, $background, percentage($table-hover-bg-factor));
-
         $striped-bg: mix($color, $background, percentage($table-striped-bg-factor));
-
         $active-bg: mix($color, $background, percentage($table-active-bg-factor));
-
         --bs-table-bg: #{$background};
-
         --bs-table-striped-bg: #{$striped-bg};
-
         --bs-table-striped-color: #{color-contrast($striped-bg)};
-
         --bs-table-active-bg: #{$active-bg};
-
         --bs-table-active-color: #{color-contrast($active-bg)};
-
         --bs-table-hover-bg: #{$hover-bg};
-
         --bs-table-hover-color: #{color-contrast($hover-bg)};
-
         color: $color;
         border-color: mix($color, $background, percentage($table-border-factor));
-        /* stylelint-enable custom-property-empty-line-before */
     }
 }
 
@@ -220,14 +162,6 @@ label {
     @include table-variant($color, $value);
 }
 // scss-docs-end table-variant
-
-// badge fallback
-// todo use ".badge .rounded-pill .bg-{themeColor}" instead of only .badge
-// todo only used in debug console?
-[class="badge"] {
-    background-color: $gray-600;
-    border-radius: $rounded-pill;
-}
 
 // nav fallback
 // todo add ".nav-item" and ".nav-link" classes to markup
@@ -241,73 +175,17 @@ label {
     }
 }
 
-// panel fallback
-// see bootstrap v4 migration https://getbootstrap.com/docs/4.5/migration/#panels
-// todo replace ".panel" classes with ".card"
-.panel {
-    @extend .card !optional;
-
-    &-group {
-        // .card-group is not a replacement for panel-group, therefore we build our own
-        display: flex;
-        flex-flow: column;
-    }
-
-    &-heading {
-        color: $gray-700;
-        padding: 0.625rem 1rem;
-    }
-
-    &-title {
-        @extend .card-title !optional;
-
-        margin-top: 0;
-        margin-bottom: 0;
-    }
-
-    &-body {
-        @extend .card-body !optional;
-    }
-
-    &-footer {
-        @extend .card-footer !optional;
-    }
-
-    > .table-fit {
-        border: none;
-    }
-}
-
 .page-header {
-    padding: 0.625rem 1rem;
+    padding: .625rem 1rem;
     margin: 2rem 0 1rem;
     border-bottom: 1px solid $gray-700;
 }
 
-code {
-    margin: 0.25rem 0.5rem;
-}
-
 .help-block {
     display: block;
-    margin-top: 0.5rem;
+    margin-top: .5rem;
     margin-bottom: 1rem;
     color: $gray-700;
-}
-
-.btn-toolbar {
-    > .btn,
-    > .btn-group,
-    > .input-group {
-        margin-left: 0.4rem;
-        float: left;
-    }
-
-    > .btn:first-child,
-    > .btn-group:first-child,
-    > .input-group:first-child {
-        margin-left: 0;
-    }
 }
 
 .input-group-btn {
@@ -320,11 +198,6 @@ code {
     display: inline-block;
 }
 
-.form-irre-object.panel {
-    flex: 1 0 100%;
-    width: 100%;
-}
-
 .modal-backdrop.in {
-    opacity: 0.5;
+    opacity: .5;
 }

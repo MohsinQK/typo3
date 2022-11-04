@@ -45,6 +45,9 @@
 			<trans-unit id="toolbarItems" resname="toolbarItems">
 				<source>Backend Toolbar Items</source>
 			</trans-unit>
+			<trans-unit id="symfonyExpressionLanguage" resname="symfonyExpressionLanguage">
+				<source>Symfony Expression Language Providers</source>
+			</trans-unit>
 			<trans-unit id="formYamlConfiguration" resname="formYamlConfiguration">
 				<source>Form: YAML Configuration</source>
 			</trans-unit>
@@ -55,7 +58,7 @@
 				<source>Backend Modules</source>
 			</trans-unit>
 			<trans-unit id="pagesTypes" resname="pagesTypes">
-				<source>$GLOBALS['PAGES_TYPES'] (Table permissions by page type)</source>
+				<source>Table permissions per page type</source>
 			</trans-unit>
 			<trans-unit id="cropLines" resname="cropLines">
 				<source>Crop lines</source>
@@ -83,9 +86,6 @@
 			</trans-unit>
 			<trans-unit id="writeMessageFailed" resname="writeMessageFailed">
 				<source>Write to configuration file failed (%s)!</source>
-			</trans-unit>
-			<trans-unit id="menuTitle" resname="menuTitle">
-				<source>Overview</source>
 			</trans-unit>
 			<trans-unit id="recordStatistics" resname="recordStatistics">
 				<source>Record Statistics</source>
@@ -302,9 +302,6 @@
 			</trans-unit>
 			<trans-unit id="refindex_ok" resname="refindex_ok">
 				<source>Index integrity was perfect!</source>
-			</trans-unit>
-			<trans-unit id="title" resname="title">
-				<source>Database integrity check</source>
 			</trans-unit>
 		</body>
 	</file>

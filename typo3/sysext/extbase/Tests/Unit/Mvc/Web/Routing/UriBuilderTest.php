@@ -23,8 +23,13 @@ use Psr\Http\Message\ServerRequestInterface;
 use TYPO3\CMS\Backend\Routing\Route;
 use TYPO3\CMS\Backend\Routing\Router;
 use TYPO3\CMS\Backend\Routing\UriBuilder as BackendUriBuilder;
+use TYPO3\CMS\Core\Core\SystemEnvironmentBuilder;
+use TYPO3\CMS\Core\FormProtection\DisabledFormProtection;
+use TYPO3\CMS\Core\FormProtection\FormProtectionFactory;
+use TYPO3\CMS\Core\Http\NormalizedParams;
 use TYPO3\CMS\Core\Http\ServerRequest;
 use TYPO3\CMS\Core\Http\Uri;
+use TYPO3\CMS\Core\Routing\BackendEntryPointResolver;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Extbase\Configuration\ConfigurationManager;
 use TYPO3\CMS\Extbase\Configuration\ConfigurationManagerInterface;
@@ -92,7 +97,9 @@ class UriBuilderTest extends UnitTestCase
         $router->addRoute('module_key', new Route('/test/Path', []));
         $router->addRoute('module_key2', new Route('/test/Path2', []));
         $router->addRoute('', new Route('', []));
-        GeneralUtility::setSingletonInstance(BackendUriBuilder::class, new BackendUriBuilder($router));
+        $formProtectionFactory = $this->createMock(FormProtectionFactory::class);
+        $formProtectionFactory->method('createForType')->willReturn(new DisabledFormProtection());
+        GeneralUtility::setSingletonInstance(BackendUriBuilder::class, new BackendUriBuilder($router, new BackendEntryPointResolver(), $formProtectionFactory));
     }
 
     /**
@@ -189,7 +196,7 @@ class UriBuilderTest extends UnitTestCase
      */
     public function uriForSetsPluginNameFromRequestIfPluginNameIsNotSetInFrontend(): void
     {
-        $GLOBALS['TYPO3_REQUEST'] = (new ServerRequest(new Uri('')))->withAttribute('applicationType', 1);
+        $GLOBALS['TYPO3_REQUEST'] = (new ServerRequest(new Uri('')))->withAttribute('applicationType', SystemEnvironmentBuilder::REQUESTTYPE_FE);
         $this->mockExtensionService->expects(self::once())->method('getPluginNamespace')->willReturn('tx_someextension_somepluginnamefromrequest');
         $this->mockRequest->expects(self::once())->method('getPluginName')->willReturn('SomePluginNameFromRequest');
         $expectedArguments = ['tx_someextension_somepluginnamefromrequest' => ['controller' => 'SomeController']];
@@ -212,9 +219,9 @@ class UriBuilderTest extends UnitTestCase
      */
     public function buildBackendUriKeepsQueryParametersIfAddQueryStringIsSet(): void
     {
-        $GLOBALS['TYPO3_REQUEST'] = $this->getRequestWithRouteAttribute();
         $_GET['id'] = 'pageId';
         $_GET['foo'] = 'bar';
+        $GLOBALS['TYPO3_REQUEST'] = $this->getRequestWithRouteAttribute()->withQueryParams($_GET);
         $_POST = [];
         $this->uriBuilder->setAddQueryString(true);
         $expectedResult = '/typo3/test/Path?token=dummyToken&id=pageId&foo=bar';
@@ -227,9 +234,9 @@ class UriBuilderTest extends UnitTestCase
      */
     public function buildBackendUriRouteAttributeOverrulesGetParameterIfAddQueryStringIsSet(): void
     {
-        $GLOBALS['TYPO3_REQUEST'] = $this->getRequestWithRouteAttribute('test/Path2');
         $_GET = ['route' => 'test/Path', 'id' => 'pageId', 'foo' => 'bar'];
         $_POST = [];
+        $GLOBALS['TYPO3_REQUEST'] = $this->getRequestWithRouteAttribute('test/Path2')->withQueryParams($_GET);
         $this->uriBuilder->setAddQueryString(true);
         $expectedResult = '/typo3/test/Path2?token=dummyToken&id=pageId&foo=bar';
         $actualResult = $this->uriBuilder->buildBackendUri();
@@ -322,8 +329,8 @@ class UriBuilderTest extends UnitTestCase
      */
     public function buildBackendUriKeepsModuleQueryParametersIfAddQueryStringIsNotSet(): void
     {
-        $GLOBALS['TYPO3_REQUEST'] = $this->getRequestWithRouteAttribute();
         $_GET = (['id' => 'pageId', 'foo' => 'bar']);
+        $GLOBALS['TYPO3_REQUEST'] = $this->getRequestWithRouteAttribute()->withQueryParams($_GET);
         $expectedResult = '/typo3/test/Path?token=dummyToken&id=pageId';
         $actualResult = $this->uriBuilder->buildBackendUri();
         self::assertEquals($expectedResult, $actualResult);
@@ -334,8 +341,8 @@ class UriBuilderTest extends UnitTestCase
      */
     public function buildBackendUriMergesAndOverrulesQueryParametersWithArguments(): void
     {
-        $GLOBALS['TYPO3_REQUEST'] = $this->getRequestWithRouteAttribute();
         $_GET = ['id' => 'pageId', 'foo' => 'bar'];
+        $GLOBALS['TYPO3_REQUEST'] = $this->getRequestWithRouteAttribute()->withQueryParams($_GET);
         $this->uriBuilder->setArguments(['route' => '/test/Path2', 'somePrefix' => ['bar' => 'baz']]);
         $expectedResult = '/typo3/test/Path2?token=dummyToken&id=pageId&somePrefix%5Bbar%5D=baz';
         $actualResult = $this->uriBuilder->buildBackendUri();
@@ -373,13 +380,15 @@ class UriBuilderTest extends UnitTestCase
      */
     public function buildBackendUriCreatesAbsoluteUrisIfSpecified(): void
     {
-        $GLOBALS['TYPO3_REQUEST'] = $this->getRequestWithRouteAttribute();
         $_SERVER['HTTP_HOST'] = 'baseuri';
-        $_SERVER['SCRIPT_NAME'] = '/typo3/index.php';
-        $_SERVER['ORIG_SCRIPT_NAME'] = '/typo3/index.php';
+        $_SERVER['SCRIPT_NAME'] = '/index.php';
+        $_SERVER['ORIG_SCRIPT_NAME'] = '/index.php';
         $_SERVER['REMOTE_ADDR'] = '127.0.0.1';
+        $GLOBALS['TYPO3_REQUEST'] = $this->getRequestWithRouteAttribute()
+            ->withAttribute('applicationType', SystemEnvironmentBuilder::REQUESTTYPE_BE)
+            ->withAttribute('normalizedParams', NormalizedParams::createFromServerParams($_SERVER));
         $this->uriBuilder->setCreateAbsoluteUri(true);
-        $expectedResult = 'http://baseuri/' . TYPO3_mainDir . 'test/Path?token=dummyToken';
+        $expectedResult = 'http://baseuri/typo3/test/Path?token=dummyToken';
         $actualResult = $this->uriBuilder->buildBackendUri();
         self::assertSame($expectedResult, $actualResult);
     }
@@ -389,7 +398,6 @@ class UriBuilderTest extends UnitTestCase
      */
     public function buildFrontendUriCreatesTypoLink(): void
     {
-        /** @var UriBuilder|MockObject|AccessibleObjectInterface $uriBuilder */
         $uriBuilder = $this->getAccessibleMock(UriBuilder::class, ['buildTypolinkConfiguration']);
         $uriBuilder->_set('contentObject', $this->mockContentObject);
         $uriBuilder->expects(self::once())->method('buildTypolinkConfiguration')->willReturn(['someTypoLinkConfiguration']);
@@ -424,7 +432,6 @@ class UriBuilderTest extends UnitTestCase
      */
     public function buildFrontendUriCreatesAbsoluteUrisIfSpecified(): void
     {
-        /** @var UriBuilder|MockObject|AccessibleObjectInterface $uriBuilder */
         $uriBuilder = $this->getAccessibleMock(UriBuilder::class, ['buildTypolinkConfiguration']);
         $uriBuilder->_set('contentObject', $this->mockContentObject);
         $uriBuilder->expects(self::once())->method('buildTypolinkConfiguration')->willReturn(['foo' => 'bar']);
@@ -440,7 +447,6 @@ class UriBuilderTest extends UnitTestCase
      */
     public function buildFrontendUriSetsAbsoluteUriSchemeIfSpecified(): void
     {
-        /** @var UriBuilder|MockObject|AccessibleObjectInterface $uriBuilder */
         $uriBuilder = $this->getAccessibleMock(UriBuilder::class, ['buildTypolinkConfiguration']);
         $uriBuilder->_set('contentObject', $this->mockContentObject);
         $uriBuilder->expects(self::once())->method('buildTypolinkConfiguration')->willReturn(['foo' => 'bar']);
@@ -457,7 +463,6 @@ class UriBuilderTest extends UnitTestCase
      */
     public function buildFrontendUriDoesNotSetAbsoluteUriSchemeIfCreateAbsoluteUriIsFalse(): void
     {
-        /** @var UriBuilder|MockObject|AccessibleObjectInterface $uriBuilder */
         $uriBuilder = $this->getAccessibleMock(UriBuilder::class, ['buildTypolinkConfiguration']);
         $uriBuilder->_set('contentObject', $this->mockContentObject);
         $uriBuilder->expects(self::once())->method('buildTypolinkConfiguration')->willReturn(['foo' => 'bar']);
@@ -707,7 +712,6 @@ class UriBuilderTest extends UnitTestCase
     {
         $mockValueObject = new ValueObjectFixture();
         $mockValueObject->name = 'foo';
-        /** @var UriBuilder|MockObject|AccessibleObjectInterface $mockUriBuilder */
         $mockUriBuilder = $this->getAccessibleMock(UriBuilder::class, ['convertTransientObjectToArray']);
         $mockUriBuilder->expects(self::once())->method('convertTransientObjectToArray')->willReturn(['foo' => 'bar']);
         $actualResult = $mockUriBuilder->_call('convertDomainObjectsToIdentityArrays', ['object' => $mockValueObject]);
@@ -724,7 +728,6 @@ class UriBuilderTest extends UnitTestCase
         $this->expectExceptionCode(1260881688);
         $mockEntity = new EntityFixture();
         $mockEntity->name = 'foo';
-        /** @var UriBuilder|MockObject|AccessibleObjectInterface $mockUriBuilder */
         $mockUriBuilder = $this->getAccessibleMock(UriBuilder::class, ['dummy']);
         $mockUriBuilder->_call('convertDomainObjectsToIdentityArrays', ['object' => $mockEntity]);
     }

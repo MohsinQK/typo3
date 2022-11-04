@@ -7,7 +7,10 @@
 //
 // Load global variables
 //
+@import "../../node_modules/@typo3/icons/dist/scss/icons-variables-actions.scss";
+@import "../../node_modules/bootstrap/scss/functions";
 @import "variables/main";
+@import "../../node_modules/bootstrap/scss/variables";
 
 //
 // Variables
@@ -18,8 +21,8 @@ $stage-abstract-element-toolbar-height: 35px;
 $stage-icon-container-width: 40px;
 $stage-validation-list-width: 100px;
 $stage-breakpoint-max: $screen-lg - 1;
-$stage-validation-transition-time-in: 0.2s;
-$stage-validation-transition-time-out: 0.3s;
+$stage-validation-transition-time-in: .2s;
+$stage-validation-transition-time-out: .3s;
 $navigation-bg: $gray-100;
 $tree-indentation: 20px;
 $tree-line-height: 20px;
@@ -72,21 +75,21 @@ $tree-line-height: 20px;
 
 @mixin collapsed-icon-animation() {
     transform: rotate(0deg);
-    transition: transform 0.2s;
+    transition: transform .2s;
 }
 
 @mixin expanded-icon-animation() {
     transform: rotate(90deg);
-    transition: transform 0.2s;
+    transition: transform .2s;
 }
 
 .form-editor {
-    padding: 0 0.5em;
+    padding: 0 .5em;
 }
 
 .form-control-wrap {
     margin: 0;
-    padding: 0.5rem 0;
+    padding: .5rem 0;
 
     .table {
         margin: 0;
@@ -99,11 +102,11 @@ $tree-line-height: 20px;
 
 .form-check.form-switch {
     margin-bottom: 0;
-    padding-bottom: 0.5rem;
+    padding-bottom: .5rem;
 }
 
 .form-group-select {
-    padding-bottom: 0.5rem;
+    padding-bottom: .5rem;
 
     .form-control-wrap {
         padding: 0;
@@ -114,7 +117,7 @@ $tree-line-height: 20px;
     }
 
     .form-select {
-        margin-top: 0.5rem;
+        margin-top: .5rem;
     }
 }
 
@@ -138,7 +141,7 @@ $tree-line-height: 20px;
         padding: 0;
     }
 
-    .ui-sortable-placeholder {
+    .form-sortable-ghost {
         outline-offset: -1px !important;
     }
 }
@@ -177,7 +180,7 @@ $tree-line-height: 20px;
                 overflow: visible;
                 position: relative;
                 top: -1em;
-                left: 0.6em;
+                left: .6em;
             }
 
             path {
@@ -212,18 +215,18 @@ $tree-line-height: 20px;
             }
 
             small {
-                padding-left: 0.5em;
+                padding-left: .5em;
                 font-size: 80%;
             }
         }
 
         .t3-form-icon {
-            margin-right: 0.5em;
-            margin-left: 0.5em;
+            margin-right: .5em;
+            margin-left: .5em;
         }
 
         .t3-form-element-has-children > div .t3-form-icon {
-            margin-left: 0.1em;
+            margin-left: .1em;
         }
 
         .sortable-hover {
@@ -277,7 +280,7 @@ $tree-line-height: 20px;
         padding-top: 2.5em;
     }
 
-    .ui-sortable-helper {
+    .form-sortable-drag {
         > div:hover,
         .t3-form-form-element-selected,
         #t3-form-navigation-component-tree-root-container:hover,
@@ -333,7 +336,7 @@ $tree-line-height: 20px;
     h3,
     h4 {
         margin: 0;
-        padding: 0.1em 0.2em 0.2em 0.5em;
+        padding: .1em .2em .2em .5em;
         border-top: 1px solid $module-docheader-border;
         clear: both;
         font: inherit;
@@ -352,12 +355,12 @@ $tree-line-height: 20px;
 
     h3 {
         color: $text-color;
-        padding-top: 0.3em;
+        padding-top: .3em;
         border: none;
     }
 
     h4 {
-        padding: 0.8em 3.5em 0.8em 2.8em;
+        padding: .8em 3.5em .8em 2.8em;
         font-weight: 500;
         background-color: $panel-default-heading-bg;
 
@@ -395,14 +398,14 @@ $tree-line-height: 20px;
     }
 
     &-validators.sortable + .t3-form-remove-element-button {
-        margin-top: 0.25rem;
+        margin-top: .25rem;
     }
 
     .t3-form-inspector-finishers-editor-removeButton,
     .t3-form-inspector-validators-editor-removeButton {
         .btn {
-            padding: 0.25rem 0.5rem;
-            font-size: 0.65625rem;
+            padding: .25rem .5rem;
+            font-size: .65625rem;
         }
 
         .t3-form-remove-element-button-label {
@@ -446,14 +449,14 @@ $tree-line-height: 20px;
 // Inspector Collection
 //
 .t3-form-add-collection-element {
-    padding-bottom: 0.5rem;
+    padding-bottom: .5rem;
 }
 
 .t3-form-collection-container {
     margin-top: -1em;
-    padding: 0.5em;
+    padding: .5em;
 
-    .ui-sortable-handle {
+    .form-sortable-handle {
         cursor: auto;
     }
 
@@ -462,22 +465,22 @@ $tree-line-height: 20px;
     }
 
     .t3-form-control-group {
-        margin-right: 0.5em;
-        margin-left: 0.5em;
+        margin-right: .5em;
+        margin-left: .5em;
     }
 }
 
 .t3-form-collection-element {
     position: relative;
-    margin-bottom: 0.5em;
+    margin-bottom: .5em;
     border: 1px solid $module-docheader-border;
     border-top: none;
     background: $navigation-bg;
 
     .t3-form-collection-element-remove-button {
         position: absolute;
-        right: 0.5em;
-        top: 0.5em;
+        right: .5em;
+        top: .5em;
     }
 
     h4 {
@@ -517,14 +520,13 @@ $tree-line-height: 20px;
 //
 .property-grid {
     .form-control {
-        min-width: initial;
         min-width: auto;
-        font-size: 0.9em;
+        font-size: .9em;
     }
 
     .table {
         th {
-            font-size: 0.9em;
+            font-size: .9em;
         }
 
         > tbody > tr {
@@ -536,7 +538,7 @@ $tree-line-height: 20px;
             }
 
             > td {
-                padding: 0.6em 0.3em;
+                padding: .6em .3em;
                 text-align: center;
 
                 &:first-child {
@@ -557,25 +559,19 @@ $tree-line-height: 20px;
                 }
             }
         }
-
-        .btn {
-            background-color: $btn-default-bg;
-            border-color: $btn-default-border;
-            font-size: 0.9em;
-        }
     }
 
     .sort-row-field {
         cursor: move;
     }
 
-    .ui-sortable-helper {
+    .form-sortable-drag {
         td {
             border: none;
         }
     }
 
-    .ui-sortable-placeholder {
+    .form-sortable-ghost {
         height: 45px;
         border-left: 1px solid $module-docheader-border !important;
         border-right: 1px solid $module-docheader-border !important;
@@ -626,26 +622,17 @@ $tree-line-height: 20px;
     }
 
     .t3-form-new-element-container {
+        display: flex;
+        justify-content: center;
+        align-items: center;
         height: $stage-abstract-element-height;
         border: 1px dashed $panel-default-heading-bg;
-        text-align: center;
-        padding-top: $stage-abstract-element-height / 2;
-
-        .btn {
-            transform: translateY(-50%);
-        }
     }
 
     // Abstract
     &.t3-form-stage-viewmode-abstract {
-        ol,
-        ul {
-            padding-left: $stage-icon-container-width;
-            padding-right: 1em;
-        }
-
         .t3-form-page-title {
-            margin: 0 0 0.5em;
+            margin: 0 0 .5em;
         }
 
         #t3-form-stage-inner-container {
@@ -668,7 +655,7 @@ $tree-line-height: 20px;
                 outline-color: $primary;
             }
 
-            & > .ui-sortable-handle {
+            & > .form-sortable-handle {
                 margin: 0;
 
                 div.t3-form-form-element-body {
@@ -677,8 +664,8 @@ $tree-line-height: 20px;
             }
         }
 
-        .t3-form-element-composit.sortable-hover > .ui-sortable-handle,
-        .ui-sortable-handle:hover {
+        .t3-form-element-composit.sortable-hover > .form-sortable-handle,
+        .form-sortable-handle:hover {
             border-color: darken($panel-default-heading-bg, 40%);
 
             .t3-form-icon-container {
@@ -686,23 +673,7 @@ $tree-line-height: 20px;
             }
         }
 
-        .ui-sortable {
-            fieldset {
-                position: relative;
-                min-height: 130px;
-                padding-top: 5em;
-
-                legend {
-                    position: absolute;
-                    top: 1em;
-                    display: inline-block;
-                    width: 95%;
-                }
-            }
-        }
-
-        .ui-sortable-handle {
-            overflow: hidden;
+        .form-sortable-handle {
             position: relative;
             height: $stage-abstract-element-height;
             margin-bottom: 1em;
@@ -731,10 +702,6 @@ $tree-line-height: 20px;
                     transition: margin $stage-validation-transition-time-in;
                 }
             }
-
-            span {
-                color: $gray-700;
-            }
         }
 
         .ui-state-disabled {
@@ -745,7 +712,7 @@ $tree-line-height: 20px;
             }
         }
 
-        .ui-sortable-placeholder {
+        .form-sortable-ghost {
             margin-bottom: 1em;
         }
 
@@ -773,7 +740,7 @@ $tree-line-height: 20px;
             height: 100%;
             padding-left: 1em;
 
-            @include fade-out-gradient-effect-bottom(#fff, 0.8em, 1em);
+            @include fade-out-gradient-effect-bottom(#fff, .8em, 1em);
 
             .element-label-container {
                 float: left;
@@ -794,7 +761,7 @@ $tree-line-height: 20px;
             .element-content {
                 padding-top: 1em;
                 white-space: nowrap;
-                font-size: 0.8em;
+                font-size: .8em;
 
                 span,
                 div {
@@ -819,14 +786,13 @@ $tree-line-height: 20px;
 
             .t3-form-validator-list {
                 @include fade-out-gradient-effect-bottom($panel-default-heading-bg, 1em, 1em);
-
                 position: absolute;
                 top: 0;
                 right: -$stage-validation-list-width;
                 width: $stage-validation-list-width;
                 height: 100%;
                 padding: 1em 1em 1em ($stage-validation-list-width - 65);
-                font-size: 0.8em;
+                font-size: .8em;
                 transition: right $stage-validation-transition-time-out;
                 background-color: $panel-default-heading-bg;
             }
@@ -862,7 +828,6 @@ $tree-line-height: 20px;
 
             .t3-form-validator-list {
                 $validation-list-background: lighten($info, 30%);
-
                 right: 0;
                 transition: none;
                 background-color: $validation-list-background;
@@ -889,8 +854,8 @@ $tree-line-height: 20px;
                 height: $stage-abstract-element-toolbar-height;
                 border: 1px solid $primary;
                 background-color: $primary;
-                padding-right: 0.7em;
-                padding-top: 0.4em;
+                padding-right: .7em;
+                padding-top: .4em;
 
                 &:before,
                 &:after {
@@ -911,30 +876,13 @@ $tree-line-height: 20px;
                     right: -1px;
                 }
 
-                .dropdown-menu {
-                    min-width: initial;
-                    padding-left: 0;
-                    padding-right: 0;
-                    background-color: darken($primary, 10%);
-
-                    > li a:hover {
-                        background-color: darken($primary, 5%);
-                    }
-
-                    .icon {
-                        svg path {
-                            fill: #fff;
-                        }
-                    }
-                }
-
                 .caret {
                     color: $primary;
                 }
 
                 .t3-form-dropdown-buttons {
                     .icon {
-                        margin-right: 0.5em;
+                        margin-right: .5em;
                     }
                 }
 
@@ -950,7 +898,7 @@ $tree-line-height: 20px;
                 top: 1em;
                 left: 5em;
                 bottom: auto;
-                font-size: 0.9em;
+                font-size: .9em;
                 color: #fff;
 
                 span {
@@ -998,14 +946,14 @@ $tree-line-height: 20px;
             display: block;
             width: 100%;
             height: 32px;
-            padding: 0.6em;
+            padding: .6em;
             font-size: 12px;
             line-height: $line-height-base;
             background-image: none;
             border: 1px solid $module-docheader-border;
             border-radius: 2px;
-            box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.075);
-            transition: border-color ease-in-out 0.15s, box-shadow ease-in-out 0.15s;
+            box-shadow: inset 0 1px 1px rgba(0, 0, 0, .075);
+            transition: border-color ease-in-out .15s, box-shadow ease-in-out .15s;
         }
 
         select[multiple="multiple"] {
@@ -1056,7 +1004,7 @@ $tree-line-height: 20px;
 
     #t3-form-stage {
         margin-bottom: 0;
-        padding-top: 0.5em;
+        padding-top: .5em;
 
         > ol,
         > ol > li > ol {
@@ -1085,15 +1033,15 @@ $tree-line-height: 20px;
     display: none;
     color: $primary;
     line-height: 1.6;
-    font-size: 0.8em;
+    font-size: .8em;
 
-    .ui-sortable-handle:hover > & {
+    .form-sortable-handle:hover > & {
         display: inline-block;
     }
 }
 
-.ui-sortable-placeholder,
-.t3-form-element-composit.ui-sortable-placeholder {
+.form-sortable-ghost,
+.t3-form-element-composit.form-sortable-ghost {
     z-index: 1;
     position: relative;
     background-color: #fff !important;
@@ -1103,7 +1051,7 @@ $tree-line-height: 20px;
     visibility: visible !important;
 }
 
-.ui-sortable-placeholder.mjs-nestedSortable-error {
+.form-sortable-ghost.mjs-nestedSortable-error {
     outline: 1px dashed #c83c3c !important;
 }
 
@@ -1131,41 +1079,42 @@ $tree-line-height: 20px;
             z-index: 1;
             position: absolute;
             display: inline-block;
-            width: 15px;
-            height: 15px;
-            font-family: FontAwesome;
-            vertical-align: middle;
+            width: 14px;
+            height: 14px;
             border-radius: 50%;
-            font-size: 1em;
-            line-height: 1.4;
-            text-align: center;
             background: none;
         }
     }
 
     #t3-form-navigation-component & {
         &:before {
-            margin-top: 0.2em;
-            color: #fff;
-            font-size: 10px;
-            font-weight: 800;
-            content: "\f12a";
+            content: '';
+            vertical-align: middle;
+            mask: escape-svg($icon-actions-exclamation-circle);
             background-color: $danger;
+            background-size: contain;
+            display: inline-block;
+            margin-top: .2em;
         }
     }
 
     &#t3-form-navigation-component-tree-root:before {
         left: -2em !important;
-        margin-top: 0.1em;
+        margin-top: .1em;
     }
 
-    #t3-form-stage-container &.ui-sortable-handle {
+    #t3-form-stage-container &.form-sortable-handle {
         border-color: $danger;
 
         &:before {
+            content: '';
+            vertical-align: middle;
+            mask: escape-svg($icon-actions-exclamation-circle);
+            background-color: $danger;
+            background-size: contain;
+            display: inline-block;
             left: 4.5em;
             margin-top: 1.9em;
-            content: "\f071";
         }
 
         .element-label {
@@ -1176,11 +1125,11 @@ $tree-line-height: 20px;
     #t3-form-inspector-panels .t3-form-collection-element & {
         display: inline-block;
         color: #fff;
-        font-size: 0.8em;
+        font-size: .8em;
         font-weight: 700;
         background-color: $danger;
-        margin-bottom: 0.5em;
-        padding: 0.1em 0.5em;
+        margin-bottom: .5em;
+        padding: .1em .5em;
         border-radius: 2px;
     }
 
@@ -1216,10 +1165,10 @@ $tree-line-height: 20px;
     span.t3-form-validation-errors {
         display: inline-block;
         color: #fff;
-        font-size: 0.8em;
+        font-size: .8em;
         font-weight: 700;
-        margin-bottom: 0.5em;
-        padding: 0.1em 0.5em;
+        margin-bottom: .5em;
+        padding: .1em .5em;
         border-radius: 2px;
         line-height: 1.5em;
     }
@@ -1238,10 +1187,7 @@ $tree-line-height: 20px;
     text-align: center;
 }
 
-//
-// jQuery nestedSortable
-//
-.ui-sortable-handle {
+.form-sortable-handle {
     cursor: pointer;
 }
 
@@ -1257,7 +1203,7 @@ $tree-line-height: 20px;
     }
 
     .module-body {
-        padding-bottom: 0.5em;
+        padding-bottom: .5em;
     }
 
     .module-docheader-bar-column-left {
@@ -1268,17 +1214,12 @@ $tree-line-height: 20px;
                 outline: initial initial 0;
             }
         }
-
-        .btn-group,
-        .t3-form-element-form-settings-button {
-            margin-left: 25px;
-        }
     }
 }
 
 .t3-form-element-new-page-button {
     position: absolute;
-    left: 0.5em;
+    left: .5em;
 }
 
 .t3-form-controls.has-error {

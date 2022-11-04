@@ -46,8 +46,9 @@ class SecurityTest extends FunctionalTestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->importDataSet('PACKAGE:typo3/testing-framework/Resources/Core/Functional/Fixtures/pages.xml');
-        $this->backendUser = $this->setUpBackendUserFromFixture(1);
+        $this->importCSVDataSet(__DIR__ . '/DataSet/pages.csv');
+        $this->importCSVDataSet(__DIR__ . '/../../Fixtures/be_users_admin.csv');
+        $this->backendUser = $this->setUpBackendUser(1);
         $this->backendUser->workspace = 0;
         GeneralUtility::makeInstance(Context::class)
             ->setAspect('workspace', new WorkspaceAspect(0));

@@ -78,7 +78,6 @@ class LinkPopup extends AbstractNode
             ],
             $this->forwardOnFieldChangeQueryParams($parameterArray['fieldChangeFunc'] ?? [])
         );
-        /** @var \TYPO3\CMS\Backend\Routing\UriBuilder $uriBuilder */
         $uriBuilder = GeneralUtility::makeInstance(UriBuilder::class);
         $url = (string)$uriBuilder->buildUriFromRoute('wizard_link', ['P' => $urlParameters]);
         $id = StringUtility::getUniqueId('t3js-formengine-fieldcontrol-');
@@ -91,7 +90,7 @@ class LinkPopup extends AbstractNode
                 'href' => $url,
                 'data-item-name' => htmlspecialchars($itemName),
             ],
-            'requireJsModules' => [
+            'javaScriptModules' => [
                 JavaScriptModuleInstruction::create('@typo3/backend/form-engine/field-control/link-popup.js')->instance('#' . $id),
             ],
         ];

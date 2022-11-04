@@ -30,7 +30,7 @@ class HtmlParser
     protected $caseShift_cache = [];
 
     // Void elements that do not have closing tags, as defined by HTML5, except link element
-    const VOID_ELEMENTS = 'area|base|br|col|command|embed|hr|img|input|keygen|meta|param|source|track|wbr';
+    public const VOID_ELEMENTS = 'area|base|br|col|command|embed|hr|img|input|keygen|meta|param|source|track|wbr';
 
     /************************************
      *
@@ -565,7 +565,7 @@ class HtmlParser
                                                 }
                                             }
                                             if ($params['userFunc'] ?? false) {
-                                                if (is_array($params['userFunc.'])) {
+                                                if (is_array($params['userFunc.'] ?? null)) {
                                                     $params['userFunc.']['attributeValue'] = $tagAttrib[0][$attr];
                                                 } else {
                                                     $params['userFunc.'] = $tagAttrib[0][$attr];

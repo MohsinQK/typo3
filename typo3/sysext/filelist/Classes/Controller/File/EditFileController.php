@@ -17,6 +17,7 @@ declare(strict_types=1);
 
 namespace TYPO3\CMS\Filelist\Controller\File;
 
+use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Message\StreamFactoryInterface;
@@ -31,12 +32,13 @@ use TYPO3\CMS\Core\Http\ResponseFactory;
 use TYPO3\CMS\Core\Imaging\Icon;
 use TYPO3\CMS\Core\Imaging\IconFactory;
 use TYPO3\CMS\Core\Localization\LanguageService;
-use TYPO3\CMS\Core\Messaging\AbstractMessage;
 use TYPO3\CMS\Core\Resource\Exception\InsufficientFileAccessPermissionsException;
 use TYPO3\CMS\Core\Resource\Exception\InvalidFileException;
 use TYPO3\CMS\Core\Resource\FileInterface;
 use TYPO3\CMS\Core\Resource\ResourceFactory;
+use TYPO3\CMS\Core\Type\ContextualFeedbackSeverity;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\CMS\Filelist\Event\ModifyEditFileFormDataEvent;
 
 /**
  * Edit text files via FormEngine. Reachable via FileList module "Edit content".
@@ -98,6 +100,7 @@ class EditFileController
         protected readonly ModuleTemplateFactory $moduleTemplateFactory,
         protected readonly ResponseFactory $responseFactory,
         protected readonly StreamFactoryInterface $streamFactory,
+        protected readonly EventDispatcherInterface $eventDispatcher,
     ) {
     }
 
@@ -131,7 +134,7 @@ class EditFileController
 
         if (!$file->isTextFile()) {
             $extList = $GLOBALS['TYPO3_CONF_VARS']['SYS']['textfile_ext'];
-            $view->addFlashMessage('Files with that extension are not editable. Allowed extensions are: ' . $extList, '', AbstractMessage::ERROR, true);
+            $view->addFlashMessage('Files with that extension are not editable. Allowed extensions are: ' . $extList, '', ContextualFeedbackSeverity::ERROR, true);
             return $this->responseFactory->createResponse(400)->withHeader('location', $returnUrl);
         }
 
@@ -140,19 +143,15 @@ class EditFileController
         $dataColumnDefinition = $this->dataColumnTca;
         $dataColumnDefinition['label'] = htmlspecialchars($languageService->sL('LLL:EXT:core/Resources/Private/Language/locallang_common.xlf:file')) . ' ' . htmlspecialchars($combinedIdentifier);
 
-        // @todo: Consider dropping this hook. Working on $content is useless here and
-        //        overriding $dataColumnDefinition could be done via FormEngine.
-        $hookContent = '';
-        foreach ($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['typo3/file_edit.php']['preOutputProcessingHook'] ?? [] as $hookFunction) {
-            $hookParameters = ['content' => &$hookContent, 'target' => &$combinedIdentifier, 'dataColumnDefinition' => &$dataColumnDefinition];
-            GeneralUtility::callUserFunction($hookFunction, $hookParameters, $this);
-        }
-
         $formData = $this->formEngineData;
         $formData['databaseRow']['data'] = $file->getContents();
         $formData['databaseRow']['target'] = $file->getUid();
         $formData['databaseRow']['redirect'] = (string)$this->uriBuilder->buildUriFromRoute('file_edit', ['target' => $combinedIdentifier]);
         $formData['processedTca']['columns']['data'] = $dataColumnDefinition;
+
+        $formData = $this->eventDispatcher->dispatch(
+            new ModifyEditFileFormDataEvent($formData, $file, $request)
+        )->getFormData();
 
         $resultArray = GeneralUtility::makeInstance(NodeFactory::class)->create($formData)->render();
         $formResultCompiler = GeneralUtility::makeInstance(FormResultCompiler::class);
@@ -162,20 +161,9 @@ class EditFileController
         $view->assignMultiple([
             'moduleUrlTceFile' => (string)$this->uriBuilder->buildUriFromRoute('tce_file'),
             'fileName' => $file->getName(),
-            'hookContent' => $hookContent,
-            'form' => $formResultCompiler->addCssFiles() . $resultArray['html'] . $formResultCompiler->printNeededJSFunctions(),
+            'form' => $formResultCompiler->addCssFiles() . ($resultArray['html'] ?? '') . $formResultCompiler->printNeededJSFunctions(),
         ]);
         $content = $view->render('File/EditFile');
-
-        // @todo: Consider dropping this hook: Working late on content could be done via template override or FormEngine
-        //        and overriding $combinedIdentifier is useless here.
-        foreach ($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['typo3/file_edit.php']['postOutputProcessingHook'] ?? [] as $hookFunction) {
-            $hookParameters = [
-                'pageContent' => &$content,
-                'target' => &$combinedIdentifier,
-            ];
-            GeneralUtility::callUserFunction($hookFunction, $hookParameters, $this);
-        }
 
         return $this->responseFactory->createResponse()
             ->withHeader('Content-Type', 'text/html; charset=utf-8')

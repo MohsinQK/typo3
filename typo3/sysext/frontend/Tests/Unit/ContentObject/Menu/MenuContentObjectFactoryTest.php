@@ -64,7 +64,7 @@ class MenuContentObjectFactoryTest extends UnitTestCase
     {
         $factory = new MenuContentObjectFactory();
         $selfClassName = 'tx_menutest_' . uniqid();
-        $selfClass = new class() extends AbstractMenuContentObject {
+        $selfClass = new class () extends AbstractMenuContentObject {
         };
         class_alias($selfClass::class, $selfClassName);
         $factory->registerMenuType('TMENU', $selfClassName);
@@ -78,33 +78,11 @@ class MenuContentObjectFactoryTest extends UnitTestCase
     {
         $factory = new MenuContentObjectFactory();
         $selfClassName = 'tx_menutest_' . uniqid();
-        $selfClass = new class() extends AbstractMenuContentObject {
+        $selfClass = new class () extends AbstractMenuContentObject {
         };
         class_alias($selfClass::class, $selfClassName);
         $uniqueMenuType = StringUtility::getUniqueId('foo_');
         $factory->registerMenuType($uniqueMenuType, $selfClassName);
         self::assertInstanceOf($selfClassName, $factory->getMenuObjectByType($uniqueMenuType));
-    }
-
-    /**
-     * @test
-     */
-    public function registerMenuTypeThrowsExceptionIfTypeIsNotOfTypeString(): void
-    {
-        $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionCode(1363429303);
-        $factory = new MenuContentObjectFactory();
-        $factory->registerMenuType([], 'foo');
-    }
-
-    /**
-     * @test
-     */
-    public function registerMenuTypeThrowsExceptionIfClassNameIsNotOfTypeString(): void
-    {
-        $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionCode(1363429303);
-        $factory = new MenuContentObjectFactory();
-        $factory->registerMenuType('foo', []);
     }
 }

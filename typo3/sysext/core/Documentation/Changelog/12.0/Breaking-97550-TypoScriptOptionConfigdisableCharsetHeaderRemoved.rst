@@ -1,6 +1,6 @@
 .. include:: /Includes.rst.txt
 
-.. _breaking-97550-1651697278
+.. _breaking-97550-1651697278:
 
 ========================================================================
 Breaking: #97550 - TypoScript option config.disableCharsetHeader removed
@@ -14,10 +14,9 @@ Description
 The TypoScript flag :typoscript:`config.disableCharsetHeader` has been completely removed
 from TYPO3 Core.
 
-This option was used to avoid sending HTTP headers of type "Content-Type" to
+This option was used to avoid sending HTTP headers of type `Content-Type` to
 the client. This flag was mainly used to overcome a technical limitation to
 override the Content-Type information back in TYPO3 v4.x.
-
 
 Impact
 ======
@@ -25,12 +24,10 @@ Impact
 TYPO3 now always sends the `Content-Type` header to the client in the TYPO3
 Frontend.
 
-
 Affected installations
 ======================
 
 TYPO3 installations having this option enabled via TypoScript.
-
 
 Migration
 =========

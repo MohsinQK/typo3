@@ -17,31 +17,24 @@ declare(strict_types=1);
 
 namespace TYPO3\CMS\Backend\Tests\Unit\Module;
 
-use Prophecy\Argument;
-use Prophecy\PhpUnit\ProphecyTrait;
-use Psr\EventDispatcher\EventDispatcherInterface;
 use TYPO3\CMS\Backend\Module\ModuleFactory;
 use TYPO3\CMS\Backend\Module\ModuleInterface;
 use TYPO3\CMS\Backend\Module\ModuleRegistry;
 use TYPO3\CMS\Core\Imaging\IconRegistry;
+use TYPO3\CMS\Core\Tests\Unit\Fixtures\EventDispatcher\NoopEventDispatcher;
 use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 class ModuleRegistryTest extends UnitTestCase
 {
-    use ProphecyTrait;
-
     protected ModuleFactory $moduleFactory;
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        $eventDispatcherProphecy = $this->prophesize(EventDispatcherInterface::class);
-        $eventDispatcherProphecy->dispatch(Argument::any())->willReturnArgument();
-
         $this->moduleFactory = new ModuleFactory(
-            $this->prophesize(IconRegistry::class)->reveal(),
-            $eventDispatcherProphecy->reveal()
+            $this->createMock(IconRegistry::class),
+            new NoopEventDispatcher()
         );
     }
 
@@ -54,9 +47,9 @@ class ModuleRegistryTest extends UnitTestCase
         $this->expectExceptionCode(1642174843);
 
         new ModuleRegistry([
-           $this->createModule('a_module'),
-           $this->createModule('a_module'),
-       ]);
+            $this->createModule('a_module'),
+            $this->createModule('a_module'),
+        ]);
     }
 
     /**
@@ -73,17 +66,34 @@ class ModuleRegistryTest extends UnitTestCase
     /**
      * @test
      */
-    public function accessReegisteredModulesWork(): void
+    public function accessRegisteredModulesWork(): void
     {
-        $aModule = $this->createModule('a_module');
-        $bModule = $this->createModule('b_module');
+        $aModule = $this->createModule('a_module', ['aliases' => ['a_old_module']]);
+        $bModule = $this->createModule('b_module', ['parent' => 'a_module']);
 
         $registry = new ModuleRegistry([$aModule, $bModule]);
 
         self::assertTrue($registry->hasModule('a_module'));
         self::assertFalse($registry->hasModule('c_module'));
         self::assertEquals($aModule, $registry->getModule('a_module'));
+        self::assertEquals($aModule, $registry->getModule('a_old_module'));
+        self::assertEquals('a_module', $registry->getModule('b_module')->getParentIdentifier());
         self::assertEquals(['a_module' => $aModule, 'b_module' => $bModule], $registry->getModules());
+        self::assertEquals(['a_old_module' => 'a_module'], $registry->getModuleAliases());
+    }
+
+    /**
+     * @test
+     */
+    public function moduleAliasOverwriteStrategy(): void
+    {
+        $aModule = $this->createModule('a_module', ['aliases' => ['duplicate_alias']]);
+        $bModule = $this->createModule('b_module', ['aliases' => ['duplicate_alias']]);
+
+        $registry = new ModuleRegistry([$aModule, $bModule]);
+
+        self::assertEquals($bModule, $registry->getModule('duplicate_alias'));
+        self::assertEquals(['duplicate_alias' => 'b_module'], $registry->getModuleAliases());
     }
 
     /**

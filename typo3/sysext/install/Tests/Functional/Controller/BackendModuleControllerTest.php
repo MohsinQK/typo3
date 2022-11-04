@@ -19,8 +19,12 @@ namespace TYPO3\CMS\Install\Tests\Functional\Controller;
 
 use TYPO3\CMS\Backend\Routing\UriBuilder;
 use TYPO3\CMS\Backend\Template\ModuleTemplateFactory;
+use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
 use TYPO3\CMS\Core\Core\ApplicationContext;
 use TYPO3\CMS\Core\Core\Environment;
+use TYPO3\CMS\Core\Core\SystemEnvironmentBuilder;
+use TYPO3\CMS\Core\Http\NormalizedParams;
+use TYPO3\CMS\Core\Http\ServerRequest;
 use TYPO3\CMS\Install\Controller\BackendModuleController;
 use TYPO3\TestingFramework\Core\Functional\FunctionalTestCase;
 
@@ -63,13 +67,18 @@ class BackendModuleControllerTest extends FunctionalTestCase
         );
         $action = $module . 'Action';
 
+        $serverParams = array_replace($_SERVER, ['HTTP_HOST' => 'example.com', 'SCRIPT_NAME' => '/typo3/install.php']);
+        $request = new ServerRequest('http://example.com/typo3/install.php', 'GET', null, [], $serverParams);
+        $request = $request
+            ->withAttribute('applicationType', SystemEnvironmentBuilder::REQUESTTYPE_INSTALL)
+            ->withAttribute('normalizedParams', NormalizedParams::createFromServerParams($serverParams));
         self::assertIsCallable([$subject, $action]);
 
         // Ensure we are not in development context
         self::assertFalse(Environment::getContext()->isDevelopment());
 
         // Sudo mode is required
-        self::assertEquals(403, $subject->{$action}()->getStatusCode());
+        self::assertEquals(403, $subject->{$action}($request)->getStatusCode());
 
         // Initialize environment with development context
         Environment::initialize(
@@ -80,17 +89,23 @@ class BackendModuleControllerTest extends FunctionalTestCase
             Environment::getPublicPath(),
             Environment::getVarPath(),
             Environment::getConfigPath(),
-            Environment::getBackendPath() . '/index.php',
+            Environment::getPublicPath() . '/index.php',
             Environment::isWindows() ? 'WINDOWS' : 'UNIX'
         );
 
-        // Authorized redirect to the install tool is performed, sudo mode is not required
-        $response = $subject->{$action}();
+        // Authorized redirect to the admin tool is performed
+        // sudo mode is not required (due to development context)
+        $GLOBALS['BE_USER'] = new BackendUserAuthentication();
+        // using anonymous user session, which is fine for this test case
+        $GLOBALS['BE_USER']->initializeUserSessionManager();
+        $GLOBALS['BE_USER']->user = ['uid' => 1];
+
+        $response = $subject->{$action}($request);
         self::assertEquals(303, $response->getStatusCode());
         self::assertNotEmpty($response->getHeader('location'));
         self::assertStringContainsString(
             'typo3/install.php?install[controller]=' . $module . '&install[context]=backend',
-            $response->getHeaderLine('location')
+            rawurldecode($response->getHeaderLine('location'))
         );
     }
 

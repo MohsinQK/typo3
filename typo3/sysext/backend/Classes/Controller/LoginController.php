@@ -33,6 +33,7 @@ use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
 use TYPO3\CMS\Core\Configuration\ExtensionConfiguration;
 use TYPO3\CMS\Core\Configuration\Features;
 use TYPO3\CMS\Core\Context\Context;
+use TYPO3\CMS\Core\Context\SecurityAspect;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\FormProtection\BackendFormProtection;
 use TYPO3\CMS\Core\FormProtection\FormProtectionFactory;
@@ -43,6 +44,8 @@ use TYPO3\CMS\Core\Information\Typo3Information;
 use TYPO3\CMS\Core\Localization\LanguageService;
 use TYPO3\CMS\Core\Localization\Locales;
 use TYPO3\CMS\Core\Page\PageRenderer;
+use TYPO3\CMS\Core\Routing\BackendEntryPointResolver;
+use TYPO3\CMS\Core\Security\RequestToken;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Fluid\View\StandaloneView;
 
@@ -109,6 +112,8 @@ class LoginController
         protected readonly Context $context,
         protected readonly LoginProviderResolver $loginProviderResolver,
         protected readonly ExtensionConfiguration $extensionConfiguration,
+        protected readonly BackendEntryPointResolver $backendEntryPointResolver,
+        protected readonly FormProtectionFactory $formProtectionFactory
     ) {
     }
 
@@ -121,7 +126,7 @@ class LoginController
         $this->request = $request;
         $this->init($request);
         $response = $this->createLoginLogoutForm($request);
-        return $this->appendLoginProviderCookie($request->getAttribute('normalizedParams'), $response);
+        return $this->appendLoginProviderCookie($request, $request->getAttribute('normalizedParams'), $response);
     }
 
     /**
@@ -133,7 +138,7 @@ class LoginController
         $this->init($request);
         $this->loginRefresh = true;
         $response = $this->createLoginLogoutForm($request);
-        return $this->appendLoginProviderCookie($request->getAttribute('normalizedParams'), $response);
+        return $this->appendLoginProviderCookie($request, $request->getAttribute('normalizedParams'), $response);
     }
 
     /**
@@ -157,7 +162,7 @@ class LoginController
      * If a login provider was chosen in the previous request, which is not the default provider,
      * it is stored in a Cookie and appended to the HTTP Response.
      */
-    protected function appendLoginProviderCookie(NormalizedParams $normalizedParams, ResponseInterface $response): ResponseInterface
+    protected function appendLoginProviderCookie(ServerRequestInterface $request, NormalizedParams $normalizedParams, ResponseInterface $response): ResponseInterface
     {
         if ($this->loginProviderIdentifier === $this->loginProviderResolver->getPrimaryLoginProviderIdentifier()) {
             return $response;
@@ -167,7 +172,7 @@ class LoginController
             'be_lastLoginProvider',
             $this->loginProviderIdentifier,
             $GLOBALS['EXEC_TIME'] + 7776000, // 90 days
-            $normalizedParams->getSitePath() . TYPO3_mainDir,
+            $this->backendEntryPointResolver->getPathFromRequest($request),
             '',
             $normalizedParams->isHttps(),
             true,
@@ -293,6 +298,8 @@ class LoginController
             'hasLoginError' => $this->isLoginInProgress($request),
             'action' => $action,
             'formActionUrl' => $formActionUrl,
+            'requestTokenName' => RequestToken::PARAM_NAME,
+            'requestTokenValue' => $this->provideRequestTokenJwt(),
             'forgetPasswordUrl' => $this->uriBuilder->buildUriWithRedirect(
                 'password_forget',
                 ['loginProvider' => $this->loginProviderIdentifier],
@@ -305,7 +312,6 @@ class LoginController
         ]);
 
         // Initialize interface selectors:
-        $this->makeInterfaceSelector($request);
         $this->renderHtmlViaLoginProvider();
 
         $this->pageRenderer->setBodyContent('<body>' . $this->view->render());
@@ -355,29 +361,14 @@ class LoginController
             $this->redirectToURL = 'index.php?commandLI=setCookie';
         }
         $redirectToUrl = (string)($backendUser->getTSConfig()['auth.']['BE.']['redirectToURL'] ?? '');
-        if (empty($redirectToUrl)) {
-            // Based on the interface we set the redirect script
-            $parsedBody = $request->getParsedBody();
-            $queryParams = $request->getQueryParams();
-            $interface = $parsedBody['interface'] ?? $queryParams['interface'] ?? '';
-            switch ($interface) {
-                case 'frontend':
-                    $this->redirectToURL = '../';
-                    break;
-                case 'backend':
-                    // (consolidate RouteDispatcher::evaluateReferrer() when changing 'main' to something different)
-                    $this->redirectToURL = (string)$this->uriBuilder->buildUriWithRedirect('main', [], RouteRedirect::createFromRequest($request));
-                    break;
-            }
-        } else {
+        if (!empty($redirectToUrl)) {
             $this->redirectToURL = $redirectToUrl;
-            $interface = '';
+        } else {
+            // (consolidate RouteDispatcher::evaluateReferrer() when changing 'main' to something different)
+            $this->redirectToURL = (string)$this->uriBuilder->buildUriWithRedirect('main', [], RouteRedirect::createFromRequest($request));
         }
-        // store interface
-        $backendUser->uc['interfaceSetup'] = $interface;
-        $backendUser->writeUC();
 
-        $formProtection = FormProtectionFactory::get();
+        $formProtection = $this->formProtectionFactory->createFromRequest($request);
         if (!$formProtection instanceof BackendFormProtection) {
             throw new \RuntimeException('The Form Protection retrieved does not match the expected one.', 1432080411);
         }
@@ -388,40 +379,6 @@ class LoginController
         } else {
             $formProtection->storeSessionTokenInRegistry();
             $this->redirectToUrl();
-        }
-    }
-
-    /**
-     * Making interface selector.
-     */
-    protected function makeInterfaceSelector(ServerRequestInterface $request): void
-    {
-        $languageService = $this->getLanguageService();
-        // If interfaces are defined AND no input redirect URL in GET vars:
-        if ($GLOBALS['TYPO3_CONF_VARS']['BE']['interfaces'] && ($this->isLoginInProgress($request) || !$this->redirectUrl)) {
-            $parts = GeneralUtility::trimExplode(',', $GLOBALS['TYPO3_CONF_VARS']['BE']['interfaces']);
-            if (count($parts) > 1) {
-                // Only if more than one interface is defined we will show the selector
-                $interfaces = [
-                    'backend' => [
-                        'label' => $languageService->sL('LLL:EXT:backend/Resources/Private/Language/locallang_login.xlf:interface.backend'),
-                        'jumpScript' => (string)$this->uriBuilder->buildUriFromRoute('main'),
-                        'interface' => 'backend',
-                    ],
-                    'frontend' => [
-                        'label' => $languageService->sL('LLL:EXT:backend/Resources/Private/Language/locallang_login.xlf:interface.frontend'),
-                        'jumpScript' => '../',
-                        'interface' => 'frontend',
-                    ],
-                ];
-
-                $this->view->assign('showInterfaceSelector', true);
-                $this->view->assign('interfaces', $interfaces);
-            } elseif (!$this->redirectUrl) {
-                // If there is only ONE interface value set and no redirect_url is present
-                $this->view->assign('showInterfaceSelector', false);
-                $this->view->assign('interface', $parts[0]);
-            }
         }
     }
 
@@ -471,6 +428,12 @@ class LoginController
     protected function redirectToUrl(): void
     {
         throw new PropagateResponseException(new RedirectResponse($this->redirectToURL, 303), 1607271511);
+    }
+
+    protected function provideRequestTokenJwt(): string
+    {
+        $nonce = SecurityAspect::provideIn($this->context)->provideNonce();
+        return RequestToken::create('core/user-auth/be')->toHashSignedJwt($nonce);
     }
 
     protected function getLanguageService(): LanguageService

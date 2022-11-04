@@ -21,6 +21,7 @@ use Psr\Log\LogLevel;
 use TYPO3\CMS\Core\Cache\CacheManager;
 use TYPO3\CMS\Core\Context\Context;
 use TYPO3\CMS\Core\Context\LanguageAspect;
+use TYPO3\CMS\Core\Database\Connection;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Domain\Repository\PageRepository;
 use TYPO3\CMS\Core\Site\Entity\Site;
@@ -31,6 +32,7 @@ use TYPO3\CMS\Core\TypoScript\TypoScriptService;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Core\Utility\MathUtility;
 use TYPO3\CMS\Frontend\ContentObject\ContentObjectRenderer;
+use TYPO3\CMS\Frontend\ContentObject\Exception\ContentRenderingException;
 use TYPO3\CMS\Frontend\ContentObject\Menu\Exception\NoSuchMenuTypeException;
 use TYPO3\CMS\Frontend\Controller\TypoScriptFrontendController;
 use TYPO3\CMS\Frontend\Event\FilterMenuItemsEvent;
@@ -100,9 +102,9 @@ abstract class AbstractMenuContentObject
     protected $mconf = [];
 
     /**
-     * @var TemplateService
+     * @deprecated since v12: Remove property and usages in v13 when TemplateService is removed
      */
-    protected $tmpl;
+    protected TemplateService|null $tmpl;
 
     /**
      * @var PageRepository
@@ -192,7 +194,7 @@ abstract class AbstractMenuContentObject
     /**
      * The initialization of the object. This just sets some internal variables.
      *
-     * @param TemplateService $tmpl The $this->getTypoScriptFrontendController()->tmpl object
+     * @param TemplateService|null $_ Obsolete argument
      * @param PageRepository $sys_page The $this->getTypoScriptFrontendController()->sys_page object
      * @param int|string $id A starting point page id. This should probably be blank since the 'entryLevel' value will be used then.
      * @param array $conf The TypoScript configuration for the HMENU cObject
@@ -202,7 +204,7 @@ abstract class AbstractMenuContentObject
      * @return bool Returns TRUE on success
      * @see \TYPO3\CMS\Frontend\ContentObject\ContentObjectRenderer::HMENU()
      */
-    public function start($tmpl, $sys_page, $id, $conf, int $menuNumber, $objSuffix = '', ?ServerRequestInterface $request = null)
+    public function start($_, $sys_page, $id, $conf, int $menuNumber, $objSuffix = '', ?ServerRequestInterface $request = null)
     {
         $tsfe = $this->getTypoScriptFrontendController();
         $this->conf = $conf;
@@ -210,8 +212,9 @@ abstract class AbstractMenuContentObject
         $this->mconf = $conf[$this->menuNumber . $objSuffix . '.'];
         $this->request = $request;
         // Sets the internal vars. $tmpl MUST be the template-object. $sys_page MUST be the PageRepository object
-        if ($this->conf[$this->menuNumber . $objSuffix] && is_object($tmpl) && is_object($sys_page)) {
-            $this->tmpl = $tmpl;
+        if ($this->conf[$this->menuNumber . $objSuffix] && is_object($sys_page)) {
+            // @deprecated since v12, will be removed in v13: Remove assignment and property when TemplateService is removed
+            $this->tmpl = $_;
             $this->sys_page = $sys_page;
             // alwaysActivePIDlist initialized:
             $this->conf['alwaysActivePIDlist'] = (string)$this->parent_cObj->stdWrapValue('alwaysActivePIDlist', $this->conf ?? []);
@@ -222,12 +225,12 @@ abstract class AbstractMenuContentObject
             $this->conf['includeNotInMenu'] = $this->parent_cObj->stdWrapValue('includeNotInMenu', $this->conf, false);
             // exclude doktypes that should not be shown in menu (e.g. backend user section)
             if ($this->conf['excludeDoktypes'] ?? false) {
-                $this->excludedDoktypes = GeneralUtility::intExplode(',', $this->conf['excludeDoktypes']);
+                $this->excludedDoktypes = GeneralUtility::intExplode(',', (string)($this->conf['excludeDoktypes']));
             }
             // EntryLevel
             $this->entryLevel = $this->parent_cObj->getKey(
                 $this->parent_cObj->stdWrapValue('entryLevel', $this->conf ?? []),
-                $this->tmpl->rootLine
+                $tsfe->config['rootLine'] ?? []
             );
             // Set parent page: If $id not stated with start() then the base-id will be found from rootLine[$this->entryLevel]
             // Called as the next level in a menu. It is assumed that $this->MP_array is set from parent menu.
@@ -235,11 +238,11 @@ abstract class AbstractMenuContentObject
                 $this->id = (int)$id;
             } else {
                 // This is a BRAND NEW menu, first level. So we take ID from rootline and also find MP_array (mount points)
-                $this->id = (int)($this->tmpl->rootLine[$this->entryLevel]['uid'] ?? 0);
+                $this->id = (int)($tsfe->config['rootLine'][$this->entryLevel]['uid'] ?? 0);
 
                 // Traverse rootline to build MP_array of pages BEFORE the entryLevel
                 // (MP var for ->id is picked up in the next part of the code...)
-                foreach ($this->tmpl->rootLine as $entryLevel => $levelRec) {
+                foreach (($tsfe->config['rootLine'] ?? []) as $entryLevel => $levelRec) {
                     // For overlaid mount points, set the variable right now:
                     if (($levelRec['_MP_PARAM'] ?? false) && ($levelRec['_MOUNT_OL'] ?? false)) {
                         $this->MP_array[] = $levelRec['_MP_PARAM'];
@@ -272,7 +275,7 @@ abstract class AbstractMenuContentObject
             if ($this->rL_uidRegister === null) {
                 $this->rL_uidRegister = [];
                 $rl_MParray = [];
-                foreach ($this->tmpl->rootLine as $v_rl) {
+                foreach (($tsfe->config['rootLine'] ?? []) as $v_rl) {
                     // For overlaid mount points, set the variable right now:
                     if (($v_rl['_MP_PARAM'] ?? false) && ($v_rl['_MOUNT_OL'] ?? false)) {
                         $rl_MParray[] = $v_rl['_MP_PARAM'];
@@ -296,29 +299,29 @@ abstract class AbstractMenuContentObject
             if (($this->conf['special'] ?? '') === 'directory') {
                 $value = $this->parent_cObj->stdWrapValue('value', $this->conf['special.'] ?? [], null);
                 if ($value === '') {
-                    $value = (string)$tsfe->id;
+                    $value = $tsfe->id;
                 }
-                $directoryLevel = (int)$tsfe->tmpl->getRootlineLevel($value);
+                $directoryLevel = $this->getRootlineLevel($tsfe->config['rootLine'], (string)$value);
             }
             // Setting "nextActive": This is the page uid + MPvar of the NEXT page in rootline. Used to expand the menu if we are in the right branch of the tree
             // Notice: The automatic expansion of a menu is designed to work only when no "special" modes (except "directory") are used.
             $startLevel = $directoryLevel ?: $this->entryLevel;
             $currentLevel = $startLevel + $this->menuNumber;
-            if (is_array($this->tmpl->rootLine[$currentLevel] ?? null)) {
+            if (is_array($tsfe->config['rootLine'][$currentLevel] ?? null)) {
                 $nextMParray = $this->MP_array;
-                if (empty($nextMParray) && !($this->tmpl->rootLine[$currentLevel]['_MOUNT_OL'] ?? false) && $currentLevel > 0) {
+                if (empty($nextMParray) && !($tsfe->config['rootLine'][$currentLevel]['_MOUNT_OL'] ?? false) && $currentLevel > 0) {
                     // Make sure to slide-down any mount point information (_MP_PARAM) to children records in the rootline
                     // otherwise automatic expansion will not work
-                    $parentRecord = $this->tmpl->rootLine[$currentLevel - 1];
+                    $parentRecord = $tsfe->config['rootLine'][$currentLevel - 1] ?? [];
                     if (isset($parentRecord['_MP_PARAM'])) {
                         $nextMParray[] = $parentRecord['_MP_PARAM'];
                     }
                 }
                 // In overlay mode, add next level MPvars as well:
-                if ($this->tmpl->rootLine[$currentLevel]['_MOUNT_OL'] ?? false) {
-                    $nextMParray[] = $this->tmpl->rootLine[$currentLevel]['_MP_PARAM'];
+                if ($tsfe->config['rootLine'][$currentLevel]['_MOUNT_OL'] ?? false) {
+                    $nextMParray[] = $tsfe->config['rootLine'][$currentLevel]['_MP_PARAM'] ?? [];
                 }
-                $this->nextActive = $this->tmpl->rootLine[$currentLevel]['uid'] .
+                $this->nextActive = ($tsfe->config['rootLine'][$currentLevel]['uid']  ?? 0) .
                     (
                         !empty($nextMParray)
                         ? ':' . implode(',', $nextMParray)
@@ -345,6 +348,7 @@ abstract class AbstractMenuContentObject
             return;
         }
 
+        $frontendController = $this->getTypoScriptFrontendController();
         // Initializing showAccessRestrictedPages
         $SAVED_where_groupAccess = '';
         if ($this->mconf['showAccessRestrictedPages'] ?? false) {
@@ -390,7 +394,7 @@ abstract class AbstractMenuContentObject
             while ($c < $minItems) {
                 $this->menuArr[$c] = [
                     'title' => '...',
-                    'uid' => $this->getTypoScriptFrontendController()->id,
+                    'uid' => $frontendController->id,
                 ];
                 $c++;
             }
@@ -400,18 +404,18 @@ abstract class AbstractMenuContentObject
             $this->menuArr = $this->userProcess('itemArrayProcFunc', $this->menuArr);
         }
         // Setting number of menu items
-        $this->getTypoScriptFrontendController()->register['count_menuItems'] = count($this->menuArr);
+        $frontendController->register['count_menuItems'] = count($this->menuArr);
         $this->hash = md5(
             json_encode($this->menuArr) .
             json_encode($this->mconf) .
-            json_encode($this->tmpl->rootLine) .
+            json_encode($frontendController->config['rootLine'] ?? []) .
             json_encode($this->MP_array)
         );
         // Get the cache timeout:
         if ($this->conf['cache_period'] ?? false) {
             $cacheTimeout = $this->conf['cache_period'];
         } else {
-            $cacheTimeout = $this->getTypoScriptFrontendController()->get_cache_timeout();
+            $cacheTimeout = $frontendController->get_cache_timeout();
         }
         $cache = $this->getCache();
         $cachedData = $cache->get($this->hash);
@@ -523,7 +527,6 @@ abstract class AbstractMenuContentObject
                     );
                     break;
                 case 'categories':
-                    /** @var CategoryMenuUtility $categoryMenuUtility */
                     $categoryMenuUtility = GeneralUtility::makeInstance(CategoryMenuUtility::class);
                     $menuItems = $categoryMenuUtility->collectPages($value, $this->conf['special.'], $this);
                     break;
@@ -772,20 +775,21 @@ abstract class AbstractMenuContentObject
         // Get sortField (mode)
         $sortField = $this->getMode($mode);
 
+        $connection = GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable('pages');
         $extraWhere = ($this->conf['includeNotInMenu'] ? '' : ' AND pages.nav_hide=0') . $this->getDoktypeExcludeWhere();
         if ($this->conf['special.']['excludeNoSearchPages'] ?? false) {
-            $extraWhere .= ' AND pages.no_search=0';
+            $extraWhere .= sprintf(' AND %s=%s', $connection->quoteIdentifier('pages.no_search'), $connection->quote(0, Connection::PARAM_INT));
         }
         if ($maxAge > 0) {
-            $extraWhere .= ' AND ' . $sortField . '>' . ($GLOBALS['SIM_ACCESS_TIME'] - $maxAge);
+            $extraWhere .= sprintf(' AND %s>%s', $connection->quoteIdentifier($sortField), $connection->quote(($GLOBALS['SIM_ACCESS_TIME'] - $maxAge), Connection::PARAM_INT));
         }
-        $extraWhere = $sortField . '>=0' . $extraWhere;
+        $extraWhere = sprintf('%s>=%s', $connection->quoteIdentifier($sortField), $connection->quote(0, Connection::PARAM_INT)) . $extraWhere;
 
         $i = 0;
         $pageRecords = $this->sys_page->getMenuForPages($pageIds, '*', $sortingField ?: $sortField . ' DESC', $extraWhere);
         foreach ($pageRecords as $row) {
             // Build a custom LIMIT clause as "getMenuForPages()" does not support this
-            if ($limit && ++$i > $limit) {
+            if (++$i > $limit) {
                 continue;
             }
             $menuItems[$row['uid']] = $row;
@@ -832,9 +836,9 @@ abstract class AbstractMenuContentObject
         // Start point
         $eLevel = $this->parent_cObj->getKey(
             $this->parent_cObj->stdWrapValue('entryLevel', $this->conf['special.'] ?? []),
-            $this->tmpl->rootLine
+            $tsfe->config['rootLine'] ?? []
         );
-        $startUid = (int)($this->tmpl->rootLine[$eLevel]['uid'] ?? 0);
+        $startUid = (int)($tsfe->config['rootLine'][$eLevel]['uid'] ?? 0);
         // Which field is for keywords
         $kfield = 'keywords';
         if ($this->conf['special.']['keywordsField'] ?? false) {
@@ -852,8 +856,7 @@ abstract class AbstractMenuContentObject
                 $keyWordsWhereArr[] = $queryBuilder->expr()->like(
                     $kfield,
                     $queryBuilder->createNamedParameter(
-                        '%' . $queryBuilder->escapeLikeWildcards($word) . '%',
-                        \PDO::PARAM_STR
+                        '%' . $queryBuilder->escapeLikeWildcards($word) . '%'
                     )
                 );
             }
@@ -867,7 +870,7 @@ abstract class AbstractMenuContentObject
                     ),
                     $queryBuilder->expr()->neq(
                         'uid',
-                        $queryBuilder->createNamedParameter($specialValue, \PDO::PARAM_INT)
+                        $queryBuilder->createNamedParameter($specialValue, Connection::PARAM_INT)
                     )
                 );
 
@@ -921,6 +924,7 @@ abstract class AbstractMenuContentObject
      */
     protected function prepareMenuItemsForRootlineMenu()
     {
+        $tsfe = $this->getTypoScriptFrontendController();
         $menuItems = [];
         $range = (string)$this->parent_cObj->stdWrapValue('range', $this->conf['special.'] ?? []);
         $begin_end = explode('|', $range);
@@ -928,13 +932,13 @@ abstract class AbstractMenuContentObject
         if (!MathUtility::canBeInterpretedAsInteger($begin_end[1] ?? '')) {
             $begin_end[1] = -1;
         }
-        $beginKey = $this->parent_cObj->getKey($begin_end[0], $this->tmpl->rootLine);
-        $endKey = $this->parent_cObj->getKey($begin_end[1], $this->tmpl->rootLine);
+        $beginKey = $this->parent_cObj->getKey($begin_end[0], $tsfe->config['rootLine'] ?? []);
+        $endKey = $this->parent_cObj->getKey($begin_end[1], $tsfe->config['rootLine'] ?? []);
         if ($endKey < $beginKey) {
             $endKey = $beginKey;
         }
         $rl_MParray = [];
-        foreach ($this->tmpl->rootLine as $k_rl => $v_rl) {
+        foreach (($tsfe->config['rootLine'] ?? []) as $k_rl => $v_rl) {
             // For overlaid mount points, set the variable right now:
             if (($v_rl['_MP_PARAM'] ?? false) && ($v_rl['_MOUNT_OL'] ?? false)) {
                 $rl_MParray[] = $v_rl['_MP_PARAM'];
@@ -975,13 +979,14 @@ abstract class AbstractMenuContentObject
      */
     protected function prepareMenuItemsForBrowseMenu($specialValue, $sortingField, $additionalWhere)
     {
+        $tsfe = $this->getTypoScriptFrontendController();
         $menuItems = [];
         [$specialValue] = GeneralUtility::intExplode(',', $specialValue);
         if (!$specialValue) {
             $specialValue = $this->getTypoScriptFrontendController()->page['uid'];
         }
         // Will not work out of rootline
-        if ($specialValue != $this->tmpl->rootLine[0]['uid']) {
+        if ($specialValue != ($tsfe->config['rootLine'][0]['uid'] ?? null)) {
             $recArr = [];
             // The page record of the 'value'.
             $value_rec = $this->sys_page->getPage($specialValue);
@@ -991,7 +996,7 @@ abstract class AbstractMenuContentObject
                 $recArr['up'] = $this->sys_page->getPage($value_rec['pid']);
             }
             // If the 'up' item was NOT level 0 in rootline...
-            if ($recArr['up']['pid'] && $value_rec['pid'] != $this->tmpl->rootLine[0]['uid']) {
+            if (($recArr['up']['pid'] ?? 0) && $value_rec['pid'] != ($tsfe->config['rootLine'][0]['uid'] ?? null)) {
                 // The page record of "index".
                 $recArr['index'] = $this->sys_page->getPage($recArr['up']['pid']);
             }
@@ -1049,10 +1054,10 @@ abstract class AbstractMenuContentObject
                 }
             }
             if ($this->conf['special.']['items.']['prevnextToSection'] ?? false) {
-                if (!is_array($recArr['prev']) && is_array($recArr['prevsection_last'])) {
+                if (!is_array($recArr['prev'] ?? false) && is_array($recArr['prevsection_last'] ?? false)) {
                     $recArr['prev'] = $recArr['prevsection_last'];
                 }
-                if (!is_array($recArr['next']) && is_array($recArr['nextsection'])) {
+                if (!is_array($recArr['next'] ?? false) && is_array($recArr['nextsection'] ?? false)) {
                     $recArr['next'] = $recArr['nextsection'];
                 }
             }
@@ -1181,12 +1186,11 @@ abstract class AbstractMenuContentObject
 
     /**
      * Creates the URL, target and data-window-* attributes for the menu item link. Returns them in an array as key/value pairs for <A>-tag attributes
-     * This function doesn't care about the url, because if we let the url be redirected, it will be logged in the stat!!!
      *
      * @param int $key Pointer to a key in the $this->menuArr array where the value for that key represents the menu item we are linking to (page record)
      * @param string $altTarget Alternative target
      * @param string $typeOverride Alternative type
-     * @return array Returns an array with A-tag attributes as key/value pairs ('href', 'target' and data-window-* attrs)
+     * @return LinkResultInterface|null
      */
     protected function link($key, $altTarget, $typeOverride)
     {
@@ -1233,14 +1237,10 @@ abstract class AbstractMenuContentObject
                     $linkResult = $linkResult->withAttribute('target', $this->menuArr[$key]['_OVERRIDE_TARGET']);
                 }
             }
-            $attrs = $linkResult->getAttributes();
         } catch (UnableToLinkException $e) {
-            $attrs = [
-                'href' => '',
-                'target' => '',
-            ];
+            $linkResult = null;
         }
-        $runtimeCache->set($cacheId, $attrs);
+        $runtimeCache->set($cacheId, $linkResult);
 
         // End showAccessRestrictedPages
         if ($this->mconf['showAccessRestrictedPages'] ?? false) {
@@ -1248,7 +1248,7 @@ abstract class AbstractMenuContentObject
             $tsfe->config['config']['typolinkLinkAccessRestrictedPages_addParams'] = $SAVED_link_to_restricted_pages_additional_params;
         }
 
-        return $attrs;
+        return $linkResult;
     }
 
     /**
@@ -1288,6 +1288,7 @@ abstract class AbstractMenuContentObject
                 if (is_array($altArray) && !empty($altArray)) {
                     $submenu->alternativeMenuTempArray = $altArray;
                 }
+                // @deprecated since v12, will be removed in v13: Hand over null as first argument.
                 if ($submenu->start($this->tmpl, $this->sys_page, $uid, $this->conf, $this->menuNumber + 1, $objSuffix)) {
                     $submenu->makeMenu();
                     // Memorize the current menu item count
@@ -1519,12 +1520,12 @@ abstract class AbstractMenuContentObject
     }
 
     /**
-     * Creates the <A> tag parts for the current item (in $this->I, [A1] and [A2]) based on other information in this array (like $this->I['linkHREF'])
+     * Creates the <A> tag parts for the current item (in $this->I, [A1] and [A2]) based on the given link result
      */
-    protected function setATagParts()
+    protected function setATagParts(?LinkResultInterface $linkResult)
     {
-        $this->I['A1'] = '<a ' . GeneralUtility::implodeAttributes($this->I['linkHREF'], true) . '>';
-        $this->I['A2'] = '</a>';
+        $this->I['A1'] = $linkResult ? '<a ' . GeneralUtility::implodeAttributes($linkResult->getAttributes(), true) . '>' : '';
+        $this->I['A2'] = $linkResult ? '</a>' : '';
     }
 
     /**
@@ -1680,11 +1681,11 @@ abstract class AbstractMenuContentObject
         while ($row = $statement->fetchAssociative()) {
             $this->sys_page->versionOL('tt_content', $row);
             if ($this->getCurrentLanguageAspect()->doOverlays() && $basePageRow['_PAGES_OVERLAY_LANGUAGE']) {
-                $row = $this->sys_page->getRecordOverlay(
+                $languageAspect = new LanguageAspect($basePageRow['_PAGES_OVERLAY_LANGUAGE'], $basePageRow['_PAGES_OVERLAY_LANGUAGE'], $this->getCurrentLanguageAspect()->getOverlayType());
+                $row = $this->sys_page->getLanguageOverlay(
                     'tt_content',
                     $row,
-                    $basePageRow['_PAGES_OVERLAY_LANGUAGE'],
-                    $this->getCurrentLanguageAspect()->getOverlayType() === LanguageAspect::OVERLAYS_MIXED ? '1' : 'hideNonTranslated'
+                    $languageAspect
                 );
             }
             if ($this->mconf['sectionIndex.']['type'] !== 'all') {
@@ -1738,11 +1739,16 @@ abstract class AbstractMenuContentObject
     }
 
     /**
-     * @return TypoScriptFrontendController
+     * @throws ContentRenderingException
      */
-    protected function getTypoScriptFrontendController()
+    protected function getTypoScriptFrontendController(): TypoScriptFrontendController
     {
-        return $GLOBALS['TSFE'];
+        $frontendController = $this->parent_cObj->getTypoScriptFrontendController();
+        if (!$frontendController instanceof TypoScriptFrontendController) {
+            throw new ContentRenderingException('TypoScriptFrontendController is not available.', 1655725105);
+        }
+
+        return $frontendController;
     }
 
     protected function getCurrentLanguageAspect(): LanguageAspect
@@ -1822,7 +1828,7 @@ abstract class AbstractMenuContentObject
      */
     protected function hasParentMenuItemKey()
     {
-        return null !== $this->parentMenuArrItemKey;
+        return $this->parentMenuArrItemKey !== null;
     }
 
     /**
@@ -1889,5 +1895,23 @@ abstract class AbstractMenuContentObject
         }
 
         return $sortField;
+    }
+
+    /**
+     * Returns the level of the given page in the rootline - Multiple pages can be given by separating the UIDs by comma.
+     *
+     * @param string $list A list of UIDs for which the rootline-level should get returned
+     * @return int The level in the rootline. If more than one page was given the lowest level will get returned.
+     */
+    private function getRootlineLevel(array $rootLine, string $list): int
+    {
+        $idx = 0;
+        foreach ($rootLine as $page) {
+            if (GeneralUtility::inList($list, $page['uid'])) {
+                return $idx;
+            }
+            $idx++;
+        }
+        return 0;
     }
 }

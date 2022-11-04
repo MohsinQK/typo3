@@ -18,6 +18,7 @@ declare(strict_types=1);
 namespace TYPO3\CMS\Extensionmanager\Tests\Unit\Utility;
 
 use Prophecy\Argument;
+use Prophecy\PhpUnit\ProphecyTrait;
 use Psr\Container\ContainerInterface;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Symfony\Component\Yaml\Yaml;
@@ -32,16 +33,13 @@ use TYPO3\CMS\Core\Registry;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Core\Utility\PathUtility;
 use TYPO3\CMS\Core\Utility\StringUtility;
-use TYPO3\CMS\Extensionmanager\Utility\DependencyUtility;
 use TYPO3\CMS\Extensionmanager\Utility\InstallUtility;
 use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
-/**
- * Test case
- */
 class InstallUtilityTest extends UnitTestCase
 {
-    use \Prophecy\PhpUnit\ProphecyTrait;
+    use ProphecyTrait;
+
     /**
      * @var string
      */
@@ -101,8 +99,6 @@ class InstallUtilityTest extends UnitTestCase
         $bootServiceProphecy->getContainer(false)->willReturn($containerProphecy->reveal());
         $bootServiceProphecy->makeCurrent(Argument::cetera())->willReturn([]);
         $this->installMock->injectBootService($bootServiceProphecy->reveal());
-        $dependencyUtility = $this->getMockBuilder(DependencyUtility::class)->getMock();
-        $this->installMock->_set('dependencyUtility', $dependencyUtility);
         $this->installMock
             ->method('getExtensionArray')
             ->with($this->extensionKey)
@@ -143,7 +139,7 @@ class InstallUtilityTest extends UnitTestCase
     {
         $extKey = strtolower(StringUtility::getUniqueId('testing'));
         $absExtPath = Environment::getVarPath() . '/tests/' . $extKey;
-        GeneralUtility::mkdir($absExtPath);
+        GeneralUtility::mkdir_deep($absExtPath);
         $this->fakedExtensions[$extKey] = [
             'packagePath' => $absExtPath,
         ];
@@ -284,8 +280,6 @@ class InstallUtilityTest extends UnitTestCase
             '',
             false
         );
-        $dependencyUtility = $this->getMockBuilder(DependencyUtility::class)->getMock();
-        $installMock->_set('dependencyUtility', $dependencyUtility);
         $installMock->_set('registry', $registryMock);
         $installMock->expects(self::never())->method('getImportExportUtility');
         $installMock->_call('importT3DFile', $extKey, $this->fakedExtensions[$extKey]['packagePath']);
@@ -308,7 +302,7 @@ class InstallUtilityTest extends UnitTestCase
             SiteConfiguration::class,
             new SiteConfiguration(
                 Environment::getConfigPath() . '/sites',
-                new class() implements EventDispatcherInterface {
+                new class () implements EventDispatcherInterface {
                     public function dispatch(object $event)
                     {
                         return $event;
@@ -393,7 +387,7 @@ class InstallUtilityTest extends UnitTestCase
             SiteConfiguration::class,
             new SiteConfiguration(
                 Environment::getConfigPath() . '/sites',
-                new class() implements EventDispatcherInterface {
+                new class () implements EventDispatcherInterface {
                     public function dispatch(object $event)
                     {
                         return $event;

@@ -5323,4 +5323,53 @@ return [
             'Deprecation-97531-ContextRelatedMethodsWithinTSFE.rst',
         ],
     ],
+    'TYPO3\CMS\Backend\Controller\BackendController->addCss' => [
+        'numberOfMandatoryArguments' => 0,
+        'maximumNumberOfArguments' => 0,
+        'restFiles' => [
+            'Breaking-97451-RemoveBackendControllerPageHooks.rst',
+        ],
+    ],
+    'TYPO3\CMS\Core\Resource\ResourceCompressor->setRootPath' => [
+        'numberOfMandatoryArguments' => 1,
+        'maximumNumberOfArguments' => 1,
+        'restFiles' => [
+            'Breaking-98100-CompressionAndConcatenationOfJavaScriptAndCSSFilesForBackendRemoved.rst',
+        ],
+    ],
+    'TYPO3\CMS\Core\Imaging\GraphicalFunctions->imgTag' => [
+        'numberOfMandatoryArguments' => 1,
+        'maximumNumberOfArguments' => 1,
+        'restFiles' => [
+            'Breaking-98308-LegacyHTMLAttributesBorderAndLongdescRemovedFromFrontendRendering.rst',
+        ],
+    ],
+    'TYPO3\CMS\Recordlist\RecordList\DatabaseRecordList->makeSearchString' => [
+        'numberOfMandatoryArguments' => 3,
+        'maximumNumberOfArguments' => 3,
+        'restFiles' => [
+            'Breaking-98490-VariousHooksAndMethodsChangedInDatabaseRecordList.rst',
+        ],
+    ],
+    'TYPO3\CMS\Core\Resource\Filter\FileExtensionFilter->filterInlineChildren' => [
+        'numberOfMandatoryArguments' => 2,
+        'maximumNumberOfArguments' => 2,
+        'restFiles' => [
+            'Deprecation-98479-DeprecatedFileReferenceRelatedFunctionality.rst',
+        ],
+    ],
+    'TYPO3\CMS\Frontend\ContentObject\ContentObjectRenderer->getQueryArguments' => [
+        'numberOfMandatoryArguments' => 1,
+        'maximumNumberOfArguments' => 1,
+        'restFiles' => [
+            'Deprecation-98488-ContentObjectRenderer-getQueryArguments.rst',
+        ],
+    ],
+    'TYPO3\CMS\Frontend\Typolink\LinkResultFactory->createFromUriString' => [
+        'numberOfMandatoryArguments' => 1,
+        'maximumNumberOfArguments' => 1,
+        'restFiles' => [
+            'Deprecation-97536-LinkResultFactory.rst',
+        ],
+    ],
 ];

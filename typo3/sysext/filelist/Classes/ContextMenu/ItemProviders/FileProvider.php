@@ -174,7 +174,7 @@ class FileProvider extends AbstractProvider
                 $canRender = $this->canShowInfo();
                 break;
 
-            //just for folders
+                //just for folders
             case 'upload':
             case 'new':
                 $canRender = $this->canCreateNew();
@@ -186,7 +186,7 @@ class FileProvider extends AbstractProvider
                 $canRender = $this->canBePastedInto();
                 break;
 
-            //for both files and folders
+                //for both files and folders
             case 'rename':
                 $canRender = $this->canBeRenamed();
                 break;
@@ -416,24 +416,32 @@ class FileProvider extends AbstractProvider
             'data-callback-module' => '@typo3/filelist/context-menu-actions',
         ];
         if ($itemName === 'delete' && $this->backendUser->jsConfirmation(JsConfirmation::DELETE)) {
-            $recordTitle = GeneralUtility::fixed_lgd_cs($this->record->getName(), $this->backendUser->uc['titleLen']);
-
             $title = $this->languageService->sL('LLL:EXT:core/Resources/Private/Language/locallang_mod_web_list.xlf:delete');
-            $confirmMessage = sprintf(
-                $this->languageService->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:mess.delete'),
-                $recordTitle
-            );
+
+            $recordInfo = GeneralUtility::fixed_lgd_cs($this->record->getName(), (int)($this->backendUser->uc['titleLen'] ?? 0));
             if ($this->isFolder()) {
-                $confirmMessage .= BackendUtility::referenceCount(
+                if ($this->backendUser->shallDisplayDebugInformation()) {
+                    $recordInfo .= ' [' . $this->record->getIdentifier() . ']';
+                }
+                $confirmMessage = sprintf(
+                    $this->languageService->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:mess.delete'),
+                    trim($recordInfo)
+                ) . BackendUtility::referenceCount(
                     '_FILE',
                     $this->record->getIdentifier(),
-                    ' ' . $this->languageService->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.referencesToFolder')
+                    LF . $this->languageService->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.referencesToFolder')
                 );
             } else {
-                $confirmMessage .= BackendUtility::referenceCount(
+                if ($this->backendUser->shallDisplayDebugInformation()) {
+                    $recordInfo .= ' [sys_file:' . $this->record->getUid() . ']';
+                }
+                $confirmMessage = sprintf(
+                    $this->languageService->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:mess.delete'),
+                    trim($recordInfo)
+                ) . BackendUtility::referenceCount(
                     'sys_file',
                     (string)$this->record->getUid(),
-                    ' ' . $this->languageService->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.referencesToFile')
+                    LF . $this->languageService->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.referencesToFile')
                 );
             }
             $closeText = $this->languageService->sL('LLL:EXT:core/Resources/Private/Language/locallang_mod_web_list.xlf:button.cancel');

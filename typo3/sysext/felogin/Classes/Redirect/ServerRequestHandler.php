@@ -27,15 +27,8 @@ use TYPO3\CMS\FrontendLogin\Validation\RedirectUrlValidator;
  */
 class ServerRequestHandler
 {
-    /**
-     * @var RedirectUrlValidator
-     */
-    protected $redirectUrlValidator;
-
-    /**
-     * @var ServerRequestInterface
-     */
-    protected $request;
+    protected RedirectUrlValidator $redirectUrlValidator;
+    protected ServerRequestInterface $request;
 
     public function __construct()
     {
@@ -56,13 +49,11 @@ class ServerRequestHandler
     public function getPropertyFromGetAndPost(string $propertyName)
     {
         return $this->request->getParsedBody()[$propertyName] ?? $this->request->getQueryParams(
-            )[$propertyName] ?? null;
+        )[$propertyName] ?? null;
     }
 
     /**
      * Returns validated redirect url contained in request param return_url or redirect_url
-     *
-     * @return string
      */
     public function getRedirectUrlRequestParam(): string
     {

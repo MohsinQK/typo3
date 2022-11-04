@@ -66,7 +66,7 @@ class InMemoryLogWriter extends AbstractWriter
             return $this;
         }
 
-        self::$log[] = $record;
+        self::$log[] = (clone $record)->setMessage($this->interpolate($record->getMessage(), $record->getData()));
 
         return $this;
     }
@@ -77,7 +77,6 @@ class InMemoryLogWriter extends AbstractWriter
     protected function lockWriter(): void
     {
         self::$memoryLock = true;
-        /** @var LogRecord $record */
         $record = GeneralUtility::makeInstance(
             LogRecord::class,
             'TYPO3.CMS.AdminPanel.Log.InMemoryLogWriter',

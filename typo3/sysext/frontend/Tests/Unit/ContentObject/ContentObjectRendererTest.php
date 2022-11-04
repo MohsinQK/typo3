@@ -19,10 +19,6 @@ namespace TYPO3\CMS\Frontend\Tests\Unit\ContentObject;
 
 use PHPUnit\Framework\Exception;
 use PHPUnit\Framework\MockObject\MockObject;
-use Prophecy\Argument;
-use Prophecy\PhpUnit\ProphecyTrait;
-use Prophecy\Prophecy\ObjectProphecy;
-use Psr\Container\ContainerInterface;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Log\NullLogger;
@@ -52,7 +48,6 @@ use TYPO3\CMS\Core\Service\DependencyOrderingService;
 use TYPO3\CMS\Core\Site\Entity\Site;
 use TYPO3\CMS\Core\Site\SiteFinder;
 use TYPO3\CMS\Core\TimeTracker\TimeTracker;
-use TYPO3\CMS\Core\TypoScript\TemplateService;
 use TYPO3\CMS\Core\Utility\DebugUtility;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Core\Utility\StringUtility;
@@ -81,6 +76,7 @@ use TYPO3\CMS\Frontend\ContentObject\TextContentObject;
 use TYPO3\CMS\Frontend\ContentObject\UserContentObject;
 use TYPO3\CMS\Frontend\ContentObject\UserInternalContentObject;
 use TYPO3\CMS\Frontend\Controller\TypoScriptFrontendController;
+use TYPO3\CMS\Frontend\DataProcessing\DataProcessorRegistry;
 use TYPO3\CMS\Frontend\Tests\Unit\ContentObject\Fixtures\TestSanitizerBuilder;
 use TYPO3\CMS\Frontend\Typolink\LinkFactory;
 use TYPO3\CMS\Frontend\Typolink\LinkResult;
@@ -88,12 +84,8 @@ use TYPO3\CMS\Frontend\Typolink\LinkResultInterface;
 use TYPO3\TestingFramework\Core\AccessibleObjectInterface;
 use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
-/**
- * Test case
- */
 class ContentObjectRendererTest extends UnitTestCase
 {
-    use ProphecyTrait;
     use ContentObjectRendererTestTrait;
 
     protected bool $resetSingletonInstances = true;
@@ -107,11 +99,6 @@ class ContentObjectRendererTest extends UnitTestCase
      * @var MockObject|TypoScriptFrontendController|AccessibleObjectInterface
      */
     protected MockObject $frontendControllerMock;
-
-    /**
-     * @var MockObject|TemplateService
-     */
-    protected $templateServiceMock;
 
     /**
      * Default content object name -> class name map, shipped with TYPO3 CMS
@@ -139,8 +126,7 @@ class ContentObjectRendererTest extends UnitTestCase
         'SVG' => ScalableVectorGraphicsContentObject::class,
     ];
 
-    /** @var ObjectProphecy<CacheManager> */
-    protected ObjectProphecy $cacheManager;
+    protected MockObject&CacheManager $cacheManagerMock;
 
     protected bool $backupEnvironment = true;
 
@@ -159,14 +145,6 @@ class ContentObjectRendererTest extends UnitTestCase
         ]);
 
         $GLOBALS['SIM_ACCESS_TIME'] = 1534278180;
-        $packageManagerMock = $this->getMockBuilder(PackageManager::class)
-            ->disableOriginalConstructor()
-            ->getMock();
-        $this->templateServiceMock =
-            $this->getMockBuilder(TemplateService::class)
-                ->setConstructorArgs([null, $packageManagerMock])
-                ->addMethods(['linkData'])
-                ->getMock();
         $pageRepositoryMock =
             $this->getAccessibleMock(PageRepository::class, ['getRawRecord', 'getMountPointInfo']);
         $this->frontendControllerMock =
@@ -178,15 +156,14 @@ class ContentObjectRendererTest extends UnitTestCase
                 false
             );
         $this->frontendControllerMock->_set('context', GeneralUtility::makeInstance(Context::class));
-        $this->frontendControllerMock->tmpl = $this->templateServiceMock;
         $this->frontendControllerMock->config = [];
         $this->frontendControllerMock->page = [];
         $this->frontendControllerMock->sys_page = $pageRepositoryMock;
         $this->frontendControllerMock->_set('language', $site->getLanguageById(2));
         $GLOBALS['TSFE'] = $this->frontendControllerMock;
 
-        $this->cacheManager = $this->prophesize(CacheManager::class);
-        GeneralUtility::setSingletonInstance(CacheManager::class, $this->cacheManager->reveal());
+        $this->cacheManagerMock = $this->getMockBuilder(CacheManager::class)->disableOriginalConstructor()->getMock();
+        GeneralUtility::setSingletonInstance(CacheManager::class, $this->cacheManagerMock);
 
         $this->subject = $this->getAccessibleMock(
             ContentObjectRenderer::class,
@@ -194,30 +171,24 @@ class ContentObjectRendererTest extends UnitTestCase
             [$this->frontendControllerMock]
         );
 
-        $logger = $this->prophesize(Logger::class);
-        $this->subject->setLogger($logger->reveal());
-        $request = $this->prophesize(ServerRequestInterface::class);
-        $this->subject->setRequest($request->reveal());
+        $logger = new NullLogger();
+        $this->subject->setLogger($logger);
+        $request = new ServerRequest();
+        $this->subject->setRequest($request);
 
-        $cObjectFactoryProphecy = $this->prophesize(ContentObjectFactory::class);
-        $cObjectFactoryProphecy->getContentObject(Argument::any(), Argument::cetera())->willReturn(null);
+        $contentObjectFactoryMock = $this->createContentObjectFactoryMock();
+        $cObj = $this->subject;
         foreach ($this->contentObjectMap as $name => $className) {
-            $cObj = $this->subject;
-            $cObjectFactoryProphecy->getContentObject($name, Argument::cetera())->will(function () use ($className, $request, $cObj) {
-                if ($className === 'FluidTemplateContentObject') {
-                    $contentObject = new FluidTemplateContentObject(
-                        new ContentDataProcessor($this->prophesize(ContainerInterface::class)->reveal())
-                    );
-                } else {
-                    $contentObject = new $className();
-                }
-                $contentObject->setRequest($request->reveal());
-                $contentObject->setContentObjectRenderer($cObj);
-                return $contentObject;
-            });
+            $contentObjectFactoryMock->addGetContentObjectCallback(
+                $name,
+                $className,
+                $request,
+                $cObj,
+                $this->getMockBuilder(DataProcessorRegistry::class)->disableOriginalConstructor()->getMock()
+            );
         }
         $container = new Container();
-        $container->set(ContentObjectFactory::class, $cObjectFactoryProphecy->reveal());
+        $container->set(ContentObjectFactory::class, $contentObjectFactoryMock);
         GeneralUtility::setContainer($container);
 
         $this->subject->start([], 'tt_content');
@@ -239,11 +210,11 @@ class ContentObjectRendererTest extends UnitTestCase
         if ($siteConfiguration) {
             $siteFinder = new SiteFinder($siteConfiguration);
         } else {
-            $siteFinder = $this->prophesize(SiteFinder::class)->reveal();
+            $siteFinder = $this->getMockBuilder(SiteFinder::class)->disableOriginalConstructor()->getMock();
         }
         $linkFactory = new LinkFactory(
             $linkService,
-            new class() implements EventDispatcherInterface {
+            new class () implements EventDispatcherInterface {
                 public function dispatch(object $event)
                 {
                     return $event;
@@ -277,12 +248,12 @@ class ContentObjectRendererTest extends UnitTestCase
      */
     public function getImgResourceCallsGetImgResourcePostProcessHook(): void
     {
-        $cacheManagerProphecy = $this->prophesize(CacheManager::class);
-        $cacheProphecy = $this->prophesize(CacheFrontendInterface::class);
-        $cacheManagerProphecy->getCache('imagesizes')->willReturn($cacheProphecy->reveal());
-        $cacheProphecy->get(Argument::cetera())->willReturn(false);
-        $cacheProphecy->set(Argument::cetera(), null)->willReturn(false);
-        GeneralUtility::setSingletonInstance(CacheManager::class, $cacheManagerProphecy->reveal());
+        $cacheManagerMock = $this->getMockBuilder(CacheManager::class)->disableOriginalConstructor()->getMock();
+        $cacheMock = $this->getMockBuilder(CacheFrontendInterface::class)->disableOriginalConstructor()->getMock();
+        $cacheMock->method('get')->willReturn(false);
+        $cacheMock->method('set')->willReturn(false);
+        $cacheManagerMock->method('getCache')->with('imagesizes')->willReturn($cacheMock);
+        GeneralUtility::setSingletonInstance(CacheManager::class, $cacheManagerMock);
 
         $resourceFactory = $this->createMock(ResourceFactory::class);
         $this->subject->method('getResourceFactory')->willReturn($resourceFactory);
@@ -332,55 +303,16 @@ class ContentObjectRendererTest extends UnitTestCase
         self::assertNull($object);
     }
 
-    /////////////////////////////////////////
-    // Tests concerning getQueryArguments()
-    /////////////////////////////////////////
-    /**
-     * @test
-     */
-    public function getQueryArgumentsExcludesParameters(): void
-    {
-        $queryParameters = [
-            'key1' => 'value1',
-            'key2' => 'value2',
-            'key3' => [
-                'key31' => 'value31',
-                'key32' => [
-                    'key321' => 'value321',
-                    'key322' => 'value322',
-                ],
-            ],
-        ];
-        $request = new ServerRequest('https://example.com');
-        $request = $request->withQueryParams($queryParameters);
-        $getQueryArgumentsConfiguration = [];
-        $getQueryArgumentsConfiguration['exclude'] = [];
-        $getQueryArgumentsConfiguration['exclude'][] = 'key1';
-        $getQueryArgumentsConfiguration['exclude'][] = 'key3[key31]';
-        $getQueryArgumentsConfiguration['exclude'][] = 'key3[key32][key321]';
-        $getQueryArgumentsConfiguration['exclude'] = implode(',', $getQueryArgumentsConfiguration['exclude']);
-        $expectedResult = $this->rawUrlEncodeSquareBracketsInUrl('&key2=value2&key3[key32][key322]=value322');
-        $this->subject->setRequest($request);
-        $actualResult = $this->subject->getQueryArguments($getQueryArgumentsConfiguration);
-        self::assertEquals($expectedResult, $actualResult);
-    }
-
-    /**
-     * Encodes square brackets in URL.
-     *
-     * @param string $string
-     * @return string
-     */
-    private function rawUrlEncodeSquareBracketsInUrl(string $string): string
-    {
-        return str_replace(['[', ']'], ['%5B', '%5D'], $string);
-    }
-
     //////////////////////////
     // Tests concerning crop
     //////////////////////////
     /**
      * @test
+     *
+     * Tests are kept due ensure parameter splitting works, also they are mostly duplicates of directly implemented
+     * HtmlCropper and TextCropper tests.
+     * @see \TYPO3\CMS\Core\Tests\Unit\Html\HtmlCropperTest
+     * @see \TYPO3\CMS\Core\Tests\Unit\Text\TextCropperTest
      */
     public function cropIsMultibyteSafe(): void
     {
@@ -647,7 +579,7 @@ class ContentObjectRendererTest extends UnitTestCase
             ],
             'html elements with dashes in attributes' => [
                 '<em data-foo="x">foobar</em>foo',
-                '<em data-foo="x">foobar</em>foobaz',
+                '<em data-foo="x">foobar</em>foo',
                 '9',
             ],
             'html elements with iframe embedded 24|...|1' => [
@@ -701,6 +633,11 @@ class ContentObjectRendererTest extends UnitTestCase
      * @param string $expect The expected cropped output.
      * @param string $content The given input.
      * @param string $conf The given configuration.
+     *
+     * Tests are kept due ensure parameter splitting works, also they are mostly duplicates of directly implemented
+     * HtmlCropper and TextCropper tests.
+     * @see \TYPO3\CMS\Core\Tests\Unit\Html\HtmlCropperTest
+     * @see \TYPO3\CMS\Core\Tests\Unit\Text\TextCropperTest
      */
     public function cropHTML(string $expect, string $content, string $conf): void
     {
@@ -781,7 +718,7 @@ class ContentObjectRendererTest extends UnitTestCase
      * @dataProvider roundDataProvider
      * @test
      */
-    public function round(float $expect, $content, array $conf): void
+    public function round(float $expect, mixed $content, array $conf): void
     {
         self::assertSame(
             $expect,
@@ -884,11 +821,8 @@ class ContentObjectRendererTest extends UnitTestCase
      *
      * @dataProvider numberFormatDataProvider
      * @test
-     * @param string $expects
-     * @param mixed $content
-     * @param array $conf
      */
-    public function numberFormat(string $expects, $content, array $conf): void
+    public function numberFormat(string $expects, mixed $content, array $conf): void
     {
         self::assertSame(
             $expects,
@@ -1028,9 +962,6 @@ class ContentObjectRendererTest extends UnitTestCase
      *
      * @test
      * @dataProvider calcAgeDataProvider
-     * @param string $expect
-     * @param int $timestamp
-     * @param string $labels
      */
     public function calcAge(string $expect, int $timestamp, string $labels): void
     {
@@ -1059,9 +990,6 @@ class ContentObjectRendererTest extends UnitTestCase
     }
 
     /**
-     * @param string $content
-     * @param array $configuration
-     * @param string $expectation
      * @dataProvider stdWrapReturnsExpectationDataProvider
      * @test
      */
@@ -1105,8 +1033,8 @@ class ContentObjectRendererTest extends UnitTestCase
         ];
 
         $subject = $this->getAccessibleMock(ContentObjectRenderer::class, ['stdWrap_ifEmpty']);
-        $request = $this->prophesize(ServerRequestInterface::class);
-        $subject->setRequest($request->reveal());
+        $request = new ServerRequest();
+        $subject->setRequest($request);
         $subject->expects(self::exactly(($ifEmptyShouldBeCalled ? 1 : 0)))
             ->method('stdWrap_ifEmpty');
 
@@ -1172,8 +1100,6 @@ class ContentObjectRendererTest extends UnitTestCase
      *
      * @test
      * @dataProvider getDataWithTypeGpDataProvider
-     * @param string $key
-     * @param string $expectedValue
      */
     public function getDataWithTypeGp(string $key, string $expectedValue): void
     {
@@ -1199,8 +1125,8 @@ class ContentObjectRendererTest extends UnitTestCase
      */
     public function getDataWithTypeTsfe(): void
     {
-        $GLOBALS['TSFE']->intTarget = 'foo';
-        self::assertEquals($GLOBALS['TSFE']->intTarget, $this->subject->getData('tsfe:intTarget'));
+        $GLOBALS['TSFE']->linkVars = 'foo';
+        self::assertEquals($GLOBALS['TSFE']->linkVars, $this->subject->getData('tsfe:linkVars'));
     }
 
     /**
@@ -1347,8 +1273,7 @@ class ContentObjectRendererTest extends UnitTestCase
             1 => ['uid' => 2, 'title' => 'title2'],
             2 => ['uid' => 3, 'title' => 'title3'],
         ];
-
-        $GLOBALS['TSFE']->tmpl->rootLine = $rootline;
+        $GLOBALS['TSFE']->config['rootLine'] = $rootline;
         self::assertEquals(2, $this->subject->getData('level'));
     }
 
@@ -1364,8 +1289,7 @@ class ContentObjectRendererTest extends UnitTestCase
             1 => ['uid' => 2, 'title' => 'title2'],
             2 => ['uid' => 3, 'title' => ''],
         ];
-
-        $GLOBALS['TSFE']->tmpl->rootLine = $rootline;
+        $GLOBALS['TSFE']->config['rootLine'] = $rootline;
         self::assertEquals('', $this->subject->getData('leveltitle:-1'));
         // since "title3" is not set, it will slide to "title2"
         self::assertEquals('title2', $this->subject->getData('leveltitle:-1,slide'));
@@ -1383,8 +1307,7 @@ class ContentObjectRendererTest extends UnitTestCase
             1 => ['uid' => 2, 'title' => 'title2', 'media' => 'media2'],
             2 => ['uid' => 3, 'title' => 'title3', 'media' => ''],
         ];
-
-        $GLOBALS['TSFE']->tmpl->rootLine = $rootline;
+        $GLOBALS['TSFE']->config['rootLine'] = $rootline;
         self::assertEquals('', $this->subject->getData('levelmedia:-1'));
         // since "title3" is not set, it will slide to "title2"
         self::assertEquals('media2', $this->subject->getData('levelmedia:-1,slide'));
@@ -1402,8 +1325,7 @@ class ContentObjectRendererTest extends UnitTestCase
             1 => ['uid' => 2, 'title' => 'title2'],
             2 => ['uid' => 3, 'title' => 'title3'],
         ];
-
-        $GLOBALS['TSFE']->tmpl->rootLine = $rootline;
+        $GLOBALS['TSFE']->config['rootLine'] = $rootline;
         self::assertEquals(3, $this->subject->getData('leveluid:-1'));
         // every element will have a uid - so adding slide doesn't really make sense, just for completeness
         self::assertEquals(3, $this->subject->getData('leveluid:-1,slide'));
@@ -1421,8 +1343,7 @@ class ContentObjectRendererTest extends UnitTestCase
             1 => ['uid' => 2, 'title' => 'title2', 'testfield' => 'field2'],
             2 => ['uid' => 3, 'title' => 'title3', 'testfield' => ''],
         ];
-
-        $GLOBALS['TSFE']->tmpl->rootLine = $rootline;
+        $GLOBALS['TSFE']->config['rootLine'] = $rootline;
         self::assertEquals('', $this->subject->getData('levelfield:-1,testfield'));
         self::assertEquals('field2', $this->subject->getData('levelfield:-1,testfield,slide'));
     }
@@ -1443,7 +1364,7 @@ class ContentObjectRendererTest extends UnitTestCase
             2 => ['uid' => 3, 'title' => 'title3', 'testfield' => 'field3'],
         ];
 
-        $GLOBALS['TSFE']->tmpl->rootLine = $rootline1;
+        $GLOBALS['TSFE']->config['rootLine'] = $rootline1;
         $GLOBALS['TSFE']->rootLine = $rootline2;
         self::assertEquals('field2', $this->subject->getData('fullrootline:-1,testfield'));
     }
@@ -1643,7 +1564,7 @@ class ContentObjectRendererTest extends UnitTestCase
             2 => ['uid' => 3, 'title' => ''],
         ];
         $expectedResult = 'array(3items)0=>array(2items)uid=>1(integer)title=>"title1"(6chars)1=>array(2items)uid=>2(integer)title=>"title2"(6chars)2=>array(2items)uid=>3(integer)title=>""(0chars)';
-        $GLOBALS['TSFE']->tmpl->rootLine = $rootline;
+        $GLOBALS['TSFE']->config['rootLine'] = $rootline;
 
         DebugUtility::useAnsiColor(false);
         $result = $this->subject->getData('debug:rootLine');
@@ -1757,7 +1678,7 @@ class ContentObjectRendererTest extends UnitTestCase
             Environment::getPublicPath(),
             Environment::getVarPath(),
             Environment::getConfigPath(),
-            Environment::getBackendPath() . '/index.php',
+            Environment::getPublicPath() . '/index.php',
             Environment::isWindows() ? 'WINDOWS' : 'UNIX'
         );
         $contentObjectFixture = $this->createContentObjectThrowingExceptionFixture();
@@ -1984,9 +1905,9 @@ class ContentObjectRendererTest extends UnitTestCase
     public function stdWrap_parseFuncReturnsParsedHtml(string $value, array $configuration, string $expectedResult, LinkResultInterface|false $linkResult): void
     {
         if ($linkResult !== false) {
-            $linkFactory = $this->prophesize(LinkFactory::class);
-            $linkFactory->create(Argument::cetera())->willReturn($linkResult);
-            GeneralUtility::addInstance(LinkFactory::class, $linkFactory->reveal());
+            $linkFactory = $this->getMockBuilder(LinkFactory::class)->disableOriginalConstructor()->getMock();
+            $linkFactory->method('create')->willReturn($linkResult);
+            GeneralUtility::addInstance(LinkFactory::class, $linkFactory);
         }
         self::assertEquals($expectedResult, $this->subject->stdWrap_parseFunc($value, $configuration));
     }
@@ -2255,9 +2176,6 @@ class ContentObjectRendererTest extends UnitTestCase
     /**
      * @test
      * @dataProvider _parseFuncParsesNestedTagsProperlyDataProvider
-     * @param string $value
-     * @param array $configuration
-     * @param string $expectedResult
      */
     public function parseFuncParsesNestedTagsProperly(string $value, array $configuration, string $expectedResult): void
     {
@@ -2402,9 +2320,9 @@ class ContentObjectRendererTest extends UnitTestCase
      */
     public function httpMakelinksReturnsLink(string $data, array $configuration, string $expectedResult, LinkResult $linkResult): void
     {
-        $linkFactory = $this->prophesize(LinkFactory::class);
-        $linkFactory->create(Argument::cetera())->willReturn($linkResult);
-        GeneralUtility::addInstance(LinkFactory::class, $linkFactory->reveal());
+        $linkFactory = $this->getMockBuilder(LinkFactory::class)->disableOriginalConstructor()->getMock();
+        $linkFactory->method('create')->willReturn($linkResult);
+        GeneralUtility::addInstance(LinkFactory::class, $linkFactory);
 
         self::assertSame($expectedResult, $this->subject->http_makelinks($data, $configuration));
     }
@@ -2514,9 +2432,9 @@ class ContentObjectRendererTest extends UnitTestCase
      */
     public function mailtoMakelinksReturnsMailToLink(string $data, array $configuration, string $expectedResult, LinkResult $linkResult): void
     {
-        $linkFactory = $this->prophesize(LinkFactory::class);
-        $linkFactory->create(Argument::cetera())->willReturn($linkResult);
-        GeneralUtility::addInstance(LinkFactory::class, $linkFactory->reveal());
+        $linkFactory = $this->getMockBuilder(LinkFactory::class)->disableOriginalConstructor()->getMock();
+        $linkFactory->method('create')->willReturn($linkResult);
+        GeneralUtility::addInstance(LinkFactory::class, $linkFactory);
 
         self::assertSame($expectedResult, $this->subject->mailto_makelinks($data, $configuration));
     }
@@ -2657,43 +2575,56 @@ class ContentObjectRendererTest extends UnitTestCase
                 ],
                 '<a href="http://typo3.com" class="url-class">TYPO3</a>',
             ],
+            'Link url using stdWrap with class attribute in parameter and overridden target' => [
+                'TYPO3',
+                [
+                    'parameter' => 'http://typo3.org default-target url-class',
+                    'parameter.' => [
+                        'cObject' => 'TEXT',
+                        'cObject.' => [
+                            'value' => 'http://typo3.com new-target different-url-class',
+                        ],
+                    ],
+                ],
+                '<a href="http://typo3.com" target="new-target" rel="noreferrer" class="different-url-class">TYPO3</a>',
+            ],
+            'Link url using stdWrap with class attribute in parameter and overridden target and returnLast' => [
+                'TYPO3',
+                [
+                    'parameter' => 'http://typo3.org default-target url-class',
+                    'parameter.' => [
+                        'cObject' => 'TEXT',
+                        'cObject.' => [
+                            'value' => 'http://typo3.com new-target different-url-class',
+                        ],
+                    ],
+                    'returnLast' => 'url',
+                ],
+                'http://typo3.com',
+            ],
         ];
     }
 
     /**
      * @test
-     * @param string $linkText
-     * @param array $configuration
-     * @param string $expectedResult
      * @dataProvider typolinkReturnsCorrectLinksForEmailsAndUrlsDataProvider
      */
     public function typolinkReturnsCorrectLinksForEmailsAndUrls(string $linkText, array $configuration, string $expectedResult): void
     {
-        $packageManagerMock = $this->getMockBuilder(PackageManager::class)
-            ->disableOriginalConstructor()
-            ->getMock();
-        $templateServiceObjectMock = $this->getMockBuilder(TemplateService::class)
-            ->setConstructorArgs([null, $packageManagerMock])
-            ->addMethods(['dummy'])
-            ->getMock();
-        $templateServiceObjectMock->setup = [
-            'lib.' => [
-                'parseFunc.' => $this->getLibParseFunc(),
-            ],
-        ];
         $typoScriptFrontendControllerMockObject = $this->createMock(TypoScriptFrontendController::class);
         $typoScriptFrontendControllerMockObject->config = [
             'config' => [],
         ];
-        $typoScriptFrontendControllerMockObject->tmpl = $templateServiceObjectMock;
         $GLOBALS['TSFE'] = $typoScriptFrontendControllerMockObject;
 
-        $this->cacheManager->getCache('runtime')->willReturn(new NullFrontend('dummy'));
-        $this->cacheManager->getCache('core')->willReturn(new NullFrontend('runtime'));
+        $this->cacheManagerMock->method('getCache')->willReturnMap([
+            ['runtime', new NullFrontend('dummy')],
+            ['core', new NullFrontend('runtime')],
+        ]);
 
         $siteConfiguration = new SiteConfiguration(
             Environment::getConfigPath() . '/sites',
-            new class() implements EventDispatcherInterface {
+            new class () implements EventDispatcherInterface {
                 public function dispatch(object $event)
                 {
                     return $event;
@@ -2708,10 +2639,6 @@ class ContentObjectRendererTest extends UnitTestCase
     }
 
     /**
-     * @param array $settings
-     * @param string $linkText
-     * @param string $mailAddress
-     * @param string $expected
      * @dataProvider typoLinkEncodesMailAddressForSpamProtectionDataProvider
      * @test
      */
@@ -2721,7 +2648,6 @@ class ContentObjectRendererTest extends UnitTestCase
         string $mailAddress,
         string $expected
     ): void {
-        $this->getFrontendController()->spamProtectEmailAddresses = $settings['spamProtectEmailAddresses'];
         $this->getFrontendController()->config['config'] = $settings;
         $typoScript = ['parameter' => $mailAddress];
         GeneralUtility::addInstance(LinkFactory::class, $this->getLinkFactory());
@@ -2930,34 +2856,18 @@ class ContentObjectRendererTest extends UnitTestCase
 
     /**
      * @test
-     * @param string $linkText
-     * @param array $configuration
-     * @param string $expectedResult
      * @dataProvider typolinkReturnsCorrectLinksFilesDataProvider
      */
     public function typolinkReturnsCorrectLinksFiles(string $linkText, array $configuration, string $expectedResult): void
     {
-        $packageManagerMock = $this->getMockBuilder(PackageManager::class)
-            ->disableOriginalConstructor()
-            ->getMock();
-        $templateServiceObjectMock = $this->getMockBuilder(TemplateService::class)
-            ->setConstructorArgs([null, $packageManagerMock])
-            ->addMethods(['dummy'])
-            ->getMock();
-        $templateServiceObjectMock->setup = [
-            'lib.' => [
-                'parseFunc.' => $this->getLibParseFunc(),
-            ],
-        ];
         $typoScriptFrontendControllerMockObject = $this->createMock(TypoScriptFrontendController::class);
         $typoScriptFrontendControllerMockObject->config = [
             'config' => [],
         ];
-        $typoScriptFrontendControllerMockObject->tmpl = $templateServiceObjectMock;
         $GLOBALS['TSFE'] = $typoScriptFrontendControllerMockObject;
 
-        $resourceFactory = $this->prophesize(ResourceFactory::class);
-        GeneralUtility::setSingletonInstance(ResourceFactory::class, $resourceFactory->reveal());
+        $resourceFactory = $this->getMockBuilder(ResourceFactory::class)->disableOriginalConstructor()->getMock();
+        GeneralUtility::setSingletonInstance(ResourceFactory::class, $resourceFactory);
 
         $this->subject->_set('typoScriptFrontendController', $typoScriptFrontendControllerMockObject);
         GeneralUtility::addInstance(LinkFactory::class, $this->getLinkFactory());
@@ -3094,38 +3004,17 @@ class ContentObjectRendererTest extends UnitTestCase
 
     /**
      * @test
-     * @param string $linkText
-     * @param array $configuration
-     * @param string $absRefPrefix
-     * @param string $expectedResult
      * @dataProvider typolinkReturnsCorrectLinksForFilesWithAbsRefPrefixDataProvider
      */
-    public function typolinkReturnsCorrectLinksForFilesWithAbsRefPrefix(
-        string $linkText,
-        array $configuration,
-        string $absRefPrefix,
-        string $expectedResult
-    ): void {
-        $packageManagerMock = $this->getMockBuilder(PackageManager::class)
-            ->disableOriginalConstructor()
-            ->getMock();
-        $templateServiceObjectMock = $this->getMockBuilder(TemplateService::class)
-            ->setConstructorArgs([null, $packageManagerMock])
-            ->addMethods(['dummy'])
-            ->getMock();
-        $templateServiceObjectMock->setup = [
-            'lib.' => [
-                'parseFunc.' => $this->getLibParseFunc(),
-            ],
-        ];
-        $resourceFactory = $this->prophesize(ResourceFactory::class);
-        GeneralUtility::setSingletonInstance(ResourceFactory::class, $resourceFactory->reveal());
+    public function typolinkReturnsCorrectLinksForFilesWithAbsRefPrefix(string $linkText, array $configuration, string $absRefPrefix, string $expectedResult): void
+    {
+        $resourceFactory = $this->getMockBuilder(ResourceFactory::class)->disableOriginalConstructor()->getMock();
+        GeneralUtility::setSingletonInstance(ResourceFactory::class, $resourceFactory);
 
         $typoScriptFrontendControllerMockObject = $this->createMock(TypoScriptFrontendController::class);
         $typoScriptFrontendControllerMockObject->config = [
             'config' => [],
         ];
-        $typoScriptFrontendControllerMockObject->tmpl = $templateServiceObjectMock;
         $GLOBALS['TSFE'] = $typoScriptFrontendControllerMockObject;
         $GLOBALS['TSFE']->absRefPrefix = $absRefPrefix;
         $this->subject->_set('typoScriptFrontendController', $typoScriptFrontendControllerMockObject);
@@ -3141,7 +3030,7 @@ class ContentObjectRendererTest extends UnitTestCase
     {
         $siteConfiguration = new SiteConfiguration(
             Environment::getConfigPath() . '/sites',
-            new class() implements EventDispatcherInterface {
+            new class () implements EventDispatcherInterface {
                 public function dispatch(object $event)
                 {
                     return $event;
@@ -3149,8 +3038,10 @@ class ContentObjectRendererTest extends UnitTestCase
             },
             new NullFrontend('dummy')
         );
-        $this->cacheManager->getCache('runtime')->willReturn(new NullFrontend('runtime'));
-        $this->cacheManager->getCache('core')->willReturn(new NullFrontend('runtime'));
+        $this->cacheManagerMock->method('getCache')->willReturnMap([
+            ['runtime', new NullFrontend('dummy')],
+            ['core', new NullFrontend('runtime')],
+        ]);
         $linkFactory = $this->getLinkFactory($siteConfiguration);
         GeneralUtility::addInstance(LinkFactory::class, $linkFactory);
         $linkText = 'Nice Text';
@@ -3190,9 +3081,9 @@ class ContentObjectRendererTest extends UnitTestCase
      */
     public function typoLinkReturnsOnlyLinkTextIfNoLinkResolvingIsPossible(): void
     {
-        $linkService = $this->prophesize(LinkService::class);
-        $linkService->resolve('foo')->willThrow(InvalidPathException::class);
-        $linkFactory = $this->getLinkFactory(null, $linkService->reveal());
+        $linkService = $this->getMockBuilder(LinkService::class)->disableOriginalConstructor()->getMock();
+        $linkService->method('resolve')->with('foo')->willThrowException(new InvalidPathException('', 1666303735));
+        $linkFactory = $this->getLinkFactory(null, $linkService);
         GeneralUtility::addInstance(LinkFactory::class, $linkFactory);
         self::assertSame('foo', $this->subject->typoLink('foo', ['parameter' => 'foo']));
     }
@@ -3202,12 +3093,12 @@ class ContentObjectRendererTest extends UnitTestCase
      */
     public function typoLinkLogsErrorIfNoLinkResolvingIsPossible(): void
     {
-        $linkService = $this->prophesize(LinkService::class);
-        $linkService->resolve('foo')->willThrow(InvalidPathException::class);
-        $linkFactory = $this->getLinkFactory(null, $linkService->reveal());
-        $logger = $this->prophesize(Logger::class);
-        $logger->warning('The link could not be generated', Argument::any())->shouldBeCalled();
-        $linkFactory->setLogger($logger->reveal());
+        $linkService = $this->getMockBuilder(LinkService::class)->disableOriginalConstructor()->getMock();
+        $linkService->method('resolve')->with('foo')->willThrowException(new InvalidPathException('', 1666303765));
+        $linkFactory = $this->getLinkFactory(null, $linkService);
+        $logger = $this->getMockBuilder(Logger::class)->disableOriginalConstructor()->getMock();
+        $logger->expects(self::atLeastOnce())->method('warning')->with('The link could not be generated', self::anything());
+        $linkFactory->setLogger($logger);
         GeneralUtility::addInstance(LinkFactory::class, $linkFactory);
 
         $this->subject->typoLink('foo', ['parameter' => 'foo']);
@@ -3218,34 +3109,23 @@ class ContentObjectRendererTest extends UnitTestCase
      */
     public function typolinkLinkResult(): void
     {
-        $packageManagerMock = $this->getMockBuilder(PackageManager::class)
-            ->disableOriginalConstructor()
-            ->getMock();
-        $templateServiceObjectMock = $this->getMockBuilder(TemplateService::class)
-            ->setConstructorArgs([null, $packageManagerMock])
-            ->addMethods(['dummy'])
-            ->getMock();
-        $templateServiceObjectMock->setup = [
-            'lib.' => [
-                'parseFunc.' => $this->getLibParseFunc(),
-            ],
-        ];
         $typoScriptFrontendControllerMockObject = $this->createMock(TypoScriptFrontendController::class);
         $typoScriptFrontendControllerMockObject->config = [
             'config' => [],
         ];
-        $typoScriptFrontendControllerMockObject->tmpl = $templateServiceObjectMock;
         $GLOBALS['TSFE'] = $typoScriptFrontendControllerMockObject;
 
-        $resourceFactory = $this->prophesize(ResourceFactory::class);
-        GeneralUtility::setSingletonInstance(ResourceFactory::class, $resourceFactory->reveal());
+        $resourceFactory = $this->getMockBuilder(ResourceFactory::class)->disableOriginalConstructor()->getMock();
+        GeneralUtility::setSingletonInstance(ResourceFactory::class, $resourceFactory);
 
-        $this->cacheManager->getCache('runtime')->willReturn(new NullFrontend('dummy'));
-        $this->cacheManager->getCache('core')->willReturn(new NullFrontend('runtime'));
+        $this->cacheManagerMock->method('getCache')->willReturnMap([
+            ['runtime', new NullFrontend('dummy')],
+            ['core', new NullFrontend('runtime')],
+        ]);
 
         $siteConfiguration = new SiteConfiguration(
             Environment::getConfigPath() . '/sites',
-            new class() implements EventDispatcherInterface {
+            new class () implements EventDispatcherInterface {
                 public function dispatch(object $event)
                 {
                     return $event;
@@ -3265,7 +3145,6 @@ class ContentObjectRendererTest extends UnitTestCase
                 'returnLast' => 'result',
             ]
         );
-        /** @phpstan-ignore-next-line */
         self::assertInstanceOf(LinkResultInterface::class, $linkResult);
         self::assertEquals(json_encode([
             'href' => 'https://example.tld',
@@ -3289,34 +3168,23 @@ class ContentObjectRendererTest extends UnitTestCase
      */
     public function typoLinkProperlyEncodesLinkResult(string $linkText, array $configuration, string $expectedResult): void
     {
-        $packageManagerMock = $this->getMockBuilder(PackageManager::class)
-            ->disableOriginalConstructor()
-            ->getMock();
-        $templateServiceObjectMock = $this->getMockBuilder(TemplateService::class)
-            ->setConstructorArgs([null, $packageManagerMock])
-            ->addMethods(['dummy'])
-            ->getMock();
-        $templateServiceObjectMock->setup = [
-            'lib.' => [
-                'parseFunc.' => $this->getLibParseFunc(),
-            ],
-        ];
         $typoScriptFrontendControllerMockObject = $this->createMock(TypoScriptFrontendController::class);
         $typoScriptFrontendControllerMockObject->config = [
             'config' => [],
         ];
-        $typoScriptFrontendControllerMockObject->tmpl = $templateServiceObjectMock;
         $GLOBALS['TSFE'] = $typoScriptFrontendControllerMockObject;
 
-        $resourceFactory = $this->prophesize(ResourceFactory::class);
-        GeneralUtility::setSingletonInstance(ResourceFactory::class, $resourceFactory->reveal());
+        $resourceFactory = $this->getMockBuilder(ResourceFactory::class)->disableOriginalConstructor()->getMock();
+        GeneralUtility::setSingletonInstance(ResourceFactory::class, $resourceFactory);
 
-        $this->cacheManager->getCache('runtime')->willReturn(new NullFrontend('dummy'));
-        $this->cacheManager->getCache('core')->willReturn(new NullFrontend('runtime'));
+        $this->cacheManagerMock->method('getCache')->willReturnMap([
+            ['runtime', new NullFrontend('dummy')],
+            ['core', new NullFrontend('runtime')],
+        ]);
 
         $siteConfiguration = new SiteConfiguration(
             Environment::getConfigPath() . '/sites',
-            new class() implements EventDispatcherInterface {
+            new class () implements EventDispatcherInterface {
                 public function dispatch(object $event)
                 {
                     return $event;
@@ -3539,7 +3407,7 @@ class ContentObjectRendererTest extends UnitTestCase
      * @param int $times Times the cache is expected to be called (0 or 1).
      * @param string|null $cached Return from cacheFrontend mock.
      */
-    public function getFromCache($expect, array $conf, string $cacheKey, int $times, ?string $cached): void
+    public function getFromCache(string|bool $expect, array $conf, string $cacheKey, int $times, ?string $cached): void
     {
         $subject = $this->getAccessibleMock(
             ContentObjectRenderer::class,
@@ -3641,7 +3509,7 @@ class ContentObjectRendererTest extends UnitTestCase
      * @param mixed $expect The expected string.
      * @param string $fields Field names divides by //.
      */
-    public function getFieldVal($expect, string $fields): void
+    public function getFieldVal(mixed $expect, string $fields): void
     {
         $data = [
             'string1' => 'string 1',
@@ -3817,12 +3685,12 @@ class ContentObjectRendererTest extends UnitTestCase
      * - Almost all stdWrap_[type] are callable if called with 2 parameters:
      *   - string $content Empty string.
      *   - array $conf ['type' => '', 'type.' => []].
-     * - Exceptions: stdWrap_numRows, stdWrap_split
+     * - Exceptions: stdWrap_numRows
      * - The overall count is 91.
      *
      *  Note:
      *
-     *  The two exceptions break, if the configuration is empty. This test just
+     *  The exceptions break, if the configuration is empty. This test just
      *  tracks the different behaviour to gain information. It doesn't mean
      *  that it is an issue.
      *
@@ -3830,13 +3698,13 @@ class ContentObjectRendererTest extends UnitTestCase
      */
     public function notAllStdWrapProcessorsAreCallableWithEmptyConfiguration(): void
     {
-        $timeTrackerProphecy = $this->prophesize(TimeTracker::class);
-        GeneralUtility::setSingletonInstance(TimeTracker::class, $timeTrackerProphecy->reveal());
-        $linkFactory = $this->prophesize(LinkFactory::class);
-        $linkFactory->create(Argument::cetera())->willReturn(new LinkResult('', ''));
-        GeneralUtility::addInstance(LinkFactory::class, $linkFactory->reveal());
+        $timeTrackerMock = $this->getMockBuilder(TimeTracker::class)->disableOriginalConstructor()->getMock();
+        GeneralUtility::setSingletonInstance(TimeTracker::class, $timeTrackerMock);
+        $linkFactory = $this->getMockBuilder(LinkFactory::class)->disableOriginalConstructor()->getMock();
+        $linkFactory->expects(self::atLeastOnce())->method('create')->with(self::anything())->willReturn(new LinkResult('', ''));
+        GeneralUtility::addInstance(LinkFactory::class, $linkFactory);
 
-        $expectExceptions = ['numRows', 'bytes'];
+        $expectExceptions = ['numRows'];
         $count = 0;
         $processors = [];
         $exceptions = [];
@@ -3904,8 +3772,8 @@ class ContentObjectRendererTest extends UnitTestCase
      *
      * @test
      * @dataProvider fourTypesOfStdWrapHookObjectProcessorsDataProvider
-     * @param string $stdWrapMethod : The method to cover.
-     * @param string $hookObjectCall : The expected hook object call.
+     * @param string $stdWrapMethod The method to cover.
+     * @param string $hookObjectCall The expected hook object call.
      */
     public function fourTypesOfStdWrapHookObjectProcessors(
         string $stdWrapMethod,
@@ -4208,9 +4076,6 @@ class ContentObjectRendererTest extends UnitTestCase
      *
      * @test
      * @dataProvider stdWrapBrTagDataProvider
-     * @param string $input
-     * @param string $expected
-     * @param array $config
      */
     public function stdWrap_brTag(string $input, string $expected, array $config): void
     {
@@ -4254,6 +4119,16 @@ class ContentObjectRendererTest extends UnitTestCase
                 '1.15 Gi',
                 '1234567890',
                 ['labels' => '', 'base' => 0],
+            ],
+            'value 1234 iec no base' => [
+                '1.21 Ki',
+                '1234',
+                ['labels' => 'iec'],
+            ],
+            'value 1234 no labels base set' => [
+                '1.21 Ki',
+                '1234',
+                ['base' => 0],
             ],
         ];
     }
@@ -4475,7 +4350,7 @@ class ContentObjectRendererTest extends UnitTestCase
         array $conf,
         int $times,
         ?array $with,
-        $will
+        string|bool|null $will
     ): void {
         $subject = $this->getAccessibleMock(
             ContentObjectRenderer::class,
@@ -4547,7 +4422,7 @@ class ContentObjectRendererTest extends UnitTestCase
     public function stdWrap_cacheStore(
         ?array $confCache,
         int $timesCCK,
-        $key,
+        mixed $key,
         int $times
     ): void {
         $content = StringUtility::getUniqueId('content');
@@ -4950,7 +4825,7 @@ class ContentObjectRendererTest extends UnitTestCase
      * @param array $conf The given configuration.
      * @param int $now Fictive execution time.
      */
-    public function stdWrap_date(string $expected, $content, array $conf, int $now): void
+    public function stdWrap_date(string $expected, mixed $content, array $conf, int $now): void
     {
         $GLOBALS['EXEC_TIME'] = $now;
         self::assertEquals(
@@ -5044,7 +4919,7 @@ class ContentObjectRendererTest extends UnitTestCase
      * @param bool $expectArray If cast to array is expected.
      * @param mixed $confDebugFunc The configuration for $conf['debugFunc'].
      */
-    public function stdWrap_debugFunc(bool $expectArray, $confDebugFunc): void
+    public function stdWrap_debugFunc(bool $expectArray, mixed $confDebugFunc): void
     {
         $GLOBALS['TYPO3_CONF_VARS']['SYS']['devIPmask'] = '*';
         $content = StringUtility::getUniqueId('content');
@@ -5722,7 +5597,7 @@ class ContentObjectRendererTest extends UnitTestCase
      * @dataProvider stdWrap_ifDataProvider
      * @param string $expect The expected output.
      * @param bool $stop Expect stop further rendering.
-     * @param mixed $content The given content.
+     * @param string $content The given content.
      * @param array $conf
      * @param int $times Times checkIf is called (0 or 1).
      * @param bool|null $will Return of checkIf (null if not called).
@@ -5818,7 +5693,7 @@ class ContentObjectRendererTest extends UnitTestCase
      * @param mixed $content The given input.
      * @param array $conf The given configuration.
      */
-    public function stdWrap_ifBlank($expect, $content, array $conf): void
+    public function stdWrap_ifBlank(mixed $expect, mixed $content, array $conf): void
     {
         $result = $this->subject->stdWrap_ifBlank($content, $conf);
         self::assertSame($expect, $result);
@@ -5872,7 +5747,7 @@ class ContentObjectRendererTest extends UnitTestCase
      * @param mixed $content The given content.
      * @param array $conf The given configuration.
      */
-    public function stdWrap_ifEmpty($expect, $content, array $conf): void
+    public function stdWrap_ifEmpty(mixed $expect, mixed $content, array $conf): void
     {
         $result = $this->subject->stdWrap_ifEmpty($content, $conf);
         self::assertSame($expect, $result);
@@ -5913,7 +5788,7 @@ class ContentObjectRendererTest extends UnitTestCase
      * @param mixed $content The given input.
      * @param array $conf The given configuration.
      */
-    public function stdWrap_ifNull($expect, $content, array $conf): void
+    public function stdWrap_ifNull(mixed $expect, mixed $content, array $conf): void
     {
         $result = $this->subject->stdWrap_ifNull($content, $conf);
         self::assertSame($expect, $result);
@@ -6078,7 +5953,7 @@ class ContentObjectRendererTest extends UnitTestCase
      * @param mixed $expect The expected output.
      * @param string $content The given input.
      */
-    public function stdWrap_insertDataAndInputExamples($expect, string $content): void
+    public function stdWrap_insertDataAndInputExamples(mixed $expect, string $content): void
     {
         self::assertSame($expect, $this->subject->stdWrap_insertData($content));
     }
@@ -6132,7 +6007,7 @@ class ContentObjectRendererTest extends UnitTestCase
      * @param int $expect The expected output.
      * @param mixed $content The given input.
      */
-    public function stdWrap_intval(int $expect, $content): void
+    public function stdWrap_intval(int $expect, mixed $content): void
     {
         self::assertSame($expect, $this->subject->stdWrap_intval($content));
     }
@@ -6603,7 +6478,7 @@ class ContentObjectRendererTest extends UnitTestCase
      * @param string $content
      * @param array $conf Property: setCurrent
      */
-    public function stdWrap_override($expect, string $content, array $conf): void
+    public function stdWrap_override(mixed $expect, string $content, array $conf): void
     {
         self::assertSame(
             $expect,
@@ -6745,7 +6620,7 @@ class ContentObjectRendererTest extends UnitTestCase
             ->getMock();
         $frontend->expects(self::once())->method('uniqueHash')
             ->with()->willReturn($uniqueHash);
-        $frontend->config = [];
+        $frontend->config = ['INTincScript' => []];
         $subject = $this->getAccessibleMock(
             ContentObjectRenderer::class,
             null,
@@ -6977,7 +6852,7 @@ class ContentObjectRendererTest extends UnitTestCase
      * @param string $content The given content.
      * @param array $conf The given configuration.
      */
-    public function stdWrap_prioriCalc($expect, string $content, array $conf): void
+    public function stdWrap_prioriCalc(mixed $expect, string $content, array $conf): void
     {
         $result = $this->subject->stdWrap_prioriCalc($content, $conf);
         self::assertSame($expect, $result);
@@ -7121,7 +6996,7 @@ class ContentObjectRendererTest extends UnitTestCase
      * @param bool $stop Expect stop further rendering.
      * @param mixed $content The given input.
      */
-    public function stdWrap_required($expect, bool $stop, $content): void
+    public function stdWrap_required(mixed $expect, bool $stop, mixed $content): void
     {
         $subject = $this->subject;
         $subject->_set('stdWrapRecursionLevel', 1);
@@ -7367,10 +7242,6 @@ class ContentObjectRendererTest extends UnitTestCase
     }
 
     /**
-     * @param string $key
-     * @param array $configuration
-     * @param string|null $defaultValue
-     * @param string|null $expected
      * @dataProvider stdWrap_stdWrapValueDataProvider
      * @test
      */
@@ -7549,7 +7420,7 @@ class ContentObjectRendererTest extends UnitTestCase
      * @param array $conf The given configuration.
      * @param int $now Fictive execution time.
      */
-    public function stdWrap_strftime(string $expect, $content, array $conf, int $now): void
+    public function stdWrap_strftime(string $expect, mixed $content, array $conf, int $now): void
     {
         // Save current timezone and set to UTC to make the system under test
         // behave the same in all server timezone settings
@@ -7627,7 +7498,7 @@ class ContentObjectRendererTest extends UnitTestCase
      * @param string $content The given input.
      * @param array $conf The given configuration.
      */
-    public function stdWrap_strtotime($expect, string $content, array $conf): void
+    public function stdWrap_strtotime(mixed $expect, string $content, array $conf): void
     {
         // Set exec_time to a hard timestamp
         $GLOBALS['EXEC_TIME'] = 1417392000;
@@ -7732,10 +7603,8 @@ class ContentObjectRendererTest extends UnitTestCase
      *
      * @test
      * @dataProvider stdWrap_trimDataProvider
-     * @param string $expect
-     * @param mixed $content The given content.
      */
-    public function stdWrap_trim(string $expect, $content): void
+    public function stdWrap_trim(string $expect, mixed $content): void
     {
         $result = $this->subject->stdWrap_trim($content);
         self::assertSame($expect, $result);
@@ -7997,7 +7866,7 @@ class ContentObjectRendererTest extends UnitTestCase
      * @param string $content The given content.
      * @param mixed $wrapAlignConf The given input.
      */
-    public function stdWrap_wrapAlign(string $expect, string $content, $wrapAlignConf): void
+    public function stdWrap_wrapAlign(string $expect, string $content, mixed $wrapAlignConf): void
     {
         $conf = [];
         if ($wrapAlignConf !== null) {
@@ -8228,12 +8097,8 @@ class ContentObjectRendererTest extends UnitTestCase
     /**
      * @test
      * @dataProvider getGlobalDataProvider
-     * @param mixed $expected
-     * @param string $key
-     * @param array|null $globals
-     * @param array|null $source
      */
-    public function getGlobalReturnsExpectedResult($expected, string $key, ?array $globals, ?array $source): void
+    public function getGlobalReturnsExpectedResult(mixed $expected, string $key, ?array $globals, ?array $source): void
     {
         if (isset($globals['HTTP_SERVER_VARS'])) {
             // Note we can't simply $GLOBALS = $globals, since phpunit backupGlobals works on existing array keys.
@@ -8248,4 +8113,47 @@ class ContentObjectRendererTest extends UnitTestCase
     /***************************************************************************
      * End: Mixed tests
      ***************************************************************************/
+
+    protected function createContentObjectFactoryMock()
+    {
+        return new class (new Container()) extends ContentObjectFactory {
+            /**
+             * @var array<string, callable>
+             */
+            private array $getContentObjectCallbacks = [];
+
+            public function getContentObject(
+                string $name,
+                \Psr\Http\Message\ServerRequestInterface $request,
+                ContentObjectRenderer $contentObjectRenderer
+            ): ?AbstractContentObject {
+                if (is_callable($this->getContentObjectCallbacks[$name] ?? null)) {
+                    return $this->getContentObjectCallbacks[$name]();
+                }
+                return null;
+            }
+
+            /**
+             * @internal This method is just for testing purpose.
+             */
+            public function addGetContentObjectCallback(string $name, string $className, ServerRequestInterface $request, ContentObjectRenderer $cObj, MockObject&DataProcessorRegistry $dataProcessorRegistry): void
+            {
+                $this->getContentObjectCallbacks[$name] = static function () use ($className, $request, $cObj, $dataProcessorRegistry) {
+                    if ($className === 'FluidTemplateContentObject') {
+                        $contentObject = new FluidTemplateContentObject(
+                            new ContentDataProcessor(
+                                new Container(),
+                                $dataProcessorRegistry
+                            )
+                        );
+                    } else {
+                        $contentObject = new $className();
+                    }
+                    $contentObject->setRequest($request);
+                    $contentObject->setContentObjectRenderer($cObj);
+                    return $contentObject;
+                };
+            }
+        };
+    }
 }

@@ -24,7 +24,6 @@ use TYPO3\CMS\Core\Context\Context;
 use TYPO3\CMS\Core\Context\WorkspaceAspect;
 use TYPO3\CMS\Core\Database\Connection;
 use TYPO3\CMS\Core\Database\ConnectionPool;
-use TYPO3\CMS\Core\Database\Query\Restriction\DeletedRestriction;
 use TYPO3\CMS\Core\Database\RelationHandler;
 use TYPO3\CMS\Core\DataHandling\DataHandler;
 use TYPO3\CMS\Core\DataHandling\History\RecordHistoryStore;
@@ -75,7 +74,7 @@ class DataHandlerHook
         // Reset notification array
         $this->notificationEmailInfo = [];
         // Resolve dependencies of version/workspaces actions:
-        $dataHandler->cmdmap = $this->getCommandMap($dataHandler)->process()->get();
+        $dataHandler->cmdmap = GeneralUtility::makeInstance(CommandMap::class, $dataHandler->cmdmap, $dataHandler->BE_USER->workspace)->process()->get();
     }
 
     /**
@@ -433,36 +432,34 @@ class DataHandlerHook
      */
     protected function moveRecord_processFieldValue(DataHandler $dataHandler, $resolvedPageId, $table, $uid, $value, array $configuration): void
     {
-        $inlineFieldType = $dataHandler->getInlineFieldType($configuration);
-        $inlineProcessing = (
-            ($inlineFieldType === 'list' || $inlineFieldType === 'field')
-            && BackendUtility::isTableWorkspaceEnabled($configuration['foreign_table'])
-            && (!isset($configuration['behaviour']['disableMovingChildrenWithParent']) || !$configuration['behaviour']['disableMovingChildrenWithParent'])
-        );
+        if (($configuration['behaviour']['disableMovingChildrenWithParent'] ?? false)
+            || !in_array($dataHandler->getRelationFieldType($configuration), ['list', 'field'], true)
+            || !BackendUtility::isTableWorkspaceEnabled($configuration['foreign_table'])
+        ) {
+            return;
+        }
 
-        if ($inlineProcessing) {
-            if ($table === 'pages') {
-                // If the inline elements are related to a page record,
-                // make sure they reside at that page and not at its parent
-                $resolvedPageId = $uid;
+        if ($table === 'pages') {
+            // If the inline elements are related to a page record,
+            // make sure they reside at that page and not at its parent
+            $resolvedPageId = $uid;
+        }
+
+        $dbAnalysis = $this->createRelationHandlerInstance();
+        $dbAnalysis->start($value, $configuration['foreign_table'], '', $uid, $table, $configuration);
+
+        // Moving records to a positive destination will insert each
+        // record at the beginning, thus the order is reversed here:
+        foreach ($dbAnalysis->itemArray as $item) {
+            $versionedRecord = BackendUtility::getWorkspaceVersionOfRecord($dataHandler->BE_USER->workspace, $item['table'], $item['id'], 'uid,t3ver_state');
+            if (empty($versionedRecord)) {
+                continue;
             }
-
-            $dbAnalysis = $this->createRelationHandlerInstance();
-            $dbAnalysis->start($value, $configuration['foreign_table'], '', $uid, $table, $configuration);
-
-            // Moving records to a positive destination will insert each
-            // record at the beginning, thus the order is reversed here:
-            foreach ($dbAnalysis->itemArray as $item) {
-                $versionedRecord = BackendUtility::getWorkspaceVersionOfRecord($dataHandler->BE_USER->workspace, $item['table'], $item['id'], 'uid,t3ver_state');
-                if (empty($versionedRecord)) {
-                    continue;
-                }
-                $versionState = VersionState::cast($versionedRecord['t3ver_state']);
-                if ($versionState->indicatesPlaceholder()) {
-                    continue;
-                }
-                $dataHandler->moveRecord($item['table'], $item['id'], $resolvedPageId);
+            $versionState = VersionState::cast($versionedRecord['t3ver_state']);
+            if ($versionState->indicatesPlaceholder()) {
+                continue;
             }
+            $dataHandler->moveRecord($item['table'], $item['id'], $resolvedPageId);
         }
     }
 
@@ -830,7 +827,7 @@ class DataHandlerHook
         $l10nParentFieldName = $GLOBALS['TCA'][$table]['ctrl']['transOrigPointerField'];
         $constraints = $queryBuilder->expr()->eq(
             $l10nParentFieldName,
-            $queryBuilder->createNamedParameter($previouslyUsedVersionId, \PDO::PARAM_INT)
+            $queryBuilder->createNamedParameter($previouslyUsedVersionId, Connection::PARAM_INT)
         );
         $translationSourceFieldName = $GLOBALS['TCA'][$table]['ctrl']['translationSource'] ?? null;
         if ($translationSourceFieldName) {
@@ -838,7 +835,7 @@ class DataHandlerHook
                 $constraints,
                 $queryBuilder->expr()->eq(
                     $translationSourceFieldName,
-                    $queryBuilder->createNamedParameter($previouslyUsedVersionId, \PDO::PARAM_INT)
+                    $queryBuilder->createNamedParameter($previouslyUsedVersionId, Connection::PARAM_INT)
                 )
             );
         }
@@ -850,7 +847,7 @@ class DataHandlerHook
                 $constraints,
                 $queryBuilder->expr()->eq(
                     't3ver_wsid',
-                    $queryBuilder->createNamedParameter($workspaceId, \PDO::PARAM_INT)
+                    $queryBuilder->createNamedParameter($workspaceId, Connection::PARAM_INT)
                 )
             );
 
@@ -861,14 +858,14 @@ class DataHandlerHook
         $statement = $queryBuilder->executeQuery();
         while ($record = $statement->fetchAssociative()) {
             $updateFields = [];
-            $dataTypes = [\PDO::PARAM_INT];
+            $dataTypes = [Connection::PARAM_INT];
             if ((int)$record[$l10nParentFieldName] === $previouslyUsedVersionId) {
                 $updateFields[$l10nParentFieldName] = $liveId;
-                $dataTypes[] = \PDO::PARAM_INT;
+                $dataTypes[] = Connection::PARAM_INT;
             }
             if ($translationSourceFieldName && (int)$record[$translationSourceFieldName] === $previouslyUsedVersionId) {
                 $updateFields[$translationSourceFieldName] = $liveId;
-                $dataTypes[] = \PDO::PARAM_INT;
+                $dataTypes[] = Connection::PARAM_INT;
             }
 
             if (empty($updateFields)) {
@@ -897,8 +894,7 @@ class DataHandlerHook
      */
     protected function version_swap_processFields($tableName, array $configuration, array $liveData, array $versionData, DataHandler $dataHandler)
     {
-        $inlineType = $dataHandler->getInlineFieldType($configuration);
-        if ($inlineType !== 'field') {
+        if ($dataHandler->getRelationFieldType($configuration) !== 'field') {
             return;
         }
         $foreignTable = $configuration['foreign_table'];
@@ -974,11 +970,11 @@ class DataHandlerHook
                     'uid' => (int)$id,
                 ],
                 [
-                    \PDO::PARAM_INT,
-                    \PDO::PARAM_INT,
-                    \PDO::PARAM_INT,
-                    \PDO::PARAM_INT,
-                    \PDO::PARAM_INT,
+                    Connection::PARAM_INT,
+                    Connection::PARAM_INT,
+                    Connection::PARAM_INT,
+                    Connection::PARAM_INT,
+                    Connection::PARAM_INT,
                 ]
             );
         } catch (DBALException $e) {
@@ -1045,7 +1041,7 @@ class DataHandlerHook
         $l10nParentFieldName = $GLOBALS['TCA'][$table]['ctrl']['transOrigPointerField'];
         $constraints = $queryBuilder->expr()->eq(
             $l10nParentFieldName,
-            $queryBuilder->createNamedParameter($newVersionedRecordId, \PDO::PARAM_INT)
+            $queryBuilder->createNamedParameter($newVersionedRecordId, Connection::PARAM_INT)
         );
         $translationSourceFieldName = $GLOBALS['TCA'][$table]['ctrl']['translationSource'] ?? null;
         if ($translationSourceFieldName) {
@@ -1053,7 +1049,7 @@ class DataHandlerHook
                 $constraints,
                 $queryBuilder->expr()->eq(
                     $translationSourceFieldName,
-                    $queryBuilder->createNamedParameter($newVersionedRecordId, \PDO::PARAM_INT)
+                    $queryBuilder->createNamedParameter($newVersionedRecordId, Connection::PARAM_INT)
                 )
             );
         }
@@ -1065,7 +1061,7 @@ class DataHandlerHook
                 $constraints,
                 $queryBuilder->expr()->eq(
                     't3ver_wsid',
-                    $queryBuilder->createNamedParameter($workspaceId, \PDO::PARAM_INT)
+                    $queryBuilder->createNamedParameter($workspaceId, Connection::PARAM_INT)
                 )
             );
 
@@ -1135,11 +1131,11 @@ class DataHandlerHook
                     ->where(
                         $queryBuilder->expr()->eq(
                             't3ver_stage',
-                            $queryBuilder->createNamedParameter($stageId, \PDO::PARAM_INT)
+                            $queryBuilder->createNamedParameter($stageId, Connection::PARAM_INT)
                         ),
                         $queryBuilder->expr()->gt(
                             't3ver_wsid',
-                            $queryBuilder->createNamedParameter(0, \PDO::PARAM_INT)
+                            $queryBuilder->createNamedParameter(0, Connection::PARAM_INT)
                         )
                     )
                     ->executeStatement();
@@ -1167,18 +1163,18 @@ class DataHandlerHook
                     ->where(
                         $queryBuilder->expr()->eq(
                             't3ver_wsid',
-                            $queryBuilder->createNamedParameter($workspaceId, \PDO::PARAM_INT)
+                            $queryBuilder->createNamedParameter($workspaceId, Connection::PARAM_INT)
                         ),
                         // t3ver_oid >= 0 basically omits placeholder records here, those would otherwise
                         // fail to delete later in DH->discard() and would create "can't do that" log entries.
                         $queryBuilder->expr()->or(
                             $queryBuilder->expr()->gt(
                                 't3ver_oid',
-                                $queryBuilder->createNamedParameter(0, \PDO::PARAM_INT)
+                                $queryBuilder->createNamedParameter(0, Connection::PARAM_INT)
                             ),
                             $queryBuilder->expr()->eq(
                                 't3ver_state',
-                                $queryBuilder->createNamedParameter(VersionState::NEW_PLACEHOLDER, \PDO::PARAM_INT)
+                                $queryBuilder->createNamedParameter(VersionState::NEW_PLACEHOLDER, Connection::PARAM_INT)
                             )
                         )
                     )
@@ -1228,212 +1224,12 @@ class DataHandlerHook
     protected function flushWorkspaceCacheEntriesByWorkspaceId(int $workspaceId): void
     {
         $workspacesCache = GeneralUtility::makeInstance(CacheManager::class)->getCache('workspaces_cache');
-        $workspacesCache->flushByTag($workspaceId);
+        $workspacesCache->flushByTag((string)$workspaceId);
     }
 
     /*******************************
      *****  helper functions  ******
      *******************************/
-
-    /**
-     * Finds all elements for swapping versions in workspace
-     *
-     * @param string $table Table name of the original element to swap
-     * @param int $id UID of the original element to swap (online)
-     * @param int $offlineId As above but offline
-     * @return array Element data. Key is table name, values are array with first element as online UID, second - offline UID
-     */
-    public function findPageElementsForVersionSwap($table, $id, $offlineId)
-    {
-        $rec = BackendUtility::getRecord($table, $offlineId, 't3ver_wsid');
-        $workspaceId = (int)$rec['t3ver_wsid'];
-        $elementData = [];
-        if ($workspaceId === 0) {
-            return $elementData;
-        }
-        // Get page UID for LIVE and workspace
-        if ($table !== 'pages') {
-            $rec = BackendUtility::getRecord($table, $id, 'pid');
-            $pageId = $rec['pid'];
-            $rec = BackendUtility::getRecord('pages', $pageId);
-            BackendUtility::workspaceOL('pages', $rec, $workspaceId);
-            $offlinePageId = $rec['_ORIG_uid'];
-        } else {
-            $pageId = $id;
-            $offlinePageId = $offlineId;
-        }
-        // Traversing all tables supporting versioning:
-        foreach ($GLOBALS['TCA'] as $table => $cfg) {
-            if (BackendUtility::isTableWorkspaceEnabled($table) && $table !== 'pages') {
-                $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)
-                    ->getQueryBuilderForTable($table);
-
-                $queryBuilder->getRestrictions()
-                    ->removeAll()
-                    ->add(GeneralUtility::makeInstance(DeletedRestriction::class));
-
-                $statement = $queryBuilder
-                    ->select('A.uid AS offlineUid', 'B.uid AS uid')
-                    ->from($table, 'A')
-                    ->from($table, 'B')
-                    ->where(
-                        $queryBuilder->expr()->gt(
-                            'A.t3ver_oid',
-                            $queryBuilder->createNamedParameter(0, \PDO::PARAM_INT)
-                        ),
-                        $queryBuilder->expr()->eq(
-                            'B.pid',
-                            $queryBuilder->createNamedParameter($pageId, \PDO::PARAM_INT)
-                        ),
-                        $queryBuilder->expr()->eq(
-                            'A.t3ver_wsid',
-                            $queryBuilder->createNamedParameter($workspaceId, \PDO::PARAM_INT)
-                        ),
-                        $queryBuilder->expr()->eq('A.t3ver_oid', $queryBuilder->quoteIdentifier('B.uid'))
-                    )
-                    ->executeQuery();
-
-                while ($row = $statement->fetchAssociative()) {
-                    $elementData[$table][] = [$row['uid'], $row['offlineUid']];
-                }
-            }
-        }
-        if ($offlinePageId && $offlinePageId != $pageId) {
-            $elementData['pages'][] = [$pageId, $offlinePageId];
-        }
-
-        return $elementData;
-    }
-
-    /**
-     * Searches for all elements from all tables on the given pages in the same workspace.
-     *
-     * @param array $pageIdList List of PIDs to search
-     * @param int $workspaceId Workspace ID
-     * @param array $elementList List of found elements. Key is table name, value is array of element UIDs
-     */
-    public function findPageElementsForVersionStageChange(array $pageIdList, $workspaceId, array &$elementList)
-    {
-        if ($workspaceId == 0) {
-            return;
-        }
-        // Traversing all tables supporting versioning:
-        foreach ($GLOBALS['TCA'] as $table => $cfg) {
-            if (BackendUtility::isTableWorkspaceEnabled($table) && $table !== 'pages') {
-                $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)
-                    ->getQueryBuilderForTable($table);
-
-                $queryBuilder->getRestrictions()
-                    ->removeAll()
-                    ->add(GeneralUtility::makeInstance(DeletedRestriction::class));
-
-                $statement = $queryBuilder
-                    ->select('A.uid')
-                    ->from($table, 'A')
-                    ->from($table, 'B')
-                    ->where(
-                        $queryBuilder->expr()->gt(
-                            'A.t3ver_oid',
-                            $queryBuilder->createNamedParameter(0, \PDO::PARAM_INT)
-                        ),
-                        $queryBuilder->expr()->in(
-                            'B.pid',
-                            $queryBuilder->createNamedParameter($pageIdList, Connection::PARAM_INT_ARRAY)
-                        ),
-                        $queryBuilder->expr()->eq(
-                            'A.t3ver_wsid',
-                            $queryBuilder->createNamedParameter($workspaceId, \PDO::PARAM_INT)
-                        ),
-                        $queryBuilder->expr()->eq('A.t3ver_oid', $queryBuilder->quoteIdentifier('B.uid'))
-                    )
-                    ->groupBy('A.uid')
-                    ->executeQuery();
-
-                while ($row = $statement->fetchAssociative()) {
-                    $elementList[$table][] = $row['uid'];
-                }
-                if (is_array($elementList[$table])) {
-                    // Yes, it is possible to get non-unique array even with DISTINCT above!
-                    // It happens because several UIDs are passed in the array already.
-                    $elementList[$table] = array_unique($elementList[$table]);
-                }
-            }
-        }
-    }
-
-    /**
-     * Finds page UIDs for the element from table <code>$table</code> with UIDs from <code>$idList</code>
-     *
-     * @param string $table Table to search
-     * @param array $idList List of records' UIDs
-     * @param int $workspaceId Workspace ID. We need this parameter because user can be in LIVE but he still can publish DRAFT from ws module!
-     * @param array $pageIdList List of found page UIDs
-     * @param array $elementList List of found element UIDs. Key is table name, value is list of UIDs
-     */
-    public function findPageIdsForVersionStateChange($table, array $idList, $workspaceId, array &$pageIdList, array &$elementList)
-    {
-        if ($workspaceId == 0) {
-            return;
-        }
-
-        $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)
-            ->getQueryBuilderForTable($table);
-        $queryBuilder->getRestrictions()
-            ->removeAll()
-            ->add(GeneralUtility::makeInstance(DeletedRestriction::class));
-
-        $statement = $queryBuilder
-            ->select('B.pid')
-            ->from($table, 'A')
-            ->from($table, 'B')
-            ->where(
-                $queryBuilder->expr()->gt(
-                    'A.t3ver_oid',
-                    $queryBuilder->createNamedParameter(0, \PDO::PARAM_INT)
-                ),
-                $queryBuilder->expr()->eq(
-                    'A.t3ver_wsid',
-                    $queryBuilder->createNamedParameter($workspaceId, \PDO::PARAM_INT)
-                ),
-                $queryBuilder->expr()->in(
-                    'A.uid',
-                    $queryBuilder->createNamedParameter($idList, Connection::PARAM_INT_ARRAY)
-                ),
-                $queryBuilder->expr()->eq('A.t3ver_oid', $queryBuilder->quoteIdentifier('B.uid'))
-            )
-            ->groupBy('B.pid')
-            ->executeQuery();
-
-        while ($row = $statement->fetchAssociative()) {
-            $pageIdList[] = $row['pid'];
-            // Find ws version
-            // Note: cannot use BackendUtility::getRecordWSOL()
-            // here because it does not accept workspace id!
-            $rec = BackendUtility::getRecord('pages', $row[0]);
-            BackendUtility::workspaceOL('pages', $rec, $workspaceId);
-            if ($rec['_ORIG_uid']) {
-                $elementList['pages'][$row[0]] = $rec['_ORIG_uid'];
-            }
-        }
-        // The line below is necessary even with DISTINCT
-        // because several elements can be passed by caller
-        $pageIdList = array_unique($pageIdList);
-    }
-
-    /**
-     * Finds real page IDs for state change.
-     *
-     * @param array $idList List of page UIDs, possibly versioned
-     */
-    public function findRealPageIds(array &$idList): void
-    {
-        foreach ($idList as $key => $id) {
-            $rec = BackendUtility::getRecord('pages', $id, 't3ver_oid');
-            if ($rec['t3ver_oid'] > 0) {
-                $idList[$key] = $rec['t3ver_oid'];
-            }
-        }
-    }
 
     /**
      * Moves a versioned record, which is not new or deleted.
@@ -1486,23 +1282,6 @@ class DataHandlerHook
         $dataHandler->moveL10nOverlayRecords($table, $liveUid, $destPid, $originalRecordDestinationPid);
     }
 
-    /**
-     * Gets an instance of the command map helper.
-     *
-     * @param DataHandler $dataHandler DataHandler object
-     * @return CommandMap
-     */
-    public function getCommandMap(DataHandler $dataHandler): CommandMap
-    {
-        return GeneralUtility::makeInstance(
-            CommandMap::class,
-            $this,
-            $dataHandler,
-            $dataHandler->cmdmap,
-            $dataHandler->BE_USER->workspace
-        );
-    }
-
     protected function emitUpdateTopbarSignal(): void
     {
         BackendUtility::setUpdateSignal('updateTopbar');
@@ -1543,7 +1322,7 @@ class DataHandlerHook
                     $table,
                     [$deleteField => 1],
                     ['uid' => $uid],
-                    [\PDO::PARAM_INT]
+                    [Connection::PARAM_INT]
                 );
         } else {
             GeneralUtility::makeInstance(ConnectionPool::class)

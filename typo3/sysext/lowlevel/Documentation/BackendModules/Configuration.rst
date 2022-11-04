@@ -38,7 +38,7 @@ The Configuration module displays various configuration settings:
 - :ref:`Registered services <t3coreapi:services>` (:php:`$GLOBALS['T3_SERVICES']`)
 - :doc:`Skinning styles <t3skinning:Index>` (:php:`$GLOBALS['TBE_STYLES']`)
 - :ref:`User settings configuration <t3coreapi:user-settings>` (:php:`$GLOBALS['TYPO3_USER_SETTINGS']`)
-- :ref:`Table permissions by page type <t3coreapi:page-types-intro>` (:php:`$GLOBALS['PAGES_TYPES']`)
+- :ref:`Table permissions by page type <t3coreapi:page-types-intro>`
 - :ref:`User settings <t3coreapi:be-user-configuration>` (:php:`$GLOBALS['BE_USER']->uc`)
 - :ref:`User TSconfig <t3tsconfig:usertsconfig>` (:php:`$GLOBALS['BE_USER']->getTSConfig()`)
 - :ref:`Backend Routes <t3coreapi:backend-routing>`
@@ -50,6 +50,7 @@ The Configuration module displays various configuration settings:
 - :ref:`Soft Reference Parsers <t3coreapi:soft-references>`
 - :ref:`Form: YAML Configuration <ext_form:concepts-configuration>` (with installed :doc:`Form system extension <ext_form:Index>`)
 - `Backend Toolbar Items`
+- `Symfony Expression Language Providers`
 
 
 Extending the Configuration module

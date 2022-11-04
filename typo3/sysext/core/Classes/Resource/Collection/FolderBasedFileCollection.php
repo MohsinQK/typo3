@@ -113,9 +113,7 @@ class FolderBasedFileCollection extends AbstractFileCollection
         $this->description = $array['description'];
         $this->recursive = (bool)$array['recursive'];
         if (!empty($array['folder']) && !empty($array['storage'])) {
-            /** @var StorageRepository $storageRepository */
             $storageRepository = GeneralUtility::makeInstance(StorageRepository::class);
-            /** @var \TYPO3\CMS\Core\Resource\ResourceStorage $storage */
             $storage = $storageRepository->findByUid($array['storage']);
             if ($storage) {
                 $this->folder = $storage->getFolder($array['folder']);

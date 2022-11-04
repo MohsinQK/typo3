@@ -44,7 +44,7 @@ class ElementsBasicInputDateCest extends AbstractElementsBasicCest
 
         // Open record and wait until form is ready
         $I->waitForText('elements basic', 20);
-        $editRecordLinkCssPath = '#recordlist-tx_styleguide_elements_basic a[data-bs-original-title="Edit record"]';
+        $editRecordLinkCssPath = '#recordlist-tx_styleguide_elements_basic a[aria-label="Edit record"]';
         $I->click($editRecordLinkCssPath);
         $I->waitForElementNotVisible('#t3js-ui-block');
 
@@ -124,7 +124,7 @@ class ElementsBasicInputDateCest extends AbstractElementsBasicCest
                 'label' => 'inputdatetime_11',
                 'inputValue' => '',
                 'expectedValue' => '',
-                'expectedInternalValue' => '',
+                'expectedInternalValue' => '0',
                 'expectedValueAfterSave' => '0', // Due to casting in FormEngine (string)int:0 => "0"
                 'comment' => 'inputdatetime_11 eval=datetime range.lower=1627208536 Check range validation is ignored',
             ],

@@ -31,21 +31,24 @@ use TYPO3\CMS\Core\Authentication\Mfa\MfaProviderRegistry;
 use TYPO3\CMS\Core\Core\Environment;
 use TYPO3\CMS\Core\Crypto\PasswordHashing\InvalidPasswordHashException;
 use TYPO3\CMS\Core\Crypto\PasswordHashing\PasswordHashFactory;
+use TYPO3\CMS\Core\Database\Connection;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\DataHandling\DataHandler;
-use TYPO3\CMS\Core\FormProtection\AbstractFormProtection;
 use TYPO3\CMS\Core\FormProtection\FormProtectionFactory;
 use TYPO3\CMS\Core\Imaging\Icon;
 use TYPO3\CMS\Core\Imaging\IconFactory;
 use TYPO3\CMS\Core\Localization\LanguageService;
 use TYPO3\CMS\Core\Localization\LanguageServiceFactory;
-use TYPO3\CMS\Core\Messaging\AbstractMessage;
 use TYPO3\CMS\Core\Page\PageRenderer;
+use TYPO3\CMS\Core\PasswordPolicy\PasswordPolicyAction;
+use TYPO3\CMS\Core\PasswordPolicy\PasswordPolicyValidator;
+use TYPO3\CMS\Core\PasswordPolicy\Validator\Dto\ContextData;
 use TYPO3\CMS\Core\Resource\Exception\FileDoesNotExistException;
 use TYPO3\CMS\Core\Resource\ResourceFactory;
 use TYPO3\CMS\Core\SysLog\Action\Setting as SystemLogSettingAction;
 use TYPO3\CMS\Core\SysLog\Error as SystemLogErrorClassification;
 use TYPO3\CMS\Core\SysLog\Type as SystemLogType;
+use TYPO3\CMS\Core\Type\ContextualFeedbackSeverity;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Setup\Event\AddJavaScriptModulesEvent;
 
@@ -60,6 +63,7 @@ class SetupModuleController
     protected const PASSWORD_UPDATED = 1;
     protected const PASSWORD_NOT_THE_SAME = 2;
     protected const PASSWORD_OLD_WRONG = 3;
+    protected const PASSWORD_POLICY_FAILED = 4;
 
     protected array $overrideConf = [];
     protected bool $languageUpdate = false;
@@ -70,7 +74,7 @@ class SetupModuleController
     protected bool $setupIsUpdated = false;
     protected bool $settingsAreResetToDefault = false;
 
-    protected AbstractFormProtection $formProtection;
+    protected PasswordPolicyValidator $passwordPolicyValidator;
 
     public function __construct(
         protected readonly EventDispatcherInterface $eventDispatcher,
@@ -81,8 +85,14 @@ class SetupModuleController
         protected readonly LanguageServiceFactory $languageServiceFactory,
         protected readonly ModuleProvider $moduleProvider,
         protected readonly UriBuilder $uriBuilder,
+        protected readonly FormProtectionFactory $formProtectionFactory
     ) {
-        $this->formProtection = FormProtectionFactory::get();
+        $passwordPolicy = $GLOBALS['TYPO3_CONF_VARS']['BE']['passwordPolicy'] ?? 'default';
+        $this->passwordPolicyValidator = GeneralUtility::makeInstance(
+            PasswordPolicyValidator::class,
+            PasswordPolicyAction::UPDATE_USER_PASSWORD,
+            is_string($passwordPolicy) ? $passwordPolicy : ''
+        );
     }
 
     /**
@@ -95,13 +105,14 @@ class SetupModuleController
         if ($this->pagetreeNeedsRefresh) {
             BackendUtility::setUpdateSignal('updatePageTree');
         }
+        $formProtection = $this->formProtectionFactory->createFromRequest($request);
         $this->addFlashMessages($view);
         $this->getButtons($view);
         $view->assignMultiple([
             'isLanguageUpdate' => $this->languageUpdate,
             'menuItems' => $this->renderUserSetup(),
             'menuId' => 'DTM-375167ed176e8c9caf4809cee7df156c',
-            'formToken' => $this->formProtection->generateToken('BE user setup', 'edit'),
+            'formToken' => $formProtection->generateToken('BE user setup', 'edit'),
         ]);
         return $view->renderResponse('Main');
     }
@@ -141,8 +152,12 @@ class SetupModuleController
         $event = new AddJavaScriptModulesEvent();
         /** @var AddJavaScriptModulesEvent $event */
         $event = $this->eventDispatcher->dispatch($event);
+        foreach ($event->getJavaScriptModules() as $specifier) {
+            $this->pageRenderer->loadJavaScriptModule($specifier);
+        }
         foreach ($event->getModules() as $moduleName) {
-            $this->pageRenderer->loadRequireJsModule($moduleName);
+            // The deprecation is added in AddJavaScriptModulesEvent::addModule, and therefore silenced here.
+            $this->pageRenderer->loadRequireJsModule($moduleName, null, true);
         }
     }
 
@@ -156,6 +171,7 @@ class SetupModuleController
             return;
         }
 
+        $formProtection = $this->formProtectionFactory->createFromRequest($request);
         // First check if something is submitted in the data-array from POST vars
         $d = $postData['data'] ?? null;
         $columns = $GLOBALS['TYPO3_USER_SETTINGS']['columns'];
@@ -164,7 +180,7 @@ class SetupModuleController
         $storeRec = [];
         $doSaveData = false;
         $fieldList = $this->getFieldsFromShowItem();
-        if (is_array($d) && $this->formProtection->validateToken((string)($postData['formToken'] ?? ''), 'BE user setup', 'edit')) {
+        if (is_array($d) && $formProtection->validateToken((string)($postData['formToken'] ?? ''), 'BE user setup', 'edit')) {
             // UC hashed before applying changes
             $save_before = md5(serialize($backendUser->uc));
             // PUT SETTINGS into the ->uc array:
@@ -213,6 +229,21 @@ class SetupModuleController
                 }
                 $this->passwordIsSubmitted = (string)$be_user_data['password'] !== '';
                 $passwordIsConfirmed = $this->passwordIsSubmitted && $be_user_data['password'] === $be_user_data['password2'];
+
+                // Validate password against password policy
+                $contextData = new ContextData(
+                    loginMode: 'BE',
+                    currentPasswordHash: $this->getBackendUser()->user['password'],
+                    newUserFullName: $be_user_data['realName']
+                );
+                $passwordValid = true;
+                if ($passwordIsConfirmed &&
+                    !$this->passwordPolicyValidator->isValidPassword($be_user_data['password'], $contextData)
+                ) {
+                    $passwordValid = false;
+                    $this->passwordIsUpdated = self::PASSWORD_POLICY_FAILED;
+                }
+
                 // Update the real name:
                 if (isset($be_user_data['realName']) && $be_user_data['realName'] !== $backendUser->user['realName']) {
                     $backendUser->user['realName'] = ($storeRec['be_users'][$beUserId]['realName'] = substr($be_user_data['realName'], 0, 80));
@@ -222,7 +253,7 @@ class SetupModuleController
                     $backendUser->user['email'] = ($storeRec['be_users'][$beUserId]['email'] = substr($be_user_data['email'], 0, 255));
                 }
                 // Update the password:
-                if ($passwordIsConfirmed) {
+                if ($passwordIsConfirmed && $passwordValid) {
                     if ($backendUser->isAdmin()) {
                         $passwordOk = true;
                     } else {
@@ -243,6 +274,8 @@ class SetupModuleController
                     } else {
                         $this->passwordIsUpdated = self::PASSWORD_OLD_WRONG;
                     }
+                } elseif ($passwordIsConfirmed) {
+                    $this->passwordIsUpdated = self::PASSWORD_POLICY_FAILED;
                 } else {
                     $this->passwordIsUpdated = self::PASSWORD_NOT_THE_SAME;
                 }
@@ -392,6 +425,13 @@ class SetupModuleController
                         'value="' . htmlspecialchars((string)$value) . '" ' .
                         $more .
                         ' />';
+
+                    if ($fieldName === 'password' && $this->passwordPolicyValidator->isEnabled() && $this->passwordPolicyValidator->hasRequirements()) {
+                        $description = $this->getLanguageService()->sL('LLL:EXT:core/Resources/Private/Language/locallang_password_policy.xlf:passwordRequirements.description');
+                        $html .= '<p class="mt-2 mb-1 text-muted">' . htmlspecialchars($description) . '</p>';
+                        $html .= '<ul class="mb-0"><li class="text-muted">' . implode('</li><li class="text-muted">', $this->passwordPolicyValidator->getRequirements()) . '</li></ul>';
+                    }
+
                     break;
                 case 'check':
                     $html = $label . '<div class="form-check form-switch"><input id="field_' . htmlspecialchars($fieldName) . '"
@@ -468,12 +508,12 @@ class SetupModuleController
                         $defaultAvatarProvider = GeneralUtility::makeInstance(DefaultAvatarProvider::class);
                         $avatarImage = $defaultAvatarProvider->getImage($backendUser->user, 32);
                         if ($avatarImage) {
-                            $icon = '<span class="avatar"><span class="avatar-image">' .
+                            $icon = '<span class="avatar avatar-size-medium"><span class="avatar-image">' .
                                 '<img alt="" src="' . htmlspecialchars($avatarImage->getUrl()) . '"' .
-                                ' width="' . (int)$avatarImage->getWidth() . '" ' .
-                                'height="' . (int)$avatarImage->getHeight() . '" />' .
+                                ' width="' . (int)$avatarImage->getWidth() . '"' .
+                                ' height="' . (int)$avatarImage->getHeight() . '" />' .
                                 '</span></span>';
-                            $html .= '<span class="pull-left" style="padding-right: 10px" id="image_' . htmlspecialchars($fieldName) . '">' . $icon . ' </span>';
+                            $html .= '<span class="float-start" style="padding-right: 10px" id="image_' . htmlspecialchars($fieldName) . '">' . $icon . ' </span>';
                         }
                     }
                     $html .= '<input id="field_' . htmlspecialchars($fieldName) . '" type="hidden" ' .
@@ -718,19 +758,15 @@ class SetupModuleController
             ->where(
                 $queryBuilder->expr()->eq(
                     'tablenames',
-                    $queryBuilder->createNamedParameter('be_users', \PDO::PARAM_STR)
+                    $queryBuilder->createNamedParameter('be_users')
                 ),
                 $queryBuilder->expr()->eq(
                     'fieldname',
-                    $queryBuilder->createNamedParameter('avatar', \PDO::PARAM_STR)
-                ),
-                $queryBuilder->expr()->eq(
-                    'table_local',
-                    $queryBuilder->createNamedParameter('sys_file', \PDO::PARAM_STR)
+                    $queryBuilder->createNamedParameter('avatar')
                 ),
                 $queryBuilder->expr()->eq(
                     'uid_foreign',
-                    $queryBuilder->createNamedParameter($beUserId, \PDO::PARAM_INT)
+                    $queryBuilder->createNamedParameter($beUserId, Connection::PARAM_INT)
                 )
             )
             ->executeQuery()
@@ -742,12 +778,11 @@ class SetupModuleController
      * Set avatar fileUid for backend user
      *
      * @param int $beUserId
-     * @param int $fileUid
+     * @param numeric-string|''|'delete' $fileUid either a file UID, an empty string, or `delete`
      * @param array $storeRec
      */
     protected function setAvatarFileUid($beUserId, $fileUid, array &$storeRec)
     {
-
         // Update is only needed when new fileUid is set
         if ((int)$fileUid === $this->getAvatarFileUid($beUserId)) {
             return;
@@ -765,19 +800,15 @@ class SetupModuleController
             ->where(
                 $queryBuilder->expr()->eq(
                     'tablenames',
-                    $queryBuilder->createNamedParameter('be_users', \PDO::PARAM_STR)
+                    $queryBuilder->createNamedParameter('be_users')
                 ),
                 $queryBuilder->expr()->eq(
                     'fieldname',
-                    $queryBuilder->createNamedParameter('avatar', \PDO::PARAM_STR)
-                ),
-                $queryBuilder->expr()->eq(
-                    'table_local',
-                    $queryBuilder->createNamedParameter('sys_file', \PDO::PARAM_STR)
+                    $queryBuilder->createNamedParameter('avatar')
                 ),
                 $queryBuilder->expr()->eq(
                     'uid_foreign',
-                    $queryBuilder->createNamedParameter($beUserId, \PDO::PARAM_INT)
+                    $queryBuilder->createNamedParameter($beUserId, Connection::PARAM_INT)
                 )
             )
             ->executeStatement();
@@ -788,11 +819,10 @@ class SetupModuleController
         }
 
         // Create new reference
-        if ($fileUid) {
-
+        if ((int)$fileUid > 0) {
             // Get file object
             try {
-                $file = GeneralUtility::makeInstance(ResourceFactory::class)->getFileObject($fileUid);
+                $file = GeneralUtility::makeInstance(ResourceFactory::class)->getFileObject((int)$fileUid);
             } catch (FileDoesNotExistException $e) {
                 $file = false;
             }
@@ -804,7 +834,6 @@ class SetupModuleController
 
             // Check if extension is allowed
             if ($file && $file->isImage()) {
-
                 // Create new file reference
                 $storeRec['sys_file_reference']['NEW1234'] = [
                     'uid_local' => (int)$fileUid,
@@ -812,7 +841,6 @@ class SetupModuleController
                     'tablenames' => 'be_users',
                     'fieldname' => 'avatar',
                     'pid' => 0,
-                    'table_local' => 'sys_file',
                 ];
                 $storeRec['be_users'][(int)$beUserId]['avatar'] = 'NEW1234';
             }
@@ -832,18 +860,21 @@ class SetupModuleController
             $view->addFlashMessage($languageService->getLL('settingsAreReset'), $languageService->getLL('resetConfiguration'));
         }
         if ($this->setupIsUpdated || $this->settingsAreResetToDefault) {
-            $view->addFlashMessage($languageService->getLL('activateChanges'), '', AbstractMessage::INFO);
+            $view->addFlashMessage($languageService->getLL('activateChanges'), '', ContextualFeedbackSeverity::INFO);
         }
         if ($this->passwordIsSubmitted) {
             switch ($this->passwordIsUpdated) {
                 case self::PASSWORD_OLD_WRONG:
-                    $view->addFlashMessage($languageService->getLL('oldPassword_failed'), $languageService->getLL('newPassword'), AbstractMessage::ERROR);
+                    $view->addFlashMessage($languageService->getLL('oldPassword_failed'), $languageService->getLL('newPassword'), ContextualFeedbackSeverity::ERROR);
                     break;
                 case self::PASSWORD_NOT_THE_SAME:
-                    $view->addFlashMessage($languageService->getLL('newPassword_failed'), $languageService->getLL('newPassword'), AbstractMessage::ERROR);
+                    $view->addFlashMessage($languageService->getLL('newPassword_failed'), $languageService->getLL('newPassword'), ContextualFeedbackSeverity::ERROR);
                     break;
                 case self::PASSWORD_UPDATED:
                     $view->addFlashMessage($languageService->getLL('newPassword_ok'), $languageService->getLL('newPassword'));
+                    break;
+                case self::PASSWORD_POLICY_FAILED:
+                    $view->addFlashMessage($languageService->getLL('passwordPolicyFailed'), $languageService->getLL('newPassword'), ContextualFeedbackSeverity::ERROR);
                     break;
             }
         }

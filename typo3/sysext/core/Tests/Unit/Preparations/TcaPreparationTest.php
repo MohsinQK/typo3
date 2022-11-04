@@ -21,9 +21,6 @@ use Prophecy\PhpUnit\ProphecyTrait;
 use TYPO3\CMS\Core\Preparations\TcaPreparation;
 use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
-/**
- * Test case
- */
 class TcaPreparationTest extends UnitTestCase
 {
     use ProphecyTrait;
@@ -347,5 +344,31 @@ class TcaPreparationTest extends UnitTestCase
                 ],
             ],
         ]);
+    }
+
+    /**
+     * @test
+     */
+    public function prepareFileExtensionsReplacesPlaceholders(): void
+    {
+        $GLOBALS['TYPO3_CONF_VARS']['GFX']['imagefile_ext'] = 'jpg,png';
+
+        self::assertEquals(
+            'jpg,png,gif',
+            TcaPreparation::prepareFileExtensions(['common-image-types', 'gif'])
+        );
+    }
+
+    /**
+     * @test
+     */
+    public function prepareFileExtensionsRemovesDuplicates(): void
+    {
+        $GLOBALS['TYPO3_CONF_VARS']['GFX']['imagefile_ext'] = 'jpg,png';
+
+        self::assertEquals(
+            'jpg,png,gif',
+            TcaPreparation::prepareFileExtensions('common-image-types,jpg,gif')
+        );
     }
 }

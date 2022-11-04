@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 /*
  * This file is part of the TYPO3 CMS project.
  *
@@ -19,46 +21,134 @@ use Psr\Http\Message\ServerRequestInterface;
 use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
 use TYPO3\CMS\Core\Core\SystemEnvironmentBuilder;
 use TYPO3\CMS\Core\Localization\LanguageService;
+use TYPO3\CMS\Core\Localization\LanguageServiceFactory;
 use TYPO3\CMS\Core\Messaging\FlashMessage;
 use TYPO3\CMS\Core\Messaging\FlashMessageQueue;
 use TYPO3\CMS\Core\Messaging\FlashMessageService;
 use TYPO3\CMS\Core\Registry;
+use TYPO3\CMS\Core\Type\ContextualFeedbackSeverity;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Frontend\Authentication\FrontendUserAuthentication;
 use TYPO3\CMS\Frontend\Controller\TypoScriptFrontendController;
 
 /**
- * This class creates and manages instances of the various form protection
- * classes.
+ * This class creates and manages instances of the various form protection classes.
  *
- * This class provides only static methods. It can not be instantiated.
+ * Previously this class provides only provided static methods and could not be instantiated.
  *
- * Usage for the back-end form protection:
- *
- * <pre>
- * $formProtection = \TYPO3\CMS\Core\FormProtection\FormProtectionFactory::get();
- * </pre>
- *
- * Usage for the install tool form protection:
- *
- * <pre>
- * $formProtection = \TYPO3\CMS\Core\FormProtection\FormProtectionFactory::get();
- * </pre>
+ * Since TYPO3 v12, this class can and should be used as a factory to be injected into other
+ * controllers or middlewares, to handle FormProtections for HTTP Requests.
  */
 class FormProtectionFactory
 {
     /**
      * created instances of form protections using the type as array key
      *
-     * @var array<AbstractFormProtection>
+     * @var array<string, AbstractFormProtection>
      */
-    protected static $instances = [];
+    protected static array $instances = [];
+
+    public function __construct(
+        protected readonly FlashMessageService $flashMessageService,
+        protected readonly LanguageServiceFactory $languageServiceFactory,
+        protected readonly Registry $registry
+    ) {
+    }
 
     /**
-     * Private constructor to prevent instantiation.
+     * Method should be used whenever you do not have direct access to the request object.
+     * It is however recommended to use createFromRequest() whenever you have a PSR-7
+     * request object available.
      */
-    private function __construct()
+    public function createForType(string $type): AbstractFormProtection
     {
+        if (!in_array($type, ['installtool', 'frontend', 'backend', 'disabled'], true)) {
+            $type = 'disabled';
+        }
+        if (isset(self::$instances[$type])) {
+            return self::$instances[$type];
+        }
+        $classNameAndConstructorArguments = $this->getClassNameAndConstructorArguments($type, $GLOBALS['TYPO3_REQUEST'] ?? null);
+        self::$instances[$type] = self::createInstance(...$classNameAndConstructorArguments);
+        return self::$instances[$type];
+    }
+
+    /**
+     * Detect the right FormProtection implementation based on the request. Should be used instead of
+     * FormProtectionFactory::get()
+     */
+    public function createFromRequest(ServerRequestInterface $request): AbstractFormProtection
+    {
+        $type = $this->determineTypeFromRequest($request);
+        if (isset(self::$instances[$type])) {
+            return self::$instances[$type];
+        }
+        $classNameAndConstructorArguments = $this->getClassNameAndConstructorArguments($type, $request);
+        self::$instances[$type] = self::createInstance(...$classNameAndConstructorArguments);
+        return self::$instances[$type];
+    }
+
+    /**
+     * Detects the type of FormProtection which should be instantiated, based on the request.
+     */
+    protected function determineTypeFromRequest(ServerRequestInterface $request): string
+    {
+        if (self::isInstallToolSession($request)) {
+            return 'installtool';
+        }
+        if (self::isFrontendSession($request)) {
+            return 'frontend';
+        }
+        if (self::isBackendSession($request)) {
+            return 'backend';
+        }
+        return 'disabled';
+    }
+
+    /**
+     * This is the equivalent to getClassNameAndConstructorArgumentsByType() but non-static.
+     * It also does not handle "default" or class names, but is based on types previously resolved by
+     * the request. See determineTypeFromRequest()
+     *
+     * @param string $type Valid types: installtool, frontend, backend.
+     * @return array Array of arguments
+     */
+    protected function getClassNameAndConstructorArguments(string $type, ?ServerRequestInterface $request): array
+    {
+        if ($type === 'installtool') {
+            return [
+                InstallToolFormProtection::class,
+            ];
+        }
+        if ($type === 'frontend') {
+            $user = $request ? $request->getAttribute('frontend.user') : (($GLOBALS['TSFE'] ?? null) instanceof TypoScriptFrontendController ? $GLOBALS['TSFE']->fe_user : null);
+            if ($user && isset($user->user['uid'])) {
+                return [
+                    FrontendFormProtection::class,
+                    $user,
+                ];
+            }
+        }
+        if ($type === 'backend') {
+            $user = $request ? $request->getAttribute('backend.user', $GLOBALS['BE_USER'] ?? null) : ($GLOBALS['BE_USER'] ?? null);
+            $isAjaxCall = (bool)($request ? $request->getAttribute('route')?->getOption('ajax') : false);
+            if ($user && isset($user->user['uid'])) {
+                return [
+                    BackendFormProtection::class,
+                    $user,
+                    $this->registry,
+                    self::getMessageClosure(
+                        $this->languageServiceFactory->createFromUserPreferences($user),
+                        $this->flashMessageService->getMessageQueueByIdentifier(),
+                        $isAjaxCall
+                    ),
+                ];
+            }
+        }
+        // failed to use preferred type, disable form protection
+        return [
+            DisabledFormProtection::class,
+        ];
     }
 
     /**
@@ -95,22 +185,22 @@ class FormProtectionFactory
      * @param string $type Valid types: default, installtool, frontend, backend. "default" makes an autodetection on the current state
      * @return array Array of arguments
      */
-    protected static function getClassNameAndConstructorArgumentsByType($type)
+    protected static function getClassNameAndConstructorArgumentsByType($type, ServerRequestInterface $request = null)
     {
-        if (self::isInstallToolSession() && ($type === 'default' || $type === 'installtool')) {
+        if (self::isInstallToolSession($request) && ($type === 'default' || $type === 'installtool')) {
             $classNameAndConstructorArguments = [
                 InstallToolFormProtection::class,
             ];
-        } elseif (self::isFrontendSession() && ($type === 'default' || $type === 'frontend')) {
+        } elseif (self::isFrontendSession($request) && ($type === 'default' || $type === 'frontend')) {
             $classNameAndConstructorArguments = [
                 FrontendFormProtection::class,
                 $GLOBALS['TSFE']->fe_user,
             ];
-        } elseif (self::isBackendSession() && ($type === 'default' || $type === 'backend')) {
+        } elseif (self::isBackendSession($request) && ($type === 'default' || $type === 'backend')) {
             $isAjaxCall = false;
-            $request = $GLOBALS['TYPO3_REQUEST'] ?? null;
+            $request = $request ?? $GLOBALS['TYPO3_REQUEST'] ?? null;
             if ($request instanceof ServerRequestInterface
-                && (bool)((int)$request->getAttribute('applicationType') & SystemEnvironmentBuilder::REQUESTTYPE_AJAX)
+                && (bool)($request->getAttribute('route')?->getOption('ajax'))
             ) {
                 $isAjaxCall = true;
             }
@@ -135,13 +225,11 @@ class FormProtectionFactory
 
     /**
      * Check if we are in the install tool
-     *
-     * @return bool
      */
-    protected static function isInstallToolSession()
+    protected static function isInstallToolSession(?ServerRequestInterface $request = null): bool
     {
         $isInstallTool = false;
-        $request = $GLOBALS['TYPO3_REQUEST'] ?? null;
+        $request = $request ?? $GLOBALS['TYPO3_REQUEST'] ?? null;
         if ($request instanceof ServerRequestInterface
             && (bool)((int)$request->getAttribute('applicationType') & SystemEnvironmentBuilder::REQUESTTYPE_INSTALL)
         ) {
@@ -152,40 +240,44 @@ class FormProtectionFactory
 
     /**
      * Checks if a user is logged in and the session is active.
-     *
-     * @return bool
      */
-    protected static function isBackendSession()
+    protected static function isBackendSession(?ServerRequestInterface $request = null): bool
     {
-        return isset($GLOBALS['BE_USER']) && $GLOBALS['BE_USER'] instanceof BackendUserAuthentication && isset($GLOBALS['BE_USER']->user['uid']);
+        if ($request instanceof ServerRequestInterface) {
+            $user = $request->getAttribute('backend.user', $GLOBALS['BE_USER'] ?? null);
+        } else {
+            $user = $GLOBALS['BE_USER'] ?? null;
+        }
+        return $user instanceof BackendUserAuthentication && isset($user->user['uid']);
     }
 
     /**
      * Checks if a frontend user is logged in and the session is active.
-     *
-     * @return bool
      */
-    protected static function isFrontendSession()
+    protected static function isFrontendSession(?ServerRequestInterface $request = null): bool
     {
-        return ($GLOBALS['TSFE'] ?? null) instanceof TypoScriptFrontendController && $GLOBALS['TSFE']->fe_user instanceof FrontendUserAuthentication && isset($GLOBALS['TSFE']->fe_user->user['uid']);
+        if ($request instanceof ServerRequestInterface) {
+            $user = $request->getAttribute('frontend.user');
+        } else {
+            $user = ($GLOBALS['TSFE'] ?? null) instanceof TypoScriptFrontendController ? $GLOBALS['TSFE']->fe_user : null;
+        }
+        return $user instanceof FrontendUserAuthentication && isset($user->user['uid']);
     }
 
     /**
      * @param LanguageService $languageService
      * @param FlashMessageQueue $messageQueue
      * @param bool $isAjaxCall
-     * @internal Only public to be used in tests
      * @return \Closure
      */
-    public static function getMessageClosure(LanguageService $languageService, FlashMessageQueue $messageQueue, $isAjaxCall)
+    protected static function getMessageClosure(LanguageService $languageService, FlashMessageQueue $messageQueue, bool $isAjaxCall)
     {
         return static function () use ($languageService, $messageQueue, $isAjaxCall) {
-            /** @var FlashMessage $flashMessage */
             $flashMessage = GeneralUtility::makeInstance(
                 FlashMessage::class,
                 $languageService->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:error.formProtection.tokenInvalid'),
                 '',
-                FlashMessage::ERROR,
+                ContextualFeedbackSeverity::ERROR,
                 !$isAjaxCall
             );
             $messageQueue->enqueue($flashMessage);
@@ -214,21 +306,6 @@ class FormProtectionFactory
     }
 
     /**
-     * Sets the instance that will be returned by get() for a specific class
-     * name.
-     *
-     * Note: This function is intended for testing purposes only.
-     *
-     * @internal
-     * @param string $classNameOrType
-     * @param AbstractFormProtection $instance
-     */
-    public static function set($classNameOrType, AbstractFormProtection $instance)
-    {
-        self::$instances[$classNameOrType] = $instance;
-    }
-
-    /**
      * Purges all existing instances.
      *
      * This function is particularly useful when cleaning up in unit testing.
@@ -238,5 +315,14 @@ class FormProtectionFactory
         foreach (self::$instances as $key => $instance) {
             unset(self::$instances[$key]);
         }
+    }
+
+    /**
+     * Only used in test for non-static calls
+     * @internal
+     */
+    public function clearInstances(): void
+    {
+        self::$instances = [];
     }
 }

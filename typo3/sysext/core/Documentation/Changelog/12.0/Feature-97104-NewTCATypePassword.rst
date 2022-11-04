@@ -1,5 +1,7 @@
 .. include:: /Includes.rst.txt
 
+.. _feature-97104:
+
 =========================================
 Feature: #97104 - New TCA type "password"
 =========================================
@@ -39,14 +41,14 @@ The TCA type :php:`password` features the following column configuration:
 - :php:`size`
 - :php:`hashed`
 
-The following column configuration can be overwritten by Page TSconfig:
+The following column configuration can be overwritten by page TSconfig:
 
 - :typoscript:`readOnly`
 - :typoscript:`size`
 
-By default, TCA type :php:`password` will always save the field value as a
+By default, TCA type :php:`password` will always save the field value
 hashed to the database. The value will be hashed using the password hash
-configuration for BE for all tables except fe_user, where the password hash
+configuration for BE for all tables except :sql:`fe_users`, where the password hash
 configuration for FE is used.
 
 The TCA type :php:`password` introduces the new configuration :php:`hashed`,
@@ -56,13 +58,13 @@ plaintext to the database.
 .. note::
 
     The configuration :php:`'hashed' => false` has no effect for all fields in
-    the tables :php:`be_users` and :php:`fe_users`. In general it is not
+    the tables :sql:`be_users` and :sql:`fe_users`. In general it is not
     recommended to save passwords as plain text to the database.
 
 The migration from :php:`eval='password'` and :php:`eval='saltedPassword'` to
 :php:`type=password` is done like following:
 
-.. code-block:: php
+..  code-block:: php
 
     // Before
 

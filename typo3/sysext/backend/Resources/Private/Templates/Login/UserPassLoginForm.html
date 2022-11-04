@@ -26,6 +26,7 @@
                     autofocus="autofocus"
                     autocomplete="username"
                     required="required"
+                    spellcheck="false"
                 />
                 <div role="status" class="form-notice-capslock hidden t3js-login-alert-capslock">
                     <img
@@ -36,7 +37,7 @@
                         alt=""
                         title="{f:translate(key: 'LLL:EXT:backend/Resources/Private/Language/locallang.xlf:login.error.capslock')}"
                     />
-                    <span class="sr-only"><f:translate key="LLL:EXT:backend/Resources/Private/Language/locallang.xlf:login.error.capslockStatus" /></span>
+                    <span class="visually-hidden"><f:translate key="LLL:EXT:backend/Resources/Private/Language/locallang.xlf:login.error.capslockStatus" /></span>
                 </div>
             </div>
         </div>
@@ -54,6 +55,7 @@
                     class="form-control input-login t3js-clearable t3js-login-password-field"
                     autocomplete="current-password"
                     required="required"
+                    spellcheck="false"
                 />
                 <div role="status" class="form-notice-capslock hidden t3js-login-alert-capslock">
                     <img
@@ -64,7 +66,7 @@
                         alt=""
                         title="{f:translate(key: 'LLL:EXT:backend/Resources/Private/Language/locallang.xlf:login.error.capslock')}"
                     />
-                    <span class="sr-only"><f:translate key="LLL:EXT:backend/Resources/Private/Language/locallang.xlf:login.error.capslockStatus" /></span>
+                    <span class="visually-hidden"><f:translate key="LLL:EXT:backend/Resources/Private/Language/locallang.xlf:login.error.capslockStatus" /></span>
                 </div>
             </div>
         </div>
@@ -72,7 +74,7 @@
 </f:section>
 
 <f:section name="ResetPassword">
-    <div class="forgot-password">
+    <div class="forgot-password my-3">
         <div class="text-end">
             <a href="{forgetPasswordUrl}"><f:translate key="LLL:EXT:backend/Resources/Private/Language/locallang.xlf:login.password_forget" /></a>
         </div>

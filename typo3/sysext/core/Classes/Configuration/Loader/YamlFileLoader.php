@@ -19,7 +19,6 @@ use Psr\Log\LoggerAwareInterface;
 use Psr\Log\LoggerAwareTrait;
 use Symfony\Component\Yaml\Exception\ParseException;
 use Symfony\Component\Yaml\Yaml;
-use TYPO3\CMS\Core\Configuration\Features;
 use TYPO3\CMS\Core\Configuration\Loader\Exception\YamlFileLoadingException;
 use TYPO3\CMS\Core\Configuration\Loader\Exception\YamlParseException;
 use TYPO3\CMS\Core\Configuration\Processor\PlaceholderProcessorList;
@@ -155,12 +154,11 @@ class YamlFileLoader implements LoggerAwareInterface
     protected function processImports(array $content, ?string $fileName): array
     {
         if (isset($content['imports']) && is_array($content['imports'])) {
-            if (GeneralUtility::makeInstance(Features::class)->isFeatureEnabled('yamlImportsFollowDeclarationOrder')) {
-                $content['imports'] = array_reverse($content['imports']);
-            }
+            // Reverse the order of imports to follow the order of the declarations, see #92100
+            $content['imports'] = array_reverse($content['imports']);
             foreach ($content['imports'] as $import) {
                 try {
-                    $import = $this->processPlaceholders($import, $import);
+                    $import = $this->processPlaceholders($import, $content);
                     $importedContent = $this->loadAndParse($import['resource'], $fileName);
                     // override the imported content with the one from the current file
                     $content = ArrayUtility::replaceAndAppendScalarValuesRecursive($importedContent, $content);

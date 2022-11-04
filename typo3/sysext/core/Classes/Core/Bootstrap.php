@@ -206,8 +206,8 @@ class Bootstrap
     }
 
     /**
-     * checks if LocalConfiguration.php or PackageStates.php is missing,
-     * used to see if a redirect to the install tool is needed
+     * checks if config/system/settings.php or PackageStates.php is missing,
+     * used to see if a redirect to the installer is needed
      *
      * @param ConfigurationManager $configurationManager
      * @return bool TRUE when the essential configuration is available, otherwise FALSE
@@ -215,8 +215,22 @@ class Bootstrap
      */
     public static function checkIfEssentialConfigurationExists(ConfigurationManager $configurationManager): bool
     {
-        return file_exists($configurationManager->getLocalConfigurationFileLocation())
+        $properlyConfigured = file_exists($configurationManager->getSystemConfigurationFileLocation())
             && (Environment::isComposerMode() || file_exists(Environment::getLegacyConfigPath() . '/PackageStates.php'));
+        if ($properlyConfigured) {
+            return true;
+        }
+        // Check if the previous filename "LocalConfiguration" exists. If so, let's move it to the new location
+        // Can be removed with TYPO3 v14.0
+        if (file_exists($configurationManager->getLocalConfigurationFileLocation())) {
+            mkdir(dirname($configurationManager->getSystemConfigurationFileLocation()), 02775, true);
+            rename($configurationManager->getLocalConfigurationFileLocation(), $configurationManager->getSystemConfigurationFileLocation());
+            if (file_exists(Environment::getLegacyConfigPath() . '/AdditionalConfiguration.php')) {
+                rename(Environment::getLegacyConfigPath() . '/AdditionalConfiguration.php', $configurationManager->getAdditionalConfigurationFileLocation());
+            }
+            return Environment::isComposerMode() || file_exists(Environment::getLegacyConfigPath() . '/PackageStates.php');
+        }
+        return false;
     }
 
     /**
@@ -231,7 +245,7 @@ class Bootstrap
     public static function createPackageManager($packageManagerClassName, PackageCacheInterface $packageCache): PackageManager
     {
         $dependencyOrderingService = GeneralUtility::makeInstance(DependencyOrderingService::class);
-        /** @var \TYPO3\CMS\Core\Package\PackageManager $packageManager */
+        /** @var PackageManager $packageManager */
         $packageManager = new $packageManagerClassName($dependencyOrderingService);
         $packageManager->setPackageCache($packageCache);
         $packageManager->initialize();
@@ -441,7 +455,6 @@ class Bootstrap
      */
     public static function unsetReservedGlobalVariables()
     {
-        unset($GLOBALS['PAGES_TYPES']);
         unset($GLOBALS['TCA']);
         unset($GLOBALS['TBE_STYLES']);
         unset($GLOBALS['BE_USER']);
@@ -503,7 +516,7 @@ class Bootstrap
      */
     public static function initializeBackendUser($className = BackendUserAuthentication::class, ServerRequestInterface $request = null)
     {
-        /** @var \TYPO3\CMS\Core\Authentication\BackendUserAuthentication $backendUser */
+        /** @var BackendUserAuthentication $backendUser */
         $backendUser = GeneralUtility::makeInstance($className);
         // The global must be available very early, because methods below
         // might trigger code which relies on it. See: #45625
@@ -528,7 +541,6 @@ class Bootstrap
      */
     public static function initializeLanguageObject()
     {
-        /** @var \TYPO3\CMS\Core\Localization\LanguageService $GLOBALS['LANG'] */
         $GLOBALS['LANG'] = GeneralUtility::makeInstance(LanguageServiceFactory::class)->createFromUserPreferences($GLOBALS['BE_USER']);
     }
 }

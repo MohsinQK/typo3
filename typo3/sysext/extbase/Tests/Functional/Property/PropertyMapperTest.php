@@ -91,19 +91,6 @@ class PropertyMapperTest extends FunctionalTestCase
     /**
      * @test
      */
-    public function convertThrowsAnExceptionIfTargetTypeIsNotAString(): void
-    {
-        $this->expectException(\Exception::class);
-        $this->expectExceptionCode(1297759968);
-        $this->expectExceptionMessage('Exception while property mapping at property path "": The target type was no string, but of type "NULL"');
-
-        $propertyMapper = $this->get(PropertyMapper::class);
-        $propertyMapper->convert(9999, null);
-    }
-
-    /**
-     * @test
-     */
     public function convertInternallyConvertsANullSourceToAnEmptyString(): void
     {
         $propertyMapper = $this->get(PropertyMapper::class);
@@ -132,7 +119,7 @@ class PropertyMapperTest extends FunctionalTestCase
         $this->expectExceptionCode(1297759968);
         $this->expectExceptionMessage('There exist at least two converters which handle the conversion to an interface with priority "10"');
 
-        $counter = new class() implements ExtendedCountableInterface {
+        $counter = new class () implements ExtendedCountableInterface {
             public function count(): int
             {
                 return 1;
@@ -163,7 +150,7 @@ class PropertyMapperTest extends FunctionalTestCase
      */
     public function findTypeConverterReturnsTheConverterFromThePropertyMappingConfiguration(): void
     {
-        $class = new class() extends IntegerConverter {
+        $class = new class () extends IntegerConverter {
             public function convertFrom($source, string $targetType, array $convertedChildProperties = [], PropertyMappingConfigurationInterface $configuration = null): int
             {
                 return 1575648246;
@@ -206,9 +193,9 @@ class PropertyMapperTest extends FunctionalTestCase
     {
         $this->expectException(\Exception::class);
         $this->expectExceptionCode(1297759968);
-        $this->expectExceptionMessage('Exception while property mapping at property path "": No converter found which can be used to convert from "integer" to "ExtbaseTeam\TypeConverterTest\Domain\Model\Cat"');
+        $this->expectExceptionMessage('Exception while property mapping at property path "": No converter found which can be used to convert from "boolean" to "ExtbaseTeam\TypeConverterTest\Domain\Model\Cat"');
 
-        $result = $this->get(PropertyMapper::class)->convert(1, Cat::class);
+        $result = $this->get(PropertyMapper::class)->convert(false, Cat::class);
         self::assertNull($result);
     }
 

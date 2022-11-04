@@ -17,6 +17,7 @@ namespace TYPO3\CMS\Backend\Configuration;
 
 use TYPO3\CMS\Backend\Utility\BackendUtility;
 use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
+use TYPO3\CMS\Core\Database\Connection;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Database\Query\Restriction\DeletedRestriction;
 use TYPO3\CMS\Core\Database\Query\Restriction\WorkspaceRestriction;
@@ -29,6 +30,7 @@ use TYPO3\CMS\Core\Utility\GeneralUtility;
 /**
  * Contains translation tools
  *
+ * @phpstan-type LanguageRef -1|0|positive-int
  * @internal The whole class is subject to be removed, fetch all language info from the current site object.
  */
 class TranslationConfigurationProvider
@@ -40,7 +42,7 @@ class TranslationConfigurationProvider
      * The property flagIcon returns a string <flags-xx>.
      *
      * @param int $pageId Page id (used to get TSconfig configuration setting flag and label for default language)
-     * @return array Array with languages (uid, title, ISOcode, flagIcon)
+     * @return array<LanguageRef, array{uid: int, title: string, ISOcode: string, flagIcon: string}> Array with languages
      */
     public function getSystemLanguages($pageId = 0)
     {
@@ -154,13 +156,13 @@ class TranslationConfigurationProvider
             ->where(
                 $queryBuilder->expr()->eq(
                     $GLOBALS['TCA'][$table]['ctrl']['transOrigPointerField'],
-                    $queryBuilder->createNamedParameter($uid, \PDO::PARAM_INT)
+                    $queryBuilder->createNamedParameter($uid, Connection::PARAM_INT)
                 ),
                 $queryBuilder->expr()->eq(
                     'pid',
                     $queryBuilder->createNamedParameter(
                         $row['pid'],
-                        \PDO::PARAM_INT
+                        Connection::PARAM_INT
                     )
                 )
             );
@@ -168,7 +170,7 @@ class TranslationConfigurationProvider
             $queryBuilder->andWhere(
                 $queryBuilder->expr()->gt(
                     $GLOBALS['TCA'][$table]['ctrl']['languageField'],
-                    $queryBuilder->createNamedParameter(0, \PDO::PARAM_INT)
+                    $queryBuilder->createNamedParameter(0, Connection::PARAM_INT)
                 )
             );
         } else {
@@ -176,7 +178,7 @@ class TranslationConfigurationProvider
                 ->andWhere(
                     $queryBuilder->expr()->eq(
                         $GLOBALS['TCA'][$table]['ctrl']['languageField'],
-                        $queryBuilder->createNamedParameter($languageUid, \PDO::PARAM_INT)
+                        $queryBuilder->createNamedParameter($languageUid, Connection::PARAM_INT)
                     )
                 );
         }

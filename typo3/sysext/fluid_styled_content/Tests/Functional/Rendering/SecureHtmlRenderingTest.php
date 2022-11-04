@@ -18,10 +18,8 @@ namespace TYPO3\CMS\FluidStyledContent\Tests\Functional\Rendering;
 use Psr\Http\Message\ResponseInterface;
 use TYPO3\CMS\Core\Core\Bootstrap;
 use TYPO3\CMS\Core\Tests\Functional\SiteHandling\SiteBasedTestTrait;
-use TYPO3\CMS\Core\TypoScript\TemplateService;
 use TYPO3\TestingFramework\Core\Functional\Framework\DataHandling\Scenario\DataHandlerFactory;
 use TYPO3\TestingFramework\Core\Functional\Framework\DataHandling\Scenario\DataHandlerWriter;
-use TYPO3\TestingFramework\Core\Functional\Framework\Frontend\Hook\TypoScriptInstructionModifier;
 use TYPO3\TestingFramework\Core\Functional\Framework\Frontend\Internal\AbstractInstruction;
 use TYPO3\TestingFramework\Core\Functional\Framework\Frontend\Internal\TypoScriptInstruction;
 use TYPO3\TestingFramework\Core\Functional\Framework\Frontend\InternalRequest;
@@ -35,16 +33,6 @@ class SecureHtmlRenderingTest extends FunctionalTestCase
     private const TYPE_DISABLE_HTML_SANITIZE = 'disable-htmlSanitize';
     protected const LANGUAGE_PRESETS = [
         'EN' => ['id' => 0, 'title' => 'English', 'locale' => 'en_US.UTF8', 'iso' => 'en', 'hrefLang' => 'en-US', 'direction' => ''],
-    ];
-
-    protected array $configurationToUseInTestInstance = [
-        'SC_OPTIONS' => [
-            'Core/TypoScript/TemplateService' => [
-                'runThroughTemplatesPostProcessing' => [
-                    'FunctionalTest' => TypoScriptInstructionModifier::class . '->apply',
-                ],
-            ],
-        ],
     ];
 
     protected array $coreExtensionsToLoad = ['fluid_styled_content'];
@@ -66,7 +54,8 @@ class SecureHtmlRenderingTest extends FunctionalTestCase
 
     protected function setUpDatabase(): void
     {
-        $backendUser = $this->setUpBackendUserFromFixture(1);
+        $this->importCSVDataSet(__DIR__ . '/../Fixtures/be_users.csv');
+        $backendUser = $this->setUpBackendUser(1);
         Bootstrap::initializeLanguageObject();
 
         $scenarioFile = __DIR__ . '/Fixtures/SecureHtmlScenario.yaml';
@@ -299,7 +288,7 @@ class SecureHtmlRenderingTest extends FunctionalTestCase
 
     private function createDefaultInstruction(): TypoScriptInstruction
     {
-        return (new TypoScriptInstruction(TemplateService::class))
+        return (new TypoScriptInstruction())
             ->withTypoScript([
                 'config.' => [
                     'no_cache' => 1,
@@ -318,7 +307,7 @@ class SecureHtmlRenderingTest extends FunctionalTestCase
     private function createTextContentObjectWithDefaultParseFuncRteInstruction(string $value): TypoScriptInstruction
     {
         // default configuration as shipped in ext:fluid_styled_content
-        return (new TypoScriptInstruction(TemplateService::class))
+        return (new TypoScriptInstruction())
             ->withTypoScript([
                 'page.' => [
                     '10' => 'TEXT',
@@ -335,7 +324,7 @@ class SecureHtmlRenderingTest extends FunctionalTestCase
         // basically considered "insecure setup"
         // + no explicit htmlSanitize
         // + no HTMLparser + HTMLparser.htmlSpecialChars
-        return (new TypoScriptInstruction(TemplateService::class))
+        return (new TypoScriptInstruction())
             ->withTypoScript([
                 'page.' => [
                     '10' => 'TEXT',
@@ -373,7 +362,7 @@ class SecureHtmlRenderingTest extends FunctionalTestCase
 
     private function createDisableHtmlSanitizeInstruction(): TypoScriptInstruction
     {
-        return (new TypoScriptInstruction(TemplateService::class))
+        return (new TypoScriptInstruction())
             ->withTypoScript([
                 'lib.' => [
                     'parseFunc_RTE.' => [
@@ -385,7 +374,7 @@ class SecureHtmlRenderingTest extends FunctionalTestCase
 
     private function createFluidTemplateContentObject(string $type, string $payload): TypoScriptInstruction
     {
-        return (new TypoScriptInstruction(TemplateService::class))
+        return (new TypoScriptInstruction())
             ->withTypoScript([
                 'page.' => [
                     '10' => 'FLUIDTEMPLATE',

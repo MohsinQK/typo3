@@ -48,17 +48,25 @@
     }
 
     &:not(:disabled):focus {
-        background-color: rgba(255, 255, 255, 0.05);
-        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.25);
+        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .35);
     }
 
     &:not(:disabled):hover {
-        background-color: rgba(255, 255, 255, 0.2);
+        background-color: rgba(255, 255, 255, .2);
     }
+}
 
+button.modulemenu-action {
     &.modulemenu-action-active {
-        background-color: rgba(255, 255, 255, 0.2);
-        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.25);
+        background-color: rgba(255, 255, 255, .05);
+        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .1);
+    }
+}
+
+a.modulemenu-action {
+    &.modulemenu-action-active {
+        background-color: rgba(255, 255, 255, .2);
+        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .25);
     }
 }
 
@@ -67,7 +75,9 @@
 //
 .modulemenu-icon {
     position: relative;
-    display: block;
+    display: flex;
+    justify-content: center;
+    align-items: center;
     width: 32px;
     height: 32px;
     border-radius: 2px;
@@ -88,7 +98,14 @@
 
 .modulemenu {
     .modulemenu-name {
-        @extend .sr-only;
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
     }
 }
 
@@ -114,7 +131,7 @@
             height: 0;
             width: 6px;
             border-top: 1px solid currentColor;
-            transition: transform 0.25s ease-in-out;
+            transition: transform .25s ease-in-out;
         }
 
         &:before {
@@ -144,7 +161,7 @@
 
 .modulemenu-group-spacer {
     margin: 1.5em 0;
-    border-top: 1px dashed rgba(255, 255, 255, 0.15);
+    border-top: 1px dashed rgba(255, 255, 255, .15);
 }
 
 button[aria-expanded="true"]:not(:disabled) {
@@ -156,20 +173,6 @@ button[aria-expanded="true"]:not(:disabled) {
         &:after {
             transform: rotate(45deg);
         }
-    }
-}
-
-//
-// Dropdown
-//
-.dropdown-menu {
-    a.modulemenu-action {
-        color: inherit;
-        display: flex;
-    }
-
-    .modulemenu-name {
-        display: block;
     }
 }
 

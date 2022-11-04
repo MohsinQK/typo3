@@ -16,10 +16,12 @@
 namespace TYPO3\CMS\Backend\Tree\View;
 
 use TYPO3\CMS\Core\Domain\Repository\PageRepository;
+use TYPO3\CMS\Core\Imaging\Icon;
+use TYPO3\CMS\Core\Imaging\IconFactory;
+use TYPO3\CMS\Core\Imaging\IconProvider\AbstractSvgIconProvider;
 use TYPO3\CMS\Core\LinkHandling\LinkService;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Core\Utility\HttpUtility;
-use TYPO3\CMS\Recordlist\Tree\View\LinkParameterProviderInterface;
 
 /**
  * Class which generates the selectable page tree
@@ -33,12 +35,16 @@ class ElementBrowserPageTreeView extends BrowseTreeView
      */
     protected $linkParameterProvider;
 
+    protected IconFactory $iconFactory;
+
     /**
      * Constructor. Just calling init()
      */
     public function __construct()
     {
         parent::__construct();
+        $this->iconFactory = GeneralUtility::makeInstance(IconFactory::class);
+
         $this->init();
         $this->clause = ' AND doktype <> ' . PageRepository::DOKTYPE_RECYCLER . $this->clause;
     }
@@ -102,7 +108,7 @@ class ElementBrowserPageTreeView extends BrowseTreeView
             }
             $urlParameters = $this->linkParameterProvider->getUrlParameters(['pid' => (int)$treeItem['row']['uid']]);
             $cEbullet = $this->ext_isLinkable($treeItem['row']['doktype'], $treeItem['row']['uid'])
-                ? '<a href="' . htmlspecialchars($this->getThisScript() . HttpUtility::buildQueryString($urlParameters)) . '" class="list-tree-show"><i class="fa fa-caret-square-o-right"></i></a>'
+                ? '<a href="' . htmlspecialchars($this->getThisScript() . HttpUtility::buildQueryString($urlParameters)) . '" class="list-tree-show">' . $this->iconFactory->getIcon('actions-caret-right', Icon::SIZE_SMALL)->render() . '</a>'
                 : '';
             $out .= '
 				<li' . ($classAttr ? ' class="' . trim($classAttr) . '"' : '') . '>
@@ -140,7 +146,12 @@ class ElementBrowserPageTreeView extends BrowseTreeView
      */
     public function ext_isLinkable($doktype, $uid)
     {
-        return $uid && $doktype < PageRepository::DOKTYPE_SPACER;
+        $notLinkableDokTypes = [
+            PageRepository::DOKTYPE_SPACER,
+            PageRepository::DOKTYPE_SYSFOLDER,
+            PageRepository::DOKTYPE_RECYCLER,
+        ];
+        return $uid && !in_array($doktype, $notLinkableDokTypes, true);
     }
 
     /**
@@ -156,7 +167,14 @@ class ElementBrowserPageTreeView extends BrowseTreeView
         $anchor = $bMark ? '#' . $bMark : '';
         $name = $bMark ? ' name=' . $bMark : '';
         $urlParameters = $this->linkParameterProvider->getUrlParameters([]);
-        return '<a class="list-tree-control ' . ($isOpen ? 'list-tree-control-open' : 'list-tree-control-closed')
-            . '" href="' . htmlspecialchars($this->getThisScript() . HttpUtility::buildQueryString($urlParameters)) . $anchor . '"' . $name . '><i class="fa"></i></a>';
+        if ($isOpen) {
+            $class = 'list-tree-control-open';
+            $icon = $this->iconFactory->getIcon('actions-chevron-down', Icon::SIZE_SMALL);
+        } else {
+            $class = 'list-tree-control-closed';
+            $icon = $this->iconFactory->getIcon('actions-chevron-right', Icon::SIZE_SMALL);
+        }
+        return '<a class="list-tree-control ' . $class
+            . '" href="' . htmlspecialchars($this->getThisScript() . HttpUtility::buildQueryString($urlParameters)) . $anchor . '"' . $name . '>' . $icon->render(AbstractSvgIconProvider::MARKUP_IDENTIFIER_INLINE) . '</a>';
     }
 }

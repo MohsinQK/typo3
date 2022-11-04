@@ -31,6 +31,7 @@ use TYPO3\CMS\Core\Resource\ResourceFactory;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Core\Utility\MathUtility;
 use TYPO3\CMS\Core\Utility\StringUtility;
+use TYPO3Fluid\Fluid\View\TemplateAwareViewInterface;
 use TYPO3Fluid\Fluid\View\TemplateView;
 use TYPO3Fluid\Fluid\View\ViewInterface;
 
@@ -123,7 +124,7 @@ class ImageManipulationElement extends AbstractFormElement
         ],
     ];
 
-    protected ViewInterface $templateView;
+    protected ViewInterface&TemplateAwareViewInterface $templateView;
 
     /**
      * @var UriBuilder
@@ -203,7 +204,7 @@ class ImageManipulationElement extends AbstractFormElement
         ];
 
         if ($arguments['isAllowedFileExtension']) {
-            $resultArray['requireJsModules'][] = JavaScriptModuleInstruction::create(
+            $resultArray['javaScriptModules'][] = JavaScriptModuleInstruction::create(
                 '@typo3/backend/image-manipulation.js'
             )->invoke('initializeTrigger');
             $arguments['formEngine']['field']['id'] = StringUtility::getUniqueId('formengine-image-manipulation-');
@@ -262,7 +263,6 @@ class ImageManipulationElement extends AbstractFormElement
 
         $cropVariants = [];
         foreach ($config['cropVariants'] as $id => $cropVariant) {
-
             // Filter allowed aspect ratios
             $cropVariant['allowedAspectRatios'] = array_filter($cropVariant['allowedAspectRatios'] ?? [], static function ($aspectRatio) {
                 return !(bool)($aspectRatio['disabled'] ?? false);

@@ -21,6 +21,7 @@ use TYPO3\CMS\Core\Database\Connection;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Messaging\FlashMessage;
 use TYPO3\CMS\Core\Messaging\FlashMessageQueue;
+use TYPO3\CMS\Core\Type\ContextualFeedbackSeverity;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 
 /**
@@ -47,7 +48,7 @@ class PostgreSql extends AbstractPlatform
      * Minimum supported libpq version
      * @var string
      */
-    protected $minimumLibPQVersion = '9.0';
+    protected $minimumLibPQVersion = '10.0';
 
     /**
      * Charset of the database that should be fulfilled
@@ -102,7 +103,7 @@ class PostgreSql extends AbstractPlatform
                 'Your PostgreSQL version ' . $currentPostgreSqlVersion . ' is not supported. TYPO3 CMS does not run'
                 . ' with this version. The minimum supported PostgreSQL version is ' . $this->minimumPostgreSQLVerion,
                 'PostgreSQL Server version is unsupported',
-                FlashMessage::ERROR
+                ContextualFeedbackSeverity::ERROR
             ));
         } else {
             $this->messageQueue->enqueue(new FlashMessage(
@@ -117,18 +118,18 @@ class PostgreSql extends AbstractPlatform
      */
     protected function checkLibpqVersion()
     {
-        if (!defined('PGSQL_LIBPQ_VERSION_STR')) {
+        if (!defined('PGSQL_LIBPQ_VERSION')) {
             $this->messageQueue->enqueue(new FlashMessage(
                 'It is not possible to retrieve your PostgreSQL libpq version. Please check the version'
                 . ' in the "phpinfo" area of the "System environment" module in the install tool manually.'
                 . ' This should be found in section "pdo_pgsql".'
-                . ' You should have at least the following version of  PostgreSQL libpq installed: '
+                . ' You should have at least the following version of PostgreSQL libpq installed: '
                 . $this->minimumLibPQVersion,
                 'PostgreSQL libpq version cannot be determined',
-                FlashMessage::WARNING
+                ContextualFeedbackSeverity::WARNING
             ));
         } else {
-            preg_match('/PostgreSQL ((\d+\.)*(\d+\.)*\d+)/', \PGSQL_LIBPQ_VERSION_STR, $match);
+            preg_match('/((\d+\.)*(\d+\.)*\d+)/', \PGSQL_LIBPQ_VERSION, $match);
             $currentPostgreSqlLibpqVersion = $match[1];
 
             if (version_compare($currentPostgreSqlLibpqVersion, $this->minimumLibPQVersion, '<')) {
@@ -137,7 +138,7 @@ class PostgreSql extends AbstractPlatform
                     . ' TYPO3 CMS does not run with this version. The minimum supported libpq version is '
                     . $this->minimumLibPQVersion,
                     'PostgreSQL libpq version is unsupported',
-                    FlashMessage::ERROR
+                    ContextualFeedbackSeverity::ERROR
                 ));
             } else {
                 $this->messageQueue->enqueue(new FlashMessage(
@@ -158,7 +159,7 @@ class PostgreSql extends AbstractPlatform
         $defaultDatabaseCharset = $connection->executeQuery(
             'SELECT pg_catalog.pg_encoding_to_char(pg_database.encoding) from pg_database where datname = ?',
             [$connection->getDatabase()],
-            [\PDO::PARAM_STR]
+            [Connection::PARAM_STR]
         )->fetchAssociative();
 
         if (!in_array(strtolower($defaultDatabaseCharset['pg_encoding_to_char']), $this->databaseCharsetToCheck, true)) {
@@ -169,7 +170,7 @@ class PostgreSql extends AbstractPlatform
                     implode(' or ', $this->databaseCharsetToCheck)
                 ),
                 'PostgreSQL database character set check failed',
-                FlashMessage::ERROR
+                ContextualFeedbackSeverity::ERROR
             ));
         } else {
             $this->messageQueue->enqueue(new FlashMessage(
@@ -196,7 +197,7 @@ class PostgreSql extends AbstractPlatform
                     implode(' or ', $this->databaseServerCharsetToCheck)
                 ),
                 'PostgreSQL database character set check failed',
-                FlashMessage::INFO
+                ContextualFeedbackSeverity::INFO
             ));
         } else {
             $this->messageQueue->enqueue(new FlashMessage(
@@ -229,7 +230,7 @@ class PostgreSql extends AbstractPlatform
                 . ' and consist solely of basic latin letters (a-z), digits (0-9), dollar signs ($)'
                 . ' and underscores (_) and does not start with "pg_".',
                 'Database name not valid',
-                FlashMessage::ERROR
+                ContextualFeedbackSeverity::ERROR
             )
         );
     }

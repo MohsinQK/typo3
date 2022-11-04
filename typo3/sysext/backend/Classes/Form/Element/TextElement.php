@@ -181,8 +181,13 @@ class TextElement extends AbstractFormElement
         }
         $attributes['class'] = implode(' ', $classes);
 
-        if (isset($config['max']) && (int)$config['max'] > 0) {
-            $attributes['maxlength'] = (string)(int)$config['max'];
+        $maxLength = (int)($config['max'] ?? 0);
+        if ($maxLength > 0) {
+            $attributes['maxlength'] = (string)$maxLength;
+        }
+        $minlength = (int)($config['min'] ?? 0);
+        if ($minlength > 0 && ($maxLength === 0 || $minlength <= $maxLength)) {
+            $attributes['minlength'] = (string)$minlength;
         }
         if (!empty($config['placeholder'])) {
             $attributes['placeholder'] = trim($config['placeholder']);
@@ -210,7 +215,7 @@ class TextElement extends AbstractFormElement
             $valuePickerHtml[] = '</select>';
             $valuePickerHtml[] = '</typo3-formengine-valuepicker>';
 
-            $resultArray['requireJsModules'][] = JavaScriptModuleInstruction::create('@typo3/backend/form-engine/field-wizard/value-picker.js');
+            $resultArray['javaScriptModules'][] = JavaScriptModuleInstruction::create('@typo3/backend/form-engine/field-wizard/value-picker.js');
         }
 
         $fieldControlResult = $this->renderFieldControl();
@@ -292,7 +297,7 @@ class TextElement extends AbstractFormElement
             $fullElement[] = '<div class="t3js-formengine-placeholder-placeholder">';
             $fullElement[] =    '<div class="form-control-wrap"' . ($width ? ' style="max-width: ' . $width . 'px">' : '>');
             $fullElement[] =        '<textarea';
-            $fullElement[] =            ' class="form-control formengine-textarea' . (isset($config['fixedFont']) ? ' text-monospace'  : '') . '"';
+            $fullElement[] =            ' class="form-control formengine-textarea' . (isset($config['fixedFont']) ? ' text-monospace' : '') . '"';
             $fullElement[] =            ' disabled="disabled"';
             $fullElement[] =            ' rows="' . htmlspecialchars($attributes['rows']) . '"';
             $fullElement[] =            ' wrap="' . htmlspecialchars($attributes['wrap']) . '"';
@@ -316,7 +321,7 @@ class TextElement extends AbstractFormElement
                 </div>
             </typo3-formengine-element-color>';
 
-        $resultArray['requireJsModules'][] = JavaScriptModuleInstruction::create('@typo3/backend/form-engine/element/text-element.js');
+        $resultArray['javaScriptModules'][] = JavaScriptModuleInstruction::create('@typo3/backend/form-engine/element/text-element.js');
 
         return $resultArray;
     }

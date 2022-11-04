@@ -24,9 +24,6 @@ use TYPO3\CMS\Core\Http\Uri;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
-/**
- * Test case
- */
 class PreviewUriBuilderTest extends UnitTestCase
 {
     protected bool $resetSingletonInstances = true;
@@ -36,7 +33,7 @@ class PreviewUriBuilderTest extends UnitTestCase
      */
     public function attributesContainAlternativeUri(): void
     {
-        $eventDispatcher = new class() implements EventDispatcherInterface {
+        $eventDispatcher = new class () implements EventDispatcherInterface {
             public function dispatch(object $event)
             {
                 if ($event instanceof BeforePagePreviewUriGeneratedEvent) {

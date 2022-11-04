@@ -20,7 +20,7 @@ use TYPO3\CMS\Core\Page\AssetCollector;
 use TYPO3\CMS\Core\Service\MarkerBasedTemplateService;
 use TYPO3\CMS\Core\TypoScript\TypoScriptService;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
-use TYPO3\CMS\Frontend\Controller\TypoScriptFrontendController;
+use TYPO3\CMS\Core\Utility\PathUtility;
 
 /**
  * Contains IMAGE class object.
@@ -68,10 +68,10 @@ class ImageContentObject extends AbstractContentObject
         }
         // $info['originalFile'] will be set, when the file is processed by FAL.
         // In that case the URL is final and we must not add a prefix
-        if (!isset($info['originalFile']) && is_file(Environment::getPublicPath() . '/' . $info['3'])) {
-            $source = $tsfe->absRefPrefix . str_replace('%2F', '/', rawurlencode($info['3']));
+        if (!isset($info['originalFile']) && is_file($info['3'])) {
+            $source = $tsfe->absRefPrefix . str_replace('%2F', '/', rawurlencode(PathUtility::stripPathSitePrefix($info['3'])));
         } else {
-            $source = $info[3];
+            $source = PathUtility::stripPathSitePrefix($info[3]);
         }
         // Remove file objects for AssetCollector, as it only allows to store scalar values
         $infoOriginalFile = $info['originalFile'] ?? null;
@@ -97,7 +97,6 @@ class ImageContentObject extends AbstractContentObject
             'src' => htmlspecialchars($source),
             'params' => $params,
             'altParams' => $altParam,
-            'border' =>  $this->getBorderAttr(' border="' . (int)($conf['border'] ?? 0) . '"'),
             'sourceCollection' => $sourceCollection,
             'selfClosingTagSlash' => !empty($tsfe->xhtmlDoctype) ? ' /' : '',
         ];
@@ -119,27 +118,6 @@ class ImageContentObject extends AbstractContentObject
     }
 
     /**
-     * Returns the 'border' attribute for an <img> tag only if the doctype is not xhtml_strict, xhtml_11 or html5
-     * or if the config parameter 'disableImgBorderAttr' is not set.
-     *
-     * @param string $borderAttr The border attribute
-     * @return string The border attribute
-     */
-    protected function getBorderAttr($borderAttr)
-    {
-        $tsfe = $this->getTypoScriptFrontendController();
-        $docType = $tsfe->xhtmlDoctype;
-        if (
-            $docType !== 'xhtml_strict' && $docType !== 'xhtml_11'
-            && ($tsfe->config['config']['doctype'] ?? '') !== 'html5'
-            && !($tsfe->config['config']['disableImgBorderAttr'] ?? false)
-        ) {
-            return $borderAttr;
-        }
-        return '';
-    }
-
-    /**
      * Returns the html-template for rendering the image-Tag if no template is defined via typoscript the
      * default <img> tag template is returned
      *
@@ -152,7 +130,7 @@ class ImageContentObject extends AbstractContentObject
         if ($layoutKey && isset($conf['layout.']) && isset($conf['layout.'][$layoutKey . '.'])) {
             return $this->cObj->stdWrapValue('element', $conf['layout.'][$layoutKey . '.']);
         }
-        return '<img src="###SRC###" width="###WIDTH###" height="###HEIGHT###" ###PARAMS### ###ALTPARAMS### ###BORDER######SELFCLOSINGTAGSLASH###>';
+        return '<img src="###SRC###" width="###WIDTH###" height="###HEIGHT###" ###PARAMS### ###ALTPARAMS### ###SELFCLOSINGTAGSLASH###>';
     }
 
     /**
@@ -174,7 +152,6 @@ class ImageContentObject extends AbstractContentObject
                 || isset($conf['layout.'][$layoutKey . '.']['source.']) && $conf['layout.'][$layoutKey . '.']['source.']
             )
         ) {
-
             // find active sourceCollection
             $activeSourceCollections = [];
             foreach ($conf['sourceCollection.'] as $sourceCollectionKey => $sourceCollectionConfiguration) {
@@ -270,7 +247,10 @@ class ImageContentObject extends AbstractContentObject
 
     /**
      * Wraps the input string by the $wrap value and implements the "linkWrap" data type as well.
-     * The "linkWrap" data type means that this function will find any integer encapsulated in {} (curly braces) in the first wrap part and substitute it with the corresponding page uid from the rootline where the found integer is pointing to the key in the rootline. See link below.
+     *
+     * The "linkWrap" data type means that this function will find any integer encapsulated
+     * in {} (curly braces) in the first wrap part and substitute it with the corresponding page
+     * uid from the rootline where the found integer is pointing to the key in the rootline.
      *
      * @param string $content Input string
      * @param string $wrap A string where the first two parts separated by "|" (vertical line) will be wrapped around the input string
@@ -279,7 +259,7 @@ class ImageContentObject extends AbstractContentObject
     {
         $wrapArr = explode('|', $wrap);
         if (preg_match('/\\{([0-9]*)\\}/', $wrapArr[0], $reg)) {
-            $uid = $this->getTypoScriptFrontendController()->tmpl->rootLine[$reg[1]]['uid'] ?? null;
+            $uid = $this->getTypoScriptFrontendController()->config['rootLine'][$reg[1]]['uid'] ?? null;
             if ($uid) {
                 $wrapArr[0] = str_replace($reg[0], $uid, $wrapArr[0]);
             }
@@ -289,23 +269,15 @@ class ImageContentObject extends AbstractContentObject
 
     /**
      * An abstraction method which creates an alt or title parameter for an HTML img, applet, area or input element and the FILE content element.
-     * From the $conf array it implements the properties "altText", "titleText" and "longdescURL"
+     * From the $conf array it implements the properties "altText" and "titleText"
      *
      * @param array $conf TypoScript configuration properties
-     * @param bool $longDesc If set, the longdesc attribute will be generated - must only be used for img elements!
      * @return string Parameter string containing alt and title parameters (if any)
-     * @see cImage()
      */
-    public function getAltParam($conf, $longDesc = true)
+    protected function getAltParam(array $conf): string
     {
         $altText = trim((string)$this->cObj->stdWrapValue('altText', $conf ?? []));
         $titleText = trim((string)$this->cObj->stdWrapValue('titleText', $conf ?? []));
-        if (isset($conf['longdescURL.']) && $this->getTypoScriptFrontendController()->config['config']['doctype'] !== 'html5') {
-            $longDescUrl = $this->cObj->createUrl($conf['longdescURL.']);
-        } else {
-            $longDescUrl = trim($conf['longdescURL'] ?? '');
-        }
-        $longDescUrl = strip_tags($longDescUrl);
 
         // "alt":
         $altParam = ' alt="' . htmlspecialchars($altText) . '"';
@@ -317,18 +289,6 @@ class ImageContentObject extends AbstractContentObject
         } elseif (!$titleText && $emptyTitleHandling === 'useAlt') {
             $altParam .= ' title="' . htmlspecialchars($altText) . '"';
         }
-        // "longDesc" URL
-        if ($longDesc && !empty($longDescUrl)) {
-            $altParam .= ' longdesc="' . htmlspecialchars($longDescUrl) . '"';
-        }
         return $altParam;
-    }
-
-    /**
-     * @return TypoScriptFrontendController
-     */
-    protected function getTypoScriptFrontendController()
-    {
-        return $GLOBALS['TSFE'];
     }
 }

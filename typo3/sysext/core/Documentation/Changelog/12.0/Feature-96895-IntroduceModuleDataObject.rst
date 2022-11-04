@@ -1,5 +1,7 @@
 .. include:: /Includes.rst.txt
 
+.. _feature-96895:
+
 ==============================================
 Feature: #96895 - Introduce Module data object
 ==============================================
@@ -29,7 +31,7 @@ overwriting and persisting the data manually.
 Previously, reading, overwriting and persisting of module data (settings)
 was done in the controller:
 
-.. code-block:: php
+..  code-block:: php
 
     // Classes/Controller/MyController.php
 
@@ -47,7 +49,7 @@ was done in the controller:
 This is now automatically done by a new PSR-15 middleware. The "allowed"
 properties are defined with their default value in the module registration:
 
-.. code-block:: php
+..  code-block:: php
 
     // Configuration/Backend/Modules.php
 
@@ -82,8 +84,8 @@ The :php:`ModuleData` object provides the following methods:
 |                         | :php:`$allowedValues` | list and falls back to either the default value    |
 |                         |                       | or the first allowed value.                        |
 +-------------------------+-----------------------+----------------------------------------------------+
-| cleanUp()               | :php:`$allowedData`   | Cleans up all module data, which are defined in    |
-|                         | :php:`$useKeys`       | the given allowed data list. Usually called with   |
+| cleanUp()               | :php:`$allowedData`   | Cleans up all module data defined in the given     |
+|                         | :php:`$useKeys`       | list of allowed data. Usually called with          |
 |                         |                       | :php:`$MOD_MENU` in a controller with module menu. |
 +-------------------------+-----------------------+----------------------------------------------------+
 | toArray()               |                       | Returns the module data as :php:`array`.           |
@@ -101,7 +103,7 @@ using :php:`$backendUser->pushModuleData('my_module', $this->moduleData->toArray
 To restrict the values of module data properties, the given :php:`ModuleData`
 object can be cleaned e.g. in a controller:
 
-.. code-block:: php
+..  code-block:: php
 
     $allowedValues = ['foo', 'bar'];
 
@@ -111,7 +113,6 @@ If :php:`ModuleData` contains :php:`property`, the value is checked
 against the :php:`$allowedValues` list. If the current value is valid,
 nothing happens. Otherwise the value is either changed to the default
 or if this value is also not allowed, to the first allowed value.
-
 
 Impact
 ======

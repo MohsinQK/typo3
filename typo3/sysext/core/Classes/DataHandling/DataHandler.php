@@ -54,6 +54,7 @@ use TYPO3\CMS\Core\Localization\LanguageService;
 use TYPO3\CMS\Core\Log\LogDataTrait;
 use TYPO3\CMS\Core\Messaging\FlashMessage;
 use TYPO3\CMS\Core\Messaging\FlashMessageService;
+use TYPO3\CMS\Core\Resource\Filter\FileExtensionFilter;
 use TYPO3\CMS\Core\Resource\ResourceFactory;
 use TYPO3\CMS\Core\Service\OpcodeCacheService;
 use TYPO3\CMS\Core\Site\Entity\SiteLanguage;
@@ -63,6 +64,7 @@ use TYPO3\CMS\Core\SysLog\Action\Database as SystemLogDatabaseAction;
 use TYPO3\CMS\Core\SysLog\Error as SystemLogErrorClassification;
 use TYPO3\CMS\Core\SysLog\Type as SystemLogType;
 use TYPO3\CMS\Core\Type\Bitmask\Permission;
+use TYPO3\CMS\Core\Type\ContextualFeedbackSeverity;
 use TYPO3\CMS\Core\Utility\ArrayUtility;
 use TYPO3\CMS\Core\Utility\ExtensionManagementUtility;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
@@ -991,8 +993,7 @@ class DataHandler implements LoggerAwareInterface
                                 // new version of a record created in a workspace - so always refresh pagetree to indicate there is a change in the workspace
                                 $this->pagetreeNeedsRefresh = true;
 
-                                /** @var DataHandler $tce */
-                                $tce = GeneralUtility::makeInstance(__CLASS__, $this->referenceIndexUpdater);
+                                $tce = GeneralUtility::makeInstance(self::class, $this->referenceIndexUpdater);
                                 $tce->enableLogging = $this->enableLogging;
                                 // Setting up command for creating a new version of the record:
                                 $cmd = [];
@@ -1065,9 +1066,6 @@ class DataHandler implements LoggerAwareInterface
                 if ($status === 'new') {
                     if ($GLOBALS['TCA'][$table]['ctrl']['crdate'] ?? false) {
                         $fieldArray[$GLOBALS['TCA'][$table]['ctrl']['crdate']] = $GLOBALS['EXEC_TIME'];
-                    }
-                    if ($GLOBALS['TCA'][$table]['ctrl']['cruser_id'] ?? false) {
-                        $fieldArray[$GLOBALS['TCA'][$table]['ctrl']['cruser_id']] = $this->userid;
                     }
                 } elseif ($this->checkSimilar) {
                     // Removing fields which are equal to the current value:
@@ -1371,15 +1369,15 @@ class DataHandler implements LoggerAwareInterface
             }
             if ($status === 'update') {
                 // This checks 1) if we should check for disallowed tables and 2) if there are records from disallowed tables on the current page
-                $onlyAllowedTables = $GLOBALS['PAGES_TYPES'][$value]['onlyAllowedTables'] ?? $GLOBALS['PAGES_TYPES']['default']['onlyAllowedTables'];
+                $onlyAllowedTables = GeneralUtility::makeInstance(PageDoktypeRegistry::class)->doesDoktypeOnlyAllowSpecifiedRecordTypes((int)$value);
                 if ($onlyAllowedTables) {
                     // use the real page id (default language)
                     $recordId = $this->getDefaultLanguagePageId((int)$id);
                     $theWrongTables = $this->doesPageHaveUnallowedTables($recordId, (int)$value);
-                    if ($theWrongTables) {
+                    if ($theWrongTables !== []) {
                         if ($this->enableLogging) {
                             $propArr = $this->getRecordProperties($table, $id);
-                            $this->log($table, (int)$id, SystemLogDatabaseAction::CHECK, 0, SystemLogErrorClassification::USER_ERROR, '"doktype" of page "{title}" could not be changed because the page contains records from disallowed tables; {disallowedTables}', 2, ['title' => $propArr['header'], 'disallowedTables' => $theWrongTables], $propArr['event_pid']);
+                            $this->log($table, (int)$id, SystemLogDatabaseAction::CHECK, 0, SystemLogErrorClassification::USER_ERROR, '"doktype" of page "{title}" could not be changed because the page contains records from disallowed tables; {disallowedTables}', 2, ['title' => $propArr['header'], 'disallowedTables' => implode(', ', $theWrongTables)], $propArr['event_pid']);
                         }
                         return $res;
                     }
@@ -1500,6 +1498,7 @@ class DataHandler implements LoggerAwareInterface
             'email' => $this->checkValueForEmail((string)$value, $tcaFieldConf, $table, $id, (int)$realPid, $checkField),
             'flex' => $field ? $this->checkValueForFlex($res, $value, $tcaFieldConf, $table, $id, $curValue, $status, $realPid, $recFID, $tscPID, $field) : [],
             'inline' => $this->checkValueForInline($res, $value, $tcaFieldConf, $table, $id, $status, $field, $additionalData) ?: [],
+            'file' => $this->checkValueForFile($res, (string)$value, $tcaFieldConf, $table, $id, $field, $additionalData),
             'input' => $this->checkValueForInput($value, $tcaFieldConf, $table, $id, $realPid, $field),
             'language' => $this->checkValueForLanguage((int)$value, $table, $field),
             'link' => $this->checkValueForLink((string)$value, $tcaFieldConf, $table, $id, $checkField),
@@ -1580,6 +1579,14 @@ class DataHandler implements LoggerAwareInterface
      */
     protected function checkValueForText($value, $tcaFieldConf, $table, $realPid, $field)
     {
+        $richtextEnabled = (bool)($tcaFieldConf['enableRichtext'] ?? false);
+
+        // Reset value to empty string, if less than "min" characters.
+        $min = $tcaFieldConf['min'] ?? 0;
+        if (!$richtextEnabled && $min > 0 && mb_strlen((string)$value) < $min) {
+            $value = '';
+        }
+
         if (!$this->validateValueForRequired($tcaFieldConf, $value)) {
             $valueArray = [];
         } elseif (isset($tcaFieldConf['eval']) && $tcaFieldConf['eval'] !== '') {
@@ -1602,7 +1609,7 @@ class DataHandler implements LoggerAwareInterface
         if ($value === null) {
             return $valueArray;
         }
-        if (isset($tcaFieldConf['enableRichtext']) && (bool)$tcaFieldConf['enableRichtext'] === true) {
+        if ($richtextEnabled) {
             $recordType = BackendUtility::getTCAtypeValue($table, $this->checkValue_currentRecord);
             $richtextConfigurationProvider = GeneralUtility::makeInstance(Richtext::class);
             $richtextConfiguration = $richtextConfigurationProvider->getConfiguration($table, $field, $realPid, $recordType, $tcaFieldConf);
@@ -1629,6 +1636,12 @@ class DataHandler implements LoggerAwareInterface
         // Secures the string-length to be less than max.
         if (isset($tcaFieldConf['max']) && (int)$tcaFieldConf['max'] > 0) {
             $value = mb_substr((string)$value, 0, (int)$tcaFieldConf['max'], 'utf-8');
+        }
+
+        // Reset value to empty string, if less than "min" characters.
+        $min = $tcaFieldConf['min'] ?? 0;
+        if ($min > 0 && mb_strlen((string)$value) < $min) {
+            $value = '';
         }
 
         if (!$this->validateValueForRequired($tcaFieldConf, (string)$value)) {
@@ -1952,7 +1965,7 @@ class DataHandler implements LoggerAwareInterface
 
         if ($value !== '') {
             // Extract the actual link from the link definition for further evaluation
-            $linkParameter = GeneralUtility::makeInstance(TypoLinkCodecService::class)->decode($value)['url'] ?? '';
+            $linkParameter = GeneralUtility::makeInstance(TypoLinkCodecService::class)->decode($value)['url'];
             if ($linkParameter === '') {
                 $this->log($table, $id, SystemLogDatabaseAction::UPDATE, 0, SystemLogErrorClassification::USER_ERROR, '"{link}" is not a valid link definition for the field "{field}" of the table "{table}"', -1, ['link' => $value, 'field' => $field, 'table' => $table]);
                 $value = '';
@@ -2153,7 +2166,6 @@ class DataHandler implements LoggerAwareInterface
     {
         $items = $tcaFieldConf['items'] ?? null;
         if (!empty($tcaFieldConf['itemsProcFunc'])) {
-            /** @var ItemProcessingService $processingService */
             $processingService = GeneralUtility::makeInstance(ItemProcessingService::class);
             $items = $processingService->getProcessingItems(
                 $table,
@@ -2447,17 +2459,40 @@ class DataHandler implements LoggerAwareInterface
             ArrayUtility::mergeRecursiveWithOverrule($currentValueArray, $arrValue);
             $xmlValue = $this->checkValue_flexArray2Xml($currentValueArray, true);
 
-            // Action commands (sorting order and removals of elements) for flexform sections,
-            // see FormEngine for the use of this GP parameter
+            // Action commands (sorting order and removals of elements) for flexform sections, see FormEngine for the use of this GP parameter.
+            // @todo: It is of course ugly DH fetches from POST here. The actions should be part of the
+            //        command array (?!) instead, which requires at least FormEngine + JS adaptions.
             $actionCMDs = GeneralUtility::_GP('_ACTION_FLEX_FORMdata');
-            if (is_array($actionCMDs[$table][$id][$field]['data'] ?? null)) {
+            $relevantId = $id;
+            if ($status === 'update'
+                && BackendUtility::isTableWorkspaceEnabled($table)
+                && (int)($row['t3ver_wsid'] ?? 0) > 0
+                && (int)($row['t3ver_oid'] ?? 0) > 0
+                && !is_array($actionCMDs[$table][$id][$field] ?? false)
+                && is_array($actionCMDs[$table][(int)$row['t3ver_oid']][$field] ?? false)
+            ) {
+                // Scenario: A record with multiple container sections exists in live. The record has no workspace overlay, yet.
+                // It is then edited in workspaces and sections are resorted or deleted, which should create the version overlay
+                // plus the resorting or deleting of sections in the version overlay record.
+                // FormEngine creates this '_ACTION_FLEX_FORMdata' data array with the uid of the live record, since FormEngine
+                // does not know the uid of the overlay record, yet.
+                // DataHandler first creates the new overlay record via copyRecord_raw(), which calls this method. At this point,
+                // we leave the new version record untouched, sorting and deletions of flex sections are not applied.
+                // DataHandler then calls this method a second time to apply modifications to the just created overlay record. The
+                // incoming $row is now the version row, and $row['uid'] und incoming $id are the versione'd record uid.
+                // The '_ACTION_FLEX_FORMdata' POST data however is still the uid of the live record!
+                // Actions are then not applied since the uid lookups don't match.
+                // To solve this situation we check for this scenario in the above if conditions and use the live version
+                // uid (t3ver_oid) to access data from the '_ACTION_FLEX_FORMdata' array.
+                $relevantId = (int)$row['t3ver_oid'];
+            }
+            if (is_array($actionCMDs[$table][$relevantId][$field]['data'] ?? false)) {
                 $arrValue = GeneralUtility::xml2array($xmlValue);
-                $this->_ACTION_FLEX_FORMdata($arrValue['data'], $actionCMDs[$table][$id][$field]['data']);
+                $this->_ACTION_FLEX_FORMdata($arrValue['data'], $actionCMDs[$table][$relevantId][$field]['data']);
                 $xmlValue = $this->checkValue_flexArray2Xml($arrValue, true);
             }
             // Create the value XML:
-            $res['value'] = '';
-            $res['value'] .= $xmlValue;
+            $res['value'] = $xmlValue;
         } else {
             // Passthrough...:
             $res['value'] = $value;
@@ -2474,9 +2509,8 @@ class DataHandler implements LoggerAwareInterface
      * @return string Input array converted to XML
      * @internal should only be used from within DataHandler
      */
-    public function checkValue_flexArray2Xml($array, $addPrologue = false)
+    public function checkValue_flexArray2Xml($array, $addPrologue = false): string
     {
-        /** @var FlexFormTools $flexObj */
         $flexObj = GeneralUtility::makeInstance(FlexFormTools::class);
         return $flexObj->flexArray2Xml($array, $addPrologue);
     }
@@ -2513,6 +2547,7 @@ class DataHandler implements LoggerAwareInterface
                 }
                 $valueArray += $newValueArray;
             } elseif (is_array($actionCMDs[$key]) && isset($valueArray[$key])) {
+                // @todo: This recursion is probably obsolete since containers can't be nested into sections again.
                 $this->_ACTION_FLEX_FORMdata($valueArray[$key], $actionCMDs[$key]);
             }
         }
@@ -2577,6 +2612,36 @@ class DataHandler implements LoggerAwareInterface
             unset($res['value']);
         } elseif ($value || MathUtility::canBeInterpretedAsInteger($id)) {
             $res['value'] = $this->checkValue_inline_processDBdata($valueArray, $tcaFieldConf, $id, $status, $table, $field);
+        }
+        return $res;
+    }
+
+    /**
+     * Evaluates 'file' type values.
+     */
+    public function checkValueForFile(
+        array $res,
+        string $value,
+        array $tcaFieldConf,
+        string $table,
+        int|string $id,
+        string $field,
+        ?array $additionalData = null
+    ): array {
+        $valueArray = array_unique(GeneralUtility::trimExplode(',', $value));
+        if ($value !== '' && (str_contains($value, 'NEW') || !MathUtility::canBeInterpretedAsInteger($id))) {
+            $this->remapStackRecords[$table][$id] = ['remapStackIndex' => count($this->remapStack)];
+            $this->addNewValuesToRemapStackChildIds($valueArray);
+            $this->remapStack[] = [
+                'func' => 'checkValue_file_processDBdata',
+                'args' => [$valueArray, $tcaFieldConf, $id, $table],
+                'pos' => ['valueArray' => 0, 'tcaFieldConf' => 1, 'id' => 2, 'table' => 3],
+                'additionalData' => $additionalData,
+                'field' => $field,
+            ];
+            unset($res['value']);
+        } elseif ($value !== '' || MathUtility::canBeInterpretedAsInteger($id)) {
+            $res['value'] = $this->checkValue_file_processDBdata($valueArray, $tcaFieldConf, $id, $table);
         }
         return $res;
     }
@@ -2683,7 +2748,7 @@ class DataHandler implements LoggerAwareInterface
             ->from($table)
             ->where(
                 $queryBuilder->expr()->eq($field, $queryBuilder->createPositionalParameter($value)),
-                $queryBuilder->expr()->neq('uid', $queryBuilder->createPositionalParameter($uid, \PDO::PARAM_INT))
+                $queryBuilder->expr()->neq('uid', $queryBuilder->createPositionalParameter($uid, Connection::PARAM_INT))
             );
         // ignore translations of current record if field is configured with l10n_mode = "exclude"
         if (($GLOBALS['TCA'][$table]['columns'][$field]['l10n_mode'] ?? '') === 'exclude'
@@ -2692,27 +2757,27 @@ class DataHandler implements LoggerAwareInterface
             $queryBuilder
                 ->andWhere(
                     $queryBuilder->expr()->or(
-                    // records without l10n_parent must be taken into account (in any language)
+                        // records without l10n_parent must be taken into account (in any language)
                         $queryBuilder->expr()->eq(
                             $GLOBALS['TCA'][$table]['ctrl']['transOrigPointerField'],
-                            $queryBuilder->createPositionalParameter(0, \PDO::PARAM_INT)
+                            $queryBuilder->createPositionalParameter(0, Connection::PARAM_INT)
                         ),
                         // translations of other records must be taken into account
                         $queryBuilder->expr()->neq(
                             $GLOBALS['TCA'][$table]['ctrl']['transOrigPointerField'],
-                            $queryBuilder->createPositionalParameter($uid, \PDO::PARAM_INT)
+                            $queryBuilder->createPositionalParameter($uid, Connection::PARAM_INT)
                         )
                     )
                 );
         }
         if ($pid !== 0) {
             $queryBuilder->andWhere(
-                $queryBuilder->expr()->eq('pid', $queryBuilder->createPositionalParameter($pid, \PDO::PARAM_INT))
+                $queryBuilder->expr()->eq('pid', $queryBuilder->createPositionalParameter($pid, Connection::PARAM_INT))
             );
         } else {
             // pid>=0 for versioning
             $queryBuilder->andWhere(
-                $queryBuilder->expr()->gte('pid', $queryBuilder->createPositionalParameter(0, \PDO::PARAM_INT))
+                $queryBuilder->expr()->gte('pid', $queryBuilder->createPositionalParameter(0, Connection::PARAM_INT))
             );
         }
         return $queryBuilder;
@@ -2751,17 +2816,17 @@ class DataHandler implements LoggerAwareInterface
             ->where(
                 $queryBuilder->expr()->eq(
                     $fieldName,
-                    $queryBuilder->createNamedParameter($value, \PDO::PARAM_STR)
+                    $queryBuilder->createNamedParameter($value)
                 ),
                 $queryBuilder->expr()->neq(
                     'uid',
-                    $queryBuilder->createNamedParameter($uid, \PDO::PARAM_INT)
+                    $queryBuilder->createNamedParameter($uid, Connection::PARAM_INT)
                 )
             );
 
         if ($pageId) {
             $queryBuilder->andWhere(
-                $queryBuilder->expr()->eq('pid', $queryBuilder->createNamedParameter($pageId, \PDO::PARAM_INT))
+                $queryBuilder->expr()->eq('pid', $queryBuilder->createNamedParameter($pageId, Connection::PARAM_INT))
             );
         }
 
@@ -3118,8 +3183,7 @@ class DataHandler implements LoggerAwareInterface
                     $this->checkValue_flex_procInData_travDS($dataValues[$key]['el'], $dataValues_current[$key]['el'], $DSelements[$key]['el'], $pParams, $callBackFunc, $structurePath . $key . '/el/', $workspaceOptions);
                 }
             } else {
-                // When having no specific sheets, it's "TCEforms.config", when having a sheet, it's just "config"
-                $fieldConfiguration = $dsConf['TCEforms']['config'] ?? $dsConf['config'] ?? null;
+                $fieldConfiguration = $dsConf['config'] ?? null;
                 // init with value from config for passthrough fields
                 if (!empty($fieldConfiguration['type']) && $fieldConfiguration['type'] === 'passthrough') {
                     if (!empty($dataValues_current[$key]['vDEF'])) {
@@ -3215,7 +3279,7 @@ class DataHandler implements LoggerAwareInterface
             // update record in intermediate table (sorting & pointer uid to parent record)
             $dbAnalysis->writeForeignField($tcaFieldConf, $id, 0);
             $newValue = $dbAnalysis->countItems(false);
-        } elseif ($this->getInlineFieldType($tcaFieldConf) === 'mm') {
+        } elseif ($this->getRelationFieldType($tcaFieldConf) === 'mm') {
             // In order to fully support all the MM stuff, directly call checkValue_group_select_processDBdata instead of repeating the needed code here
             $valueArray = $this->checkValue_group_select_processDBdata($valueArray, $tcaFieldConf, $id, $status, 'select', $table, $field);
             $newValue = $valueArray[0];
@@ -3226,6 +3290,24 @@ class DataHandler implements LoggerAwareInterface
             $newValue = $this->castReferenceValue(implode(',', $valueArray), $tcaFieldConf);
         }
         return $newValue;
+    }
+
+    /**
+     * Returns data for file fields.
+     */
+    protected function checkValue_file_processDBdata($valueArray, $tcaFieldConf, $id, $table): mixed
+    {
+        $valueArray = GeneralUtility::makeInstance(FileExtensionFilter::class)->filter(
+            $valueArray,
+            (string)($tcaFieldConf['allowed'] ?? ''),
+            (string)($tcaFieldConf['disallowed'] ?? ''),
+            $this
+        );
+
+        $dbAnalysis = $this->createRelationHandlerInstance();
+        $dbAnalysis->start(implode(',', $valueArray), $tcaFieldConf['foreign_table'], '', 0, $table, $tcaFieldConf);
+        $dbAnalysis->writeForeignField($tcaFieldConf, $id);
+        return $dbAnalysis->countItems(false);
     }
 
     /*********************************************
@@ -3440,7 +3522,7 @@ class DataHandler implements LoggerAwareInterface
 
         // Initializing:
         $theNewID = StringUtility::getUniqueId('NEW');
-        $enableField = isset($GLOBALS['TCA'][$table]['ctrl']['enablecolumns']) ? $GLOBALS['TCA'][$table]['ctrl']['enablecolumns']['disabled'] : '';
+        $enableField = $GLOBALS['TCA'][$table]['ctrl']['enablecolumns']['disabled'] ?? '';
         $headerField = $GLOBALS['TCA'][$table]['ctrl']['label'];
         // Getting "copy-after" fields if applicable:
         $copyAfterFields = $destPid < 0 ? $this->fixCopyAfterDuplFields($table, $uid, abs($destPid), false) : [];
@@ -3643,7 +3725,7 @@ class DataHandler implements LoggerAwareInterface
                         ->where(
                             $queryBuilder->expr()->eq(
                                 'pid',
-                                $queryBuilder->createNamedParameter($uid, \PDO::PARAM_INT)
+                                $queryBuilder->createNamedParameter($uid, Connection::PARAM_INT)
                             )
                         );
                     if (!empty($GLOBALS['TCA'][$table]['ctrl']['sortby'])) {
@@ -3823,7 +3905,7 @@ class DataHandler implements LoggerAwareInterface
      * @param string $table Table name
      * @param array $fieldArray Field array to insert as a record
      * @param int $realPid The value of PID field.
-     * @return int Returns the new ID of the record (if applicable)
+     * @return int|null Returns the new ID of the record (if applicable)
      * @internal should only be used from within DataHandler
      */
     public function insertNewCopyVersion($table, $fieldArray, $realPid)
@@ -3846,21 +3928,18 @@ class DataHandler implements LoggerAwareInterface
             }
         }
         // System fields being set:
-        if ($GLOBALS['TCA'][$table]['ctrl']['crdate']) {
+        if ($GLOBALS['TCA'][$table]['ctrl']['crdate'] ?? false) {
             $fieldArray[$GLOBALS['TCA'][$table]['ctrl']['crdate']] = $GLOBALS['EXEC_TIME'];
         }
-        if ($GLOBALS['TCA'][$table]['ctrl']['cruser_id']) {
-            $fieldArray[$GLOBALS['TCA'][$table]['ctrl']['cruser_id']] = $this->userid;
-        }
-        if ($GLOBALS['TCA'][$table]['ctrl']['tstamp']) {
+        if ($GLOBALS['TCA'][$table]['ctrl']['tstamp'] ?? false) {
             $fieldArray[$GLOBALS['TCA'][$table]['ctrl']['tstamp']] = $GLOBALS['EXEC_TIME'];
         }
         // Finally, insert record:
-        $this->insertDB($table, $id, $fieldArray, true);
+        $this->insertDB($table, $id, $fieldArray, BackendUtility::isTableWorkspaceEnabled($table));
         // Resets dontProcessTransformations to the previous state.
         $this->dontProcessTransformations = $backupDontProcessTransformations;
         // Return new id:
-        return $this->substNEWwithIDs[$id];
+        return $this->substNEWwithIDs[$id] ?? null;
     }
 
     /**
@@ -3881,13 +3960,13 @@ class DataHandler implements LoggerAwareInterface
      */
     public function copyRecord_procBasedOnFieldType($table, $uid, $field, $value, $row, $conf, $realDestPid, $language = 0, array $workspaceOptions = [])
     {
-        $inlineSubType = $this->getInlineFieldType($conf);
+        $relationFieldType = $this->getRelationFieldType($conf);
         // Get the localization mode for the current (parent) record (keep|select):
         // Register if there are references to take care of or MM is used on an inline field (no change to value):
-        if ($this->isReferenceField($conf) || $inlineSubType === 'mm') {
+        if ($this->isReferenceField($conf) || $relationFieldType === 'mm') {
             $value = $this->copyRecord_processManyToMany($table, $uid, $field, $value, $conf, $language);
-        } elseif ($inlineSubType !== false) {
-            $value = $this->copyRecord_processInline($table, $uid, $field, $value, $row, $conf, $realDestPid, $language, $workspaceOptions);
+        } elseif ($relationFieldType !== false) {
+            $value = $this->copyRecord_processRelation($table, $uid, $field, $value, $row, $conf, $realDestPid, $language, $workspaceOptions);
         }
         // For "flex" fieldtypes we need to traverse the structure for two reasons: If there are file references they have to be prepended with absolute paths and if there are database reference they MIGHT need to be remapped (still done in remapListedDBRecords())
         if (isset($conf['type']) && $conf['type'] === 'flex') {
@@ -3972,7 +4051,7 @@ class DataHandler implements LoggerAwareInterface
     }
 
     /**
-     * Processes child records in an inline (IRRE) element when the parent record is copied.
+     * Processes relations in an inline (IRRE) or file element when the parent record is copied.
      *
      * @param string $table
      * @param int $uid
@@ -3985,7 +4064,7 @@ class DataHandler implements LoggerAwareInterface
      * @param array $workspaceOptions
      * @return string
      */
-    protected function copyRecord_processInline(
+    protected function copyRecord_processRelation(
         $table,
         $uid,
         $field,
@@ -4081,7 +4160,7 @@ class DataHandler implements LoggerAwareInterface
         // Extract parameters:
         [$table, $uid, $field, $realDestPid] = $pParams;
         // If references are set for this field, set flag so they can be corrected later (in ->remapListedDBRecords())
-        if (($this->isReferenceField($dsConf) || $this->getInlineFieldType($dsConf) !== false) && (string)$dataValue !== '') {
+        if (($this->isReferenceField($dsConf) || $this->getRelationFieldType($dsConf) !== false) && (string)$dataValue !== '') {
             $dataValue = $this->copyRecord_procBasedOnFieldType($table, $uid, $field, $dataValue, [], $dsConf, $realDestPid, 0, $workspaceOptions);
             $this->registerDBList[$table][$uid][$field] = 'FlexForm_reference';
         }
@@ -4121,7 +4200,7 @@ class DataHandler implements LoggerAwareInterface
             ->where(
                 $queryBuilder->expr()->eq(
                     $transOrigPointerField,
-                    $queryBuilder->createNamedParameter($uid, \PDO::PARAM_INT, ':pointer')
+                    $queryBuilder->createNamedParameter($uid, Connection::PARAM_INT, ':pointer')
                 )
             );
 
@@ -4145,7 +4224,7 @@ class DataHandler implements LoggerAwareInterface
             // If $destPid < 0, then it is the uid of the original language record we are inserting after
             if ($destPid < 0) {
                 // Get the localized records of the record we are inserting after
-                $queryBuilder->setParameter('pointer', abs($destPid), \PDO::PARAM_INT);
+                $queryBuilder->setParameter('pointer', abs($destPid), Connection::PARAM_INT);
                 $destL10nRecords = $queryBuilder->executeQuery()->fetchAllAssociative();
                 // Index the localized record uids by language
                 if (is_array($destL10nRecords)) {
@@ -4502,32 +4581,26 @@ class DataHandler implements LoggerAwareInterface
      * @param array $conf TCA configuration of current field
      * @internal should only be used from within DataHandler
      */
-    public function moveRecord_procBasedOnFieldType($table, $uid, $destPid, $value, $conf)
+    public function moveRecord_procBasedOnFieldType($table, $uid, $destPid, $value, $conf): void
     {
-        $dbAnalysis = null;
-        if (!empty($conf['type']) && $conf['type'] === 'inline') {
-            $foreign_table = $conf['foreign_table'];
-            $moveChildrenWithParent = !isset($conf['behaviour']['disableMovingChildrenWithParent']) || !$conf['behaviour']['disableMovingChildrenWithParent'];
-            if ($foreign_table && $moveChildrenWithParent) {
-                $inlineType = $this->getInlineFieldType($conf);
-                if ($inlineType === 'list' || $inlineType === 'field') {
-                    if ($table === 'pages') {
-                        // If the inline elements are related to a page record,
-                        // make sure they reside at that page and not at its parent
-                        $destPid = $uid;
-                    }
-                    $dbAnalysis = $this->createRelationHandlerInstance();
-                    $dbAnalysis->start($value, $conf['foreign_table'], '', $uid, $table, $conf);
-                }
-            }
+        if (($conf['behaviour']['disableMovingChildrenWithParent'] ?? false)
+            || !in_array($this->getRelationFieldType($conf), ['list', 'field'], true)
+        ) {
+            return;
         }
-        // Move the records
-        if (isset($dbAnalysis)) {
-            // Moving records to a positive destination will insert each
-            // record at the beginning, thus the order is reversed here:
-            foreach (array_reverse($dbAnalysis->itemArray) as $v) {
-                $this->moveRecord($v['table'], $v['id'], $destPid);
-            }
+
+        if ($table === 'pages') {
+            // If the relations are related to a page record, make sure they reside at that page and not at its parent
+            $destPid = $uid;
+        }
+
+        $dbAnalysis = $this->createRelationHandlerInstance();
+        $dbAnalysis->start($value, $conf['foreign_table'], '', $uid, $table, $conf);
+
+        // Moving records to a positive destination will insert each
+        // record at the beginning, thus the order is reversed here:
+        foreach (array_reverse($dbAnalysis->itemArray) as $item) {
+            $this->moveRecord($item['table'], $item['id'], $destPid);
         }
     }
 
@@ -4560,7 +4633,7 @@ class DataHandler implements LoggerAwareInterface
             ->where(
                 $queryBuilder->expr()->eq(
                     $transOrigPointerField,
-                    $queryBuilder->createNamedParameter($uid, \PDO::PARAM_INT, ':pointer')
+                    $queryBuilder->createNamedParameter($uid, Connection::PARAM_INT, ':pointer')
                 )
             )
             ->executeQuery()
@@ -4571,7 +4644,7 @@ class DataHandler implements LoggerAwareInterface
             // If $$originalRecordDestinationPid < 0, then it is the uid of the original language record we are inserting after
             if ($originalRecordDestinationPid < 0) {
                 // Get the localized records of the record we are inserting after
-                $queryBuilder->setParameter('pointer', abs($originalRecordDestinationPid), \PDO::PARAM_INT);
+                $queryBuilder->setParameter('pointer', abs($originalRecordDestinationPid), Connection::PARAM_INT);
                 $destL10nRecords = $queryBuilder->executeQuery()->fetchAllAssociative();
                 // Index the localized record uids by language
                 if (is_array($destL10nRecords)) {
@@ -4843,15 +4916,15 @@ class DataHandler implements LoggerAwareInterface
             return;
         }
 
-        $inlineSubType = $this->getInlineFieldType($config);
-        if ($inlineSubType === false) {
+        $relationFieldType = $this->getRelationFieldType($config);
+        if ($relationFieldType === false) {
             return;
         }
 
         $transOrigRecord = BackendUtility::getRecordWSOL($table, $transOrigPointer);
 
         $removeArray = [];
-        $mmTable = $inlineSubType === 'mm' && isset($config['MM']) && $config['MM'] ? $config['MM'] : '';
+        $mmTable = $relationFieldType === 'mm' && isset($config['MM']) && $config['MM'] ? $config['MM'] : '';
         // Fetch children from original language parent:
         $dbAnalysisOriginal = $this->createRelationHandlerInstance();
         $dbAnalysisOriginal->start($transOrigRecord[$field], $foreignTable, $mmTable, $transOrigRecord['uid'], $table, $config);
@@ -4911,8 +4984,7 @@ class DataHandler implements LoggerAwareInterface
         $this->registerDBList[$table][$id][$field] = $value;
         // Remove child records (if synchronization requested it):
         if (is_array($removeArray) && !empty($removeArray)) {
-            /** @var DataHandler $tce */
-            $tce = GeneralUtility::makeInstance(__CLASS__, $this->referenceIndexUpdater);
+            $tce = GeneralUtility::makeInstance(self::class, $this->referenceIndexUpdater);
             $tce->enableLogging = $this->enableLogging;
             $tce->start([], $removeArray, $this->BE_USER);
             $tce->process_cmdmap();
@@ -4920,12 +4992,12 @@ class DataHandler implements LoggerAwareInterface
         }
         $updateFields = [];
         // Handle, reorder and store relations:
-        if ($inlineSubType === 'list') {
+        if ($relationFieldType === 'list') {
             $updateFields = [$field => $value];
-        } elseif ($inlineSubType === 'field') {
+        } elseif ($relationFieldType === 'field') {
             $dbAnalysisCurrent->writeForeignField($config, $id);
             $updateFields = [$field => $dbAnalysisCurrent->countItems(false)];
-        } elseif ($inlineSubType === 'mm') {
+        } elseif ($relationFieldType === 'mm') {
             $dbAnalysisCurrent->writeMM($config['MM'], $id);
             $updateFields = [$field => $dbAnalysisCurrent->countItems(false)];
         }
@@ -5035,13 +5107,13 @@ class DataHandler implements LoggerAwareInterface
         $queryBuilder = $queryBuilder->select('*')->from($table)
             ->where(
                 // workspace elements
-                $queryBuilder->expr()->gt('t3ver_wsid', $queryBuilder->createNamedParameter(0, \PDO::PARAM_INT)),
+                $queryBuilder->expr()->gt('t3ver_wsid', $queryBuilder->createNamedParameter(0, Connection::PARAM_INT)),
                 // with sys_language_uid > 0
-                $queryBuilder->expr()->gt($languageField, $queryBuilder->createNamedParameter(0, \PDO::PARAM_INT)),
+                $queryBuilder->expr()->gt($languageField, $queryBuilder->createNamedParameter(0, Connection::PARAM_INT)),
                 // in state 'new'
-                $queryBuilder->expr()->eq('t3ver_state', $queryBuilder->createNamedParameter(VersionState::NEW_PLACEHOLDER, \PDO::PARAM_INT)),
+                $queryBuilder->expr()->eq('t3ver_state', $queryBuilder->createNamedParameter(VersionState::NEW_PLACEHOLDER, Connection::PARAM_INT)),
                 // with "l10n_parent" set to uid of live record
-                $queryBuilder->expr()->eq($localizationParentFieldName, $queryBuilder->createNamedParameter($uid, \PDO::PARAM_INT))
+                $queryBuilder->expr()->eq($localizationParentFieldName, $queryBuilder->createNamedParameter($uid, Connection::PARAM_INT))
             );
         $result = $queryBuilder->executeQuery();
         while ($row = $result->fetchAssociative()) {
@@ -5315,11 +5387,11 @@ class DataHandler implements LoggerAwareInterface
                     $queryBuilder->where(
                         $queryBuilder->expr()->eq(
                             'pid',
-                            $queryBuilder->createNamedParameter($pageIdInDefaultLanguage, \PDO::PARAM_INT)
+                            $queryBuilder->createNamedParameter($pageIdInDefaultLanguage, Connection::PARAM_INT)
                         ),
                         $queryBuilder->expr()->eq(
                             $GLOBALS['TCA'][$table]['ctrl']['languageField'],
-                            $queryBuilder->createNamedParameter($pageLanguageId, \PDO::PARAM_INT)
+                            $queryBuilder->createNamedParameter($pageLanguageId, Connection::PARAM_INT)
                         )
                     );
                 } else {
@@ -5327,7 +5399,7 @@ class DataHandler implements LoggerAwareInterface
                     $queryBuilder->where(
                         $queryBuilder->expr()->eq(
                             'pid',
-                            $queryBuilder->createNamedParameter($uid, \PDO::PARAM_INT)
+                            $queryBuilder->createNamedParameter($uid, Connection::PARAM_INT)
                         )
                     );
                 }
@@ -5338,7 +5410,7 @@ class DataHandler implements LoggerAwareInterface
                     $queryBuilder->andWhere(
                         $queryBuilder->expr()->eq(
                             't3ver_wsid',
-                            $queryBuilder->createNamedParameter($currentUserWorkspace, \PDO::PARAM_INT)
+                            $queryBuilder->createNamedParameter($currentUserWorkspace, Connection::PARAM_INT)
                         )
                     );
                 }
@@ -5464,26 +5536,20 @@ class DataHandler implements LoggerAwareInterface
         if (!isset($conf['type'])) {
             return;
         }
-        if ($conf['type'] === 'inline') {
-            $foreign_table = $conf['foreign_table'];
-            if ($foreign_table) {
-                $inlineType = $this->getInlineFieldType($conf);
-                if ($inlineType === 'list' || $inlineType === 'field') {
-                    $dbAnalysis = $this->createRelationHandlerInstance();
-                    $dbAnalysis->start($value, $conf['foreign_table'], '', $uid, $table, $conf);
-                    $dbAnalysis->undeleteRecord = true;
 
-                    $enableCascadingDelete = true;
-                    // non type save comparison is intended!
-                    if (isset($conf['behaviour']['enableCascadingDelete']) && $conf['behaviour']['enableCascadingDelete'] == false) {
-                        $enableCascadingDelete = false;
-                    }
+        if ($conf['type'] === 'inline' || $conf['type'] === 'file') {
+            if (in_array($this->getRelationFieldType($conf), ['list', 'field'], true)) {
+                $dbAnalysis = $this->createRelationHandlerInstance();
+                $dbAnalysis->start($value, $conf['foreign_table'], '', $uid, $table, $conf);
+                $dbAnalysis->undeleteRecord = true;
 
+                // non type save comparison is intended!
+                if (!isset($conf['behaviour']['enableCascadingDelete'])
+                    || $conf['behaviour']['enableCascadingDelete'] != false
+                ) {
                     // Walk through the items and remove them
                     foreach ($dbAnalysis->itemArray as $v) {
-                        if ($enableCascadingDelete) {
-                            $this->deleteAction($v['table'], $v['id']);
-                        }
+                        $this->deleteAction($v['table'], $v['id']);
                     }
                 }
             }
@@ -5522,7 +5588,7 @@ class DataHandler implements LoggerAwareInterface
             ->where(
                 $queryBuilder->expr()->eq(
                     $GLOBALS['TCA'][$table]['ctrl']['transOrigPointerField'],
-                    $queryBuilder->createNamedParameter($uid, \PDO::PARAM_INT)
+                    $queryBuilder->createNamedParameter($uid, Connection::PARAM_INT)
                 )
             );
 
@@ -5687,11 +5753,9 @@ class DataHandler implements LoggerAwareInterface
                 continue;
             }
             $foreignTable = (string)($fieldConfig['foreign_table'] ?? '');
-            if ($fieldType === 'inline') {
+            if ($fieldType === 'inline' || $fieldType === 'file') {
                 // @todo: Inline MM not handled here, and what about group / select?
-                if ($foreignTable === ''
-                    || !in_array($this->getInlineFieldType($fieldConfig), ['list', 'field'], true)
-                ) {
+                if (!in_array($this->getRelationFieldType($fieldConfig), ['list', 'field'], true)) {
                     continue;
                 }
                 $relationHandler = $this->createRelationHandlerInstance();
@@ -5864,11 +5928,11 @@ class DataHandler implements LoggerAwareInterface
                 ->where(
                     $queryBuilder->expr()->eq(
                         'pid',
-                        $queryBuilder->createNamedParameter($pid, \PDO::PARAM_INT)
+                        $queryBuilder->createNamedParameter($pid, Connection::PARAM_INT)
                     ),
                     $queryBuilder->expr()->eq(
                         't3ver_wsid',
-                        $queryBuilder->createNamedParameter((int)$this->BE_USER->workspace, \PDO::PARAM_INT)
+                        $queryBuilder->createNamedParameter((int)$this->BE_USER->workspace, Connection::PARAM_INT)
                     )
                 );
             if ($isLocalizedPage) {
@@ -5876,7 +5940,7 @@ class DataHandler implements LoggerAwareInterface
                 $queryBuilder->andWhere(
                     $queryBuilder->expr()->eq(
                         $GLOBALS['TCA'][$table]['ctrl']['languageField'],
-                        $queryBuilder->createNamedParameter($sysLanguageId, \PDO::PARAM_INT)
+                        $queryBuilder->createNamedParameter($sysLanguageId, Connection::PARAM_INT)
                     )
                 );
             }
@@ -5900,16 +5964,15 @@ class DataHandler implements LoggerAwareInterface
             if (!isset($fieldConfig['type'])) {
                 continue;
             }
-            if ($fieldConfig['type'] === 'inline') {
-                $foreignTable = $fieldConfig['foreign_table'] ?? null;
-                if (!$foreignTable
+            if ($fieldConfig['type'] === 'inline' || $fieldConfig['type'] === 'file') {
+                $foreignTable = (string)($fieldConfig['foreign_table'] ?? '');
+                if ($foreignTable === ''
                      || (isset($fieldConfig['behaviour']['enableCascadingDelete'])
                         && (bool)$fieldConfig['behaviour']['enableCascadingDelete'] === false)
                 ) {
                     continue;
                 }
-                $inlineType = $this->getInlineFieldType($fieldConfig);
-                if ($inlineType === 'list' || $inlineType === 'field') {
+                if (in_array($this->getRelationFieldType($fieldConfig), ['list', 'field'], true)) {
                     $dbAnalysis = $this->createRelationHandlerInstance();
                     $dbAnalysis->start($value, $fieldConfig['foreign_table'], '', (int)$record['uid'], $table, $fieldConfig);
                     $dbAnalysis->undeleteRecord = true;
@@ -5951,9 +6014,9 @@ class DataHandler implements LoggerAwareInterface
         $statement = $queryBuilder->select('tablename', 'recuid', 'field')
             ->from('sys_refindex')
             ->where(
-                $queryBuilder->expr()->eq('workspace', $queryBuilder->createNamedParameter($record['t3ver_wsid'], \PDO::PARAM_INT)),
+                $queryBuilder->expr()->eq('workspace', $queryBuilder->createNamedParameter($record['t3ver_wsid'], Connection::PARAM_INT)),
                 $queryBuilder->expr()->eq('ref_table', $queryBuilder->createNamedParameter($table)),
-                $queryBuilder->expr()->eq('ref_uid', $queryBuilder->createNamedParameter($record['uid'], \PDO::PARAM_INT))
+                $queryBuilder->expr()->eq('ref_uid', $queryBuilder->createNamedParameter($record['uid'], Connection::PARAM_INT))
             )
             ->executeQuery();
         while ($row = $statement->fetchAssociative()) {
@@ -5986,7 +6049,7 @@ class DataHandler implements LoggerAwareInterface
                     $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable($row['tablename']);
                     $queryBuilder->update($row['tablename'])
                         ->set($row['field'], implode(',', $listOfRelatedRecordsWithoutDiscardedRecord))
-                        ->where($queryBuilder->expr()->eq('uid', $queryBuilder->createNamedParameter($row['recuid'], \PDO::PARAM_INT)))
+                        ->where($queryBuilder->expr()->eq('uid', $queryBuilder->createNamedParameter($row['recuid'], Connection::PARAM_INT)))
                         ->executeStatement();
                 }
             }
@@ -6010,7 +6073,7 @@ class DataHandler implements LoggerAwareInterface
         $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable($mmTableName);
         $queryBuilder->delete($mmTableName)->where(
             // uid_local = given uid OR uid_foreign = given uid
-            $queryBuilder->expr()->eq($relationUidFieldName, $queryBuilder->createNamedParameter($recordUid, \PDO::PARAM_INT))
+            $queryBuilder->expr()->eq($relationUidFieldName, $queryBuilder->createNamedParameter($recordUid, Connection::PARAM_INT))
         );
         if (!empty($fieldConfig['MM_table_where']) && is_string($fieldConfig['MM_table_where'])) {
             $queryBuilder->andWhere(
@@ -6020,7 +6083,7 @@ class DataHandler implements LoggerAwareInterface
         $mmMatchFields = $fieldConfig['MM_match_fields'] ?? [];
         foreach ($mmMatchFields as $fieldName => $fieldValue) {
             $queryBuilder->andWhere(
-                $queryBuilder->expr()->eq($fieldName, $queryBuilder->createNamedParameter($fieldValue, \PDO::PARAM_STR))
+                $queryBuilder->expr()->eq($fieldName, $queryBuilder->createNamedParameter($fieldValue))
             );
         }
         $queryBuilder->executeStatement();
@@ -6053,11 +6116,11 @@ class DataHandler implements LoggerAwareInterface
             ->where(
                 $queryBuilder->expr()->eq(
                     $GLOBALS['TCA'][$table]['ctrl']['transOrigPointerField'],
-                    $queryBuilder->createNamedParameter($uid, \PDO::PARAM_INT)
+                    $queryBuilder->createNamedParameter($uid, Connection::PARAM_INT)
                 ),
                 $queryBuilder->expr()->eq(
                     't3ver_wsid',
-                    $queryBuilder->createNamedParameter((int)$this->BE_USER->workspace, \PDO::PARAM_INT)
+                    $queryBuilder->createNamedParameter((int)$this->BE_USER->workspace, Connection::PARAM_INT)
                 )
             )
             ->executeQuery();
@@ -6187,7 +6250,7 @@ class DataHandler implements LoggerAwareInterface
                 foreach (($dataStructureArray['sheets'] ?? []) as $flexSheetDefinition) {
                     foreach (($flexSheetDefinition['ROOT']['el'] ?? []) as $flexFieldDefinition) {
                         if (is_array($flexFieldDefinition) && $this->flexFieldDefinitionIsMmRelation($flexFieldDefinition)) {
-                            $toDeleteRegistry[] = $flexFieldDefinition['TCEforms']['config'];
+                            $toDeleteRegistry[] = $flexFieldDefinition['config'];
                         }
                     }
                 }
@@ -6197,7 +6260,7 @@ class DataHandler implements LoggerAwareInterface
                 foreach (($dataStructureArray['sheets'] ?? []) as $flexSheetDefinition) {
                     foreach (($flexSheetDefinition['ROOT']['el'] ?? []) as $flexFieldDefinition) {
                         if (is_array($flexFieldDefinition) && $this->flexFieldDefinitionIsMmRelation($flexFieldDefinition)) {
-                            $toUpdateRegistry[] = $flexFieldDefinition['TCEforms']['config'];
+                            $toUpdateRegistry[] = $flexFieldDefinition['config'];
                         }
                     }
                 }
@@ -6212,7 +6275,7 @@ class DataHandler implements LoggerAwareInterface
             $queryBuilder->delete($mmTableName);
             $queryBuilder->where($queryBuilder->expr()->eq(
                 $uidFieldName,
-                $queryBuilder->createNamedParameter((int)$liveRecord['uid'], \PDO::PARAM_INT)
+                $queryBuilder->createNamedParameter((int)$liveRecord['uid'], Connection::PARAM_INT)
             ));
             if ($this->mmQueryShouldUseTablenamesColumn($config)) {
                 $queryBuilder->andWhere($queryBuilder->expr()->eq(
@@ -6230,10 +6293,10 @@ class DataHandler implements LoggerAwareInterface
             $mmTableName = $config['MM'];
             $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable($mmTableName);
             $queryBuilder->update($mmTableName);
-            $queryBuilder->set($uidFieldName, (int)$liveRecord['uid'], true, \PDO::PARAM_INT);
+            $queryBuilder->set($uidFieldName, (int)$liveRecord['uid'], true, Connection::PARAM_INT);
             $queryBuilder->where($queryBuilder->expr()->eq(
                 $uidFieldName,
-                $queryBuilder->createNamedParameter((int)$workspaceRecord['uid'], \PDO::PARAM_INT)
+                $queryBuilder->createNamedParameter((int)$workspaceRecord['uid'], Connection::PARAM_INT)
             ));
             if ($this->mmQueryShouldUseTablenamesColumn($config)) {
                 $queryBuilder->andWhere($queryBuilder->expr()->eq(
@@ -6263,9 +6326,9 @@ class DataHandler implements LoggerAwareInterface
     private function flexFieldDefinitionIsMmRelation(array $flexFieldDefinition): bool
     {
         return ($flexFieldDefinition['type'] ?? '') !== 'array' // is a field, not a section
-            && is_array($flexFieldDefinition['TCEforms']['config'] ?? false) // config array exists
-            && $this->isReferenceField($flexFieldDefinition['TCEforms']['config']) // select, group, category
-            && !empty($flexFieldDefinition['TCEforms']['config']['MM']); // MM exists
+            && is_array($flexFieldDefinition['config'] ?? false) // config array exists
+            && $this->isReferenceField($flexFieldDefinition['config']) // select, group, category
+            && !empty($flexFieldDefinition['config']['MM']); // MM exists
     }
 
     /**
@@ -6384,6 +6447,9 @@ class DataHandler implements LoggerAwareInterface
                                 break;
                             case 'inline':
                                 $this->remapListedDBRecords_procInline($conf, $value, $uid, $table);
+                                break;
+                            case 'file':
+                                $this->remapListedDBRecords_procFile($conf, $value, $uid, $table);
                                 break;
                             default:
                                 $this->logger->debug('Field type should not appear here: {type}', ['type' => $conf['type']]);
@@ -6506,10 +6572,10 @@ class DataHandler implements LoggerAwareInterface
     {
         $theUidToUpdate = $this->copyMappingArray_merged[$table][$uid] ?? null;
         if ($conf['foreign_table']) {
-            $inlineType = $this->getInlineFieldType($conf);
-            if ($inlineType === 'mm') {
+            $relationFieldType = $this->getRelationFieldType($conf);
+            if ($relationFieldType === 'mm') {
                 $this->remapListedDBRecords_procDBRefs($conf, $value, $theUidToUpdate, $table);
-            } elseif ($inlineType !== false) {
+            } elseif ($relationFieldType !== false) {
                 $dbAnalysis = $this->createRelationHandlerInstance();
                 $dbAnalysis->start($value, $conf['foreign_table'], '', 0, $table, $conf);
 
@@ -6525,7 +6591,7 @@ class DataHandler implements LoggerAwareInterface
                 }
 
                 // Update child records if using pointer fields ('foreign_field'):
-                if ($inlineType === 'field') {
+                if ($relationFieldType === 'field') {
                     $dbAnalysis->writeForeignField($conf, $uid, $theUidToUpdate);
                 }
                 $thePidToUpdate = null;
@@ -6549,7 +6615,7 @@ class DataHandler implements LoggerAwareInterface
                     }
                     $updateValues = ['pid' => $thePidToUpdate];
                     foreach ($updatePidForRecords as $tableName => $uids) {
-                        if (empty($tableName) || empty($uids)) {
+                        if (empty($tableName)) {
                             continue;
                         }
                         $conn = GeneralUtility::makeInstance(ConnectionPool::class)
@@ -6558,6 +6624,58 @@ class DataHandler implements LoggerAwareInterface
                             $conn->update($tableName, $updateValues, ['uid' => $updateUid]);
                         }
                     }
+                }
+            }
+        }
+    }
+
+    /**
+     * Performs remapping of old UID values to NEW uid values for an file field.
+     *
+     * @internal should only be used from within DataHandler
+     */
+    public function remapListedDBRecords_procFile($conf, $value, $uid, $table)
+    {
+        $thePidToUpdate = null;
+        $updatePidForRecords = [];
+        $theUidToUpdate = $this->copyMappingArray_merged[$table][$uid] ?? null;
+
+        $dbAnalysis = $this->createRelationHandlerInstance();
+        $dbAnalysis->start($value, $conf['foreign_table'], '', 0, $table, $conf);
+
+        foreach ($dbAnalysis->itemArray as &$item) {
+            $updatePidForRecords[$item['table']][] = $item['id'];
+            $versionedId = $this->getAutoVersionId($item['table'], $item['id']);
+            if ($versionedId !== null) {
+                $updatePidForRecords[$item['table']][] = $versionedId;
+                $item['id'] = $versionedId;
+            }
+        }
+        unset($item);
+
+        $dbAnalysis->writeForeignField($conf, $uid, $theUidToUpdate);
+
+        if ($table === 'pages') {
+            $thePidToUpdate = $theUidToUpdate;
+        } elseif (isset($this->registerDBPids[$table][$uid])) {
+            $thePidToUpdate = $this->registerDBPids[$table][$uid];
+            $thePidToUpdate = $this->copyMappingArray_merged['pages'][$thePidToUpdate];
+        }
+
+        if ($thePidToUpdate && $updatePidForRecords !== []) {
+            $thePidToUpdate = $this->getDefaultLanguagePageId($thePidToUpdate);
+            $liveId = BackendUtility::getLiveVersionIdOfRecord('pages', $theUidToUpdate);
+            if ($liveId !== null) {
+                $thePidToUpdate = $liveId;
+            }
+            $updateValues = ['pid' => $thePidToUpdate];
+            foreach ($updatePidForRecords as $tableName => $uids) {
+                if (empty($tableName)) {
+                    continue;
+                }
+                $conn = GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable($tableName);
+                foreach ($uids as $updateUid) {
+                    $conn->update($tableName, $updateValues, ['uid' => $updateUid]);
                 }
             }
         }
@@ -6825,7 +6943,7 @@ class DataHandler implements LoggerAwareInterface
     {
         GeneralUtility::makeInstance(ConnectionPool::class)
             ->getConnectionForTable($table)
-            ->delete($table, ['uid' => $uid], [\PDO::PARAM_INT]);
+            ->delete($table, ['uid' => $uid], [Connection::PARAM_INT]);
     }
 
     /*****************************
@@ -7002,17 +7120,11 @@ class DataHandler implements LoggerAwareInterface
             if ($this->admin || BackendUtility::isRootLevelRestrictionIgnored($checkTable)) {
                 $allowed = true;
             }
-        } else {
-            // Check non-root-level
-            $doktype = $this->pageInfo($page_uid, 'doktype');
-            $allowedTableList = $GLOBALS['PAGES_TYPES'][$doktype]['allowedTables'] ?? $GLOBALS['PAGES_TYPES']['default']['allowedTables'];
-            $allowedArray = GeneralUtility::trimExplode(',', $allowedTableList, true);
-            // If all tables or the table is listed as an allowed type, return TRUE
-            if (str_contains($allowedTableList, '*') || in_array($checkTable, $allowedArray, true)) {
-                $allowed = true;
-            }
+            return $allowed;
         }
-        return $allowed;
+        // Check non-root-level
+        $doktype = $this->pageInfo($page_uid, 'doktype');
+        return GeneralUtility::makeInstance(PageDoktypeRegistry::class)->isRecordTypeAllowedForDoktype($checkTable, (int)$doktype);
     }
 
     /**
@@ -7062,7 +7174,7 @@ class DataHandler implements LoggerAwareInterface
             ->from('pages')
             ->where($queryBuilder->expr()->eq(
                 'uid',
-                $queryBuilder->createNamedParameter($id, \PDO::PARAM_INT)
+                $queryBuilder->createNamedParameter($id, Connection::PARAM_INT)
             ));
         if (!$permission->nothingIsGranted() && !$this->admin) {
             $queryBuilder->andWhere($this->BE_USER->getPagePermsClause($perms));
@@ -7072,7 +7184,7 @@ class DataHandler implements LoggerAwareInterface
         ) {
             $queryBuilder->andWhere($queryBuilder->expr()->eq(
                 $GLOBALS['TCA']['pages']['ctrl']['editlock'],
-                $queryBuilder->createNamedParameter(0, \PDO::PARAM_INT)
+                $queryBuilder->createNamedParameter(0, Connection::PARAM_INT)
             ));
         }
 
@@ -7104,7 +7216,7 @@ class DataHandler implements LoggerAwareInterface
         $result = $queryBuilder
             ->select('uid', 'perms_userid', 'perms_groupid', 'perms_user', 'perms_group', 'perms_everybody')
             ->from('pages')
-            ->where($queryBuilder->expr()->eq('pid', $queryBuilder->createNamedParameter($pid, \PDO::PARAM_INT)))
+            ->where($queryBuilder->expr()->eq('pid', $queryBuilder->createNamedParameter($pid, Connection::PARAM_INT)))
             ->orderBy('sorting')
             ->executeQuery();
         while ($row = $result->fetchAssociative()) {
@@ -7176,7 +7288,7 @@ class DataHandler implements LoggerAwareInterface
             $result = $queryBuilder
                 ->select('pid', 'uid', 't3ver_oid', 't3ver_wsid')
                 ->from('pages')
-                ->where($queryBuilder->expr()->eq('uid', $queryBuilder->createNamedParameter($destinationId, \PDO::PARAM_INT)))
+                ->where($queryBuilder->expr()->eq('uid', $queryBuilder->createNamedParameter($destinationId, Connection::PARAM_INT)))
                 ->executeQuery();
             if ($row = $result->fetchAssociative()) {
                 // Ensure that the moved location is used as the PID value
@@ -7226,27 +7338,26 @@ class DataHandler implements LoggerAwareInterface
      *
      * @param int|string $page_uid Page ID
      * @param int $doktype Page doktype
-     * @return bool|array Returns a list of the tables that are 'present' on the page but not allowed with the page_uid/doktype
+     * @return array Returns a list of the tables that are 'present' on the page but not allowed with the page_uid/doktype
      * @internal should only be used from within DataHandler
      */
-    public function doesPageHaveUnallowedTables($page_uid, $doktype)
+    public function doesPageHaveUnallowedTables($page_uid, int $doktype): array
     {
         $page_uid = (int)$page_uid;
         if (!$page_uid) {
             // Not a number. Probably a new page
-            return false;
+            return [];
         }
-        $allowedTableList = $GLOBALS['PAGES_TYPES'][$doktype]['allowedTables'] ?? $GLOBALS['PAGES_TYPES']['default']['allowedTables'];
+        $allowedTables = GeneralUtility::makeInstance(PageDoktypeRegistry::class)->getAllowedTypesForDoktype($doktype);
         // If all tables are allowed, return early
-        if (str_contains($allowedTableList, '*')) {
-            return false;
+        if (in_array('*', $allowedTables, true)) {
+            return [];
         }
-        $allowedArray = GeneralUtility::trimExplode(',', $allowedTableList, true);
         $tableList = [];
         $allTableNames = $this->compileAdminTables();
         foreach ($allTableNames as $table) {
             // If the table is not in the allowed list, check if there are records...
-            if (in_array($table, $allowedArray, true)) {
+            if (in_array($table, $allowedTables, true)) {
                 continue;
             }
             $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable($table);
@@ -7256,7 +7367,7 @@ class DataHandler implements LoggerAwareInterface
                 ->from($table)
                 ->where($queryBuilder->expr()->eq(
                     'pid',
-                    $queryBuilder->createNamedParameter($page_uid, \PDO::PARAM_INT)
+                    $queryBuilder->createNamedParameter($page_uid, Connection::PARAM_INT)
                 ))
                 ->executeQuery()
                 ->fetchOne();
@@ -7264,7 +7375,7 @@ class DataHandler implements LoggerAwareInterface
                 $tableList[] = $table;
             }
         }
-        return implode(',', $tableList);
+        return $tableList;
     }
 
     /*****************************
@@ -7289,7 +7400,7 @@ class DataHandler implements LoggerAwareInterface
             $row = $queryBuilder
                 ->select('*')
                 ->from('pages')
-                ->where($queryBuilder->expr()->eq('uid', $queryBuilder->createNamedParameter($id, \PDO::PARAM_INT)))
+                ->where($queryBuilder->expr()->eq('uid', $queryBuilder->createNamedParameter($id, Connection::PARAM_INT)))
                 ->executeQuery()
                 ->fetchAssociative();
             if ($row) {
@@ -7319,7 +7430,7 @@ class DataHandler implements LoggerAwareInterface
         $result = $queryBuilder
             ->select('*')
             ->from($table)
-            ->where($queryBuilder->expr()->eq('uid', $queryBuilder->createNamedParameter($id, \PDO::PARAM_INT)))
+            ->where($queryBuilder->expr()->eq('uid', $queryBuilder->createNamedParameter($id, Connection::PARAM_INT)))
             ->executeQuery()
             ->fetchAssociative();
         return $result ?: null;
@@ -7345,7 +7456,7 @@ class DataHandler implements LoggerAwareInterface
 
             $record = $queryBuilder->select(...$columns)
                 ->from($table)
-                ->where($queryBuilder->expr()->eq('uid', $queryBuilder->createNamedParameter($id, \PDO::PARAM_INT)))
+                ->where($queryBuilder->expr()->eq('uid', $queryBuilder->createNamedParameter($id, Connection::PARAM_INT)))
                 ->executeQuery()
                 ->fetchAssociative();
 
@@ -7366,7 +7477,7 @@ class DataHandler implements LoggerAwareInterface
                 $output = $queryBuilder
                     ->select(...$columns)
                     ->from($table)
-                    ->where($queryBuilder->expr()->eq('uid', $queryBuilder->createNamedParameter($id, \PDO::PARAM_INT)))
+                    ->where($queryBuilder->expr()->eq('uid', $queryBuilder->createNamedParameter($id, Connection::PARAM_INT)))
                     ->executeQuery()
                     ->fetchAssociative();
                 // If record found, check page as well:
@@ -7641,7 +7752,7 @@ class DataHandler implements LoggerAwareInterface
             $row = $queryBuilder
                 ->select('*')
                 ->from($table)
-                ->where($queryBuilder->expr()->eq('uid', $queryBuilder->createNamedParameter($id, \PDO::PARAM_INT)))
+                ->where($queryBuilder->expr()->eq('uid', $queryBuilder->createNamedParameter($id, Connection::PARAM_INT)))
                 ->executeQuery()
                 ->fetchAssociative();
 
@@ -7652,17 +7763,16 @@ class DataHandler implements LoggerAwareInterface
                     if (!$this->checkStoredRecords_loose || $value || $row[$key]) {
                         if (is_float($row[$key])) {
                             // if the database returns the value as double, compare it as double
-                            if ((double)$value !== (double)$row[$key]) {
+                            if ((float)$value !== (float)$row[$key]) {
                                 $errors[] = $key;
                             }
                         } else {
-                            $dbType = $GLOBALS['TCA'][$table]['columns'][$key]['config']['dbType'] ?? false;
                             if ((string)$value !== (string)$row[$key]) {
                                 // The is_numeric check catches cases where we want to store a float/double value
                                 // and database returns the field as a string with the least required amount of
                                 // significant digits, i.e. "0.00" being saved and "0" being read back.
                                 if (is_numeric($value) && is_numeric($row[$key])) {
-                                    if ((double)$value === (double)$row[$key]) {
+                                    if ((float)$value === (float)$row[$key]) {
                                         continue;
                                     }
                                 }
@@ -7821,7 +7931,7 @@ class DataHandler implements LoggerAwareInterface
         if ($pid >= 0) {
             // Fetches the first record (lowest sorting) under this pid
             $queryBuilder
-                ->where($queryBuilder->expr()->eq('pid', $queryBuilder->createNamedParameter($pid, \PDO::PARAM_INT)));
+                ->where($queryBuilder->expr()->eq('pid', $queryBuilder->createNamedParameter($pid, Connection::PARAM_INT)));
 
             if ($considerWorkspaces) {
                 $queryBuilder->andWhere(
@@ -7861,7 +7971,7 @@ class DataHandler implements LoggerAwareInterface
         $row = $queryBuilder
                 ->where($queryBuilder->expr()->eq(
                     'uid',
-                    $queryBuilder->createNamedParameter(abs($pid), \PDO::PARAM_INT)
+                    $queryBuilder->createNamedParameter(abs($pid), Connection::PARAM_INT)
                 ))
                 ->executeQuery()
                 ->fetchAssociative();
@@ -7896,11 +8006,11 @@ class DataHandler implements LoggerAwareInterface
                         ->where(
                             $queryBuilder->expr()->eq(
                                 'pid',
-                                $queryBuilder->createNamedParameter($row['pid'], \PDO::PARAM_INT)
+                                $queryBuilder->createNamedParameter($row['pid'], Connection::PARAM_INT)
                             ),
                             $queryBuilder->expr()->gte(
                                 $sortColumn,
-                                $queryBuilder->createNamedParameter($row[$sortColumn], \PDO::PARAM_INT)
+                                $queryBuilder->createNamedParameter($row[$sortColumn], Connection::PARAM_INT)
                             )
                         )
                         ->orderBy($sortColumn, 'ASC')
@@ -7965,7 +8075,7 @@ class DataHandler implements LoggerAwareInterface
 
             $queryBuilder
                 ->update($table)
-                ->where($queryBuilder->expr()->eq('pid', $queryBuilder->createNamedParameter($pid, \PDO::PARAM_INT)))
+                ->where($queryBuilder->expr()->eq('pid', $queryBuilder->createNamedParameter($pid, Connection::PARAM_INT)))
                 ->set($sortBy, $queryBuilder->quoteIdentifier($sortBy) . ' + ' . $this->sortIntervals . ' + ' . $this->sortIntervals, false);
             if ($sortingValue !== null) {
                 $queryBuilder->andWhere($queryBuilder->expr()->gt($sortBy, $sortingValue));
@@ -8053,15 +8163,15 @@ class DataHandler implements LoggerAwareInterface
             ->where(
                 $queryBuilder->expr()->eq(
                     'pid',
-                    $queryBuilder->createNamedParameter($pid, \PDO::PARAM_INT)
+                    $queryBuilder->createNamedParameter($pid, Connection::PARAM_INT)
                 ),
                 $queryBuilder->expr()->eq(
                     $languageField,
-                    $queryBuilder->createNamedParameter($row[$languageField], \PDO::PARAM_INT)
+                    $queryBuilder->createNamedParameter($row[$languageField], Connection::PARAM_INT)
                 ),
                 $queryBuilder->expr()->lt(
                     $sortColumn,
-                    $queryBuilder->createNamedParameter($row[$sortColumn], \PDO::PARAM_INT)
+                    $queryBuilder->createNamedParameter($row[$sortColumn], Connection::PARAM_INT)
                 )
             )
             ->orderBy($sortColumn, 'DESC')
@@ -8071,7 +8181,7 @@ class DataHandler implements LoggerAwareInterface
             $queryBuilder->andWhere(
                 $queryBuilder->expr()->eq(
                     'colPos',
-                    $queryBuilder->createNamedParameter($row['colPos'], \PDO::PARAM_INT)
+                    $queryBuilder->createNamedParameter($row['colPos'], Connection::PARAM_INT)
                 )
             );
         }
@@ -8208,7 +8318,7 @@ class DataHandler implements LoggerAwareInterface
         $queryBuilder->getRestrictions()->removeAll();
         $currentRecord = $queryBuilder->select('*')
             ->from($table)
-            ->where($queryBuilder->expr()->eq('uid', $queryBuilder->createNamedParameter($id, \PDO::PARAM_INT)))
+            ->where($queryBuilder->expr()->eq('uid', $queryBuilder->createNamedParameter($id, Connection::PARAM_INT)))
             ->executeQuery()
             ->fetchAssociative();
         // If the current record exists (which it should...), begin comparison:
@@ -8371,7 +8481,7 @@ class DataHandler implements LoggerAwareInterface
             ->removeAll();
         $queryBuilder->select('pid')
             ->from($table)
-            ->where($queryBuilder->expr()->eq('uid', $queryBuilder->createNamedParameter($uid, \PDO::PARAM_INT)));
+            ->where($queryBuilder->expr()->eq('uid', $queryBuilder->createNamedParameter($uid, Connection::PARAM_INT)));
         if ($row = $queryBuilder->executeQuery()->fetchAssociative()) {
             return $row['pid'];
         }
@@ -8418,14 +8528,14 @@ class DataHandler implements LoggerAwareInterface
             $queryBuilder
                 ->select('uid')
                 ->from('pages')
-                ->where($queryBuilder->expr()->eq('pid', $queryBuilder->createNamedParameter($pid, \PDO::PARAM_INT)))
+                ->where($queryBuilder->expr()->eq('pid', $queryBuilder->createNamedParameter($pid, Connection::PARAM_INT)))
                 ->orderBy('sorting', 'DESC');
             if (!$this->admin) {
                 $queryBuilder->andWhere($this->BE_USER->getPagePermsClause(Permission::PAGE_SHOW));
             }
             if ((int)$this->BE_USER->workspace === 0) {
                 $queryBuilder->andWhere(
-                    $queryBuilder->expr()->eq('t3ver_wsid', $queryBuilder->createNamedParameter(0, \PDO::PARAM_INT))
+                    $queryBuilder->expr()->eq('t3ver_wsid', $queryBuilder->createNamedParameter(0, Connection::PARAM_INT))
                 );
             } else {
                 $queryBuilder->andWhere($queryBuilder->expr()->in(
@@ -8631,16 +8741,20 @@ class DataHandler implements LoggerAwareInterface
     }
 
     /**
-     * Returns the subtype as a string of an inline field.
-     * If it's not an inline field at all, it returns FALSE.
+     * Returns the subtype as a string of a relation (inline / file) field.
+     * If it's not a relation field at all, it returns FALSE.
      *
      * @param array $conf Config array for TCA/columns field
      * @return string|bool string Inline subtype (field|mm|list), boolean: FALSE
      * @internal should only be used from within DataHandler
      */
-    public function getInlineFieldType($conf)
+    public function getRelationFieldType($conf): bool|string
     {
-        if (empty($conf['type']) || $conf['type'] !== 'inline' || empty($conf['foreign_table'])) {
+        if (
+            empty($conf['foreign_table'])
+            || !in_array($conf['type'] ?? '', ['inline', 'file'], true)
+            || ($conf['type'] === 'file' && !($conf['foreign_field'] ?? false))
+        ) {
             return false;
         }
         if ($conf['foreign_field'] ?? false) {
@@ -8682,8 +8796,8 @@ class DataHandler implements LoggerAwareInterface
                 ->count('uid')
                 ->from($table)
                 ->where(
-                    $queryBuilder->expr()->eq('pid', $queryBuilder->createNamedParameter($pid, \PDO::PARAM_INT)),
-                    $queryBuilder->expr()->eq($field, $queryBuilder->createNamedParameter($checkTitle, \PDO::PARAM_STR))
+                    $queryBuilder->expr()->eq('pid', $queryBuilder->createNamedParameter($pid, Connection::PARAM_INT)),
+                    $queryBuilder->expr()->eq($field, $queryBuilder->createNamedParameter($checkTitle))
                 )
                 ->executeQuery()
                 ->fetchOne();
@@ -8725,7 +8839,7 @@ class DataHandler implements LoggerAwareInterface
             $row = $query
                 ->select('pid')
                 ->from($table)
-                ->where($query->expr()->eq('uid', $query->createNamedParameter(abs($pid), \PDO::PARAM_INT)))
+                ->where($query->expr()->eq('uid', $query->createNamedParameter(abs($pid), Connection::PARAM_INT)))
                 ->executeQuery()
                 ->fetchAssociative();
             $pid = (int)$row['pid'];
@@ -8907,7 +9021,7 @@ class DataHandler implements LoggerAwareInterface
                 ->count('uid')
                 ->from($table)
                 ->where(
-                    $queryBuilder->expr()->eq('uid', $queryBuilder->createNamedParameter($uid, \PDO::PARAM_INT)),
+                    $queryBuilder->expr()->eq('uid', $queryBuilder->createNamedParameter($uid, Connection::PARAM_INT)),
                     $queryBuilder->expr()->eq('t3ver_oid', 0)
                 )
                 ->executeQuery()
@@ -8935,9 +9049,9 @@ class DataHandler implements LoggerAwareInterface
                     ->from('pages', 'A')
                     ->from('pages', 'B')
                     ->where(
-                        $queryBuilder->expr()->eq('A.uid', $queryBuilder->createNamedParameter($pageUid, \PDO::PARAM_INT)),
+                        $queryBuilder->expr()->eq('A.uid', $queryBuilder->createNamedParameter($pageUid, Connection::PARAM_INT)),
                         $queryBuilder->expr()->eq('B.pid', $queryBuilder->quoteIdentifier('A.pid')),
-                        $queryBuilder->expr()->gte('A.pid', $queryBuilder->createNamedParameter(0, \PDO::PARAM_INT))
+                        $queryBuilder->expr()->gte('A.pid', $queryBuilder->createNamedParameter(0, Connection::PARAM_INT))
                     )
                     ->executeQuery();
 
@@ -8956,7 +9070,7 @@ class DataHandler implements LoggerAwareInterface
                             ->from('pages')
                             ->where($siblingChildrenQuery->expr()->eq(
                                 'pid',
-                                $siblingChildrenQuery->createNamedParameter($row_tmp['uid'], \PDO::PARAM_INT)
+                                $siblingChildrenQuery->createNamedParameter($row_tmp['uid'], Connection::PARAM_INT)
                             ))
                             ->executeQuery();
                         while ($row_tmp2 = $siblingChildren->fetchAssociative()) {
@@ -8979,7 +9093,7 @@ class DataHandler implements LoggerAwareInterface
                         ->from('pages')
                         ->where($parentQuery->expr()->eq(
                             'uid',
-                            $parentQuery->createNamedParameter($parentPageId, \PDO::PARAM_INT)
+                            $parentQuery->createNamedParameter($parentPageId, Connection::PARAM_INT)
                         ))
                         ->executeQuery()
                         ->fetchAssociative();
@@ -9001,7 +9115,7 @@ class DataHandler implements LoggerAwareInterface
                         ->from('pages')
                         ->where($parentQuery->expr()->eq(
                             'uid',
-                            $parentQuery->createNamedParameter($pageUid, \PDO::PARAM_INT)
+                            $parentQuery->createNamedParameter($pageUid, Connection::PARAM_INT)
                         ))
                         ->executeQuery()
                         ->fetchAssociative();
@@ -9065,7 +9179,7 @@ class DataHandler implements LoggerAwareInterface
      * Clears cache for the page pointed to by $cacheCmd (an integer).
      *
      * $cacheCmd='cacheTag:[string]'
-     * Flush page and pagesection cache by given tag
+     * Flush page cache by given tag
      *
      * $cacheCmd='cacheId:[string]'
      * Removes cache identifier from page and page section cache
@@ -9185,10 +9299,13 @@ class DataHandler implements LoggerAwareInterface
     }
 
     /**
-     * Print log error messages from the operations of this script instance
+     * Print log error messages from the operations of this script instance and return a list of the erroneous records
+     *
      * @internal should only be used from within TYPO3 Core
+     *
+     * @return non-empty-string[]
      */
-    public function printLogErrorMessages()
+    public function printLogErrorMessages(): array
     {
         $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable('sys_log');
         $queryBuilder->getRestrictions()->removeAll();
@@ -9196,29 +9313,32 @@ class DataHandler implements LoggerAwareInterface
             ->select('*')
             ->from('sys_log')
             ->where(
-                $queryBuilder->expr()->eq('type', $queryBuilder->createNamedParameter(SystemLogType::DB, \PDO::PARAM_INT)),
+                $queryBuilder->expr()->eq('type', $queryBuilder->createNamedParameter(SystemLogType::DB, Connection::PARAM_INT)),
                 $queryBuilder->expr()->eq(
                     'userid',
-                    $queryBuilder->createNamedParameter($this->BE_USER->user['uid'], \PDO::PARAM_INT)
+                    $queryBuilder->createNamedParameter($this->BE_USER->user['uid'], Connection::PARAM_INT)
                 ),
                 $queryBuilder->expr()->eq(
                     'tstamp',
-                    $queryBuilder->createNamedParameter($GLOBALS['EXEC_TIME'], \PDO::PARAM_INT)
+                    $queryBuilder->createNamedParameter($GLOBALS['EXEC_TIME'], Connection::PARAM_INT)
                 ),
-                $queryBuilder->expr()->neq('error', $queryBuilder->createNamedParameter(SystemLogErrorClassification::MESSAGE, \PDO::PARAM_INT))
+                $queryBuilder->expr()->neq('error', $queryBuilder->createNamedParameter(SystemLogErrorClassification::MESSAGE, Connection::PARAM_INT))
             )
             ->executeQuery();
 
+        $affectedRecords = [];
         while ($row = $result->fetchAssociative()) {
+            $affectedRecords[] = $row['tablename'] . '.' . $row['recuid'];
+
             $msg = $this->formatLogDetails($row['details'], $row['log_data'] ?? '');
             $msg = $row['error'] . ': ' . $msg;
-            /** @var FlashMessage $flashMessage */
-            $flashMessage = GeneralUtility::makeInstance(FlashMessage::class, $msg, '', $row['error'] === SystemLogErrorClassification::WARNING ? FlashMessage::WARNING : FlashMessage::ERROR, true);
-            /** @var FlashMessageService $flashMessageService */
+            $flashMessage = GeneralUtility::makeInstance(FlashMessage::class, $msg, '', $row['error'] === SystemLogErrorClassification::WARNING ? ContextualFeedbackSeverity::WARNING : ContextualFeedbackSeverity::ERROR, true);
             $flashMessageService = GeneralUtility::makeInstance(FlashMessageService::class);
             $defaultFlashMessageQueue = $flashMessageService->getMessageQueueByIdentifier();
             $defaultFlashMessageQueue->enqueue($flashMessage);
         }
+
+        return $affectedRecords;
     }
 
     /*****************************
@@ -9261,7 +9381,7 @@ class DataHandler implements LoggerAwareInterface
         foreach ($fieldArray as $field => $value) {
             if (!MathUtility::canBeInterpretedAsInteger($value)
                 && isset($GLOBALS['TCA'][$table]['columns'][$field]['config']['type'])
-                && $GLOBALS['TCA'][$table]['columns'][$field]['config']['type'] === 'inline'
+                && in_array($GLOBALS['TCA'][$table]['columns'][$field]['config']['type'], ['inline', 'file'], true)
                 && ($GLOBALS['TCA'][$table]['columns'][$field]['config']['foreign_field'] ?? false)
             ) {
                 $result[$field] = count(GeneralUtility::trimExplode(',', $value, true));
@@ -9351,7 +9471,6 @@ class DataHandler implements LoggerAwareInterface
         $sortingStatement = !empty($sortingField)
             ? [$connection->quoteIdentifier($sortingField)]
             : null;
-        /** @var PlainDataResolver $resolver */
         $resolver = GeneralUtility::makeInstance(
             PlainDataResolver::class,
             $tableName,

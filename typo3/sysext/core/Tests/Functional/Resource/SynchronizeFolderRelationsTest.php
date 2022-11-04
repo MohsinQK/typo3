@@ -36,7 +36,8 @@ class SynchronizeFolderRelationsTest extends FunctionalTestCase
     {
         parent::setUp();
 
-        $this->setUpBackendUserFromFixture(1);
+        $this->importCSVDataSet(__DIR__ . '/../Fixtures/be_users.csv');
+        $this->setUpBackendUser(1);
         Bootstrap::initializeLanguageObject();
 
         $this->subject = new SynchronizeFolderRelations(
@@ -66,7 +67,7 @@ class SynchronizeFolderRelationsTest extends FunctionalTestCase
 
         // Check flash message content
         $flashMessage = array_shift($flashMessages);
-        self::assertStringContainsString('5 Filemount records', $flashMessage->getMessage());
+        self::assertStringContainsString('6 Filemount records', $flashMessage->getMessage());
     }
 
     /**

@@ -22,6 +22,7 @@ use TYPO3\CMS\Core\Http\ApplicationType;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Extbase\Configuration\ConfigurationManagerInterface;
 use TYPO3\CMS\Extbase\Reflection\ObjectAccess;
+use TYPO3\CMS\Fluid\Core\Rendering\RenderingContext;
 use TYPO3\CMS\Frontend\ContentObject\ContentObjectRenderer;
 use TYPO3\CMS\Frontend\Controller\TypoScriptFrontendController;
 use TYPO3Fluid\Fluid\Core\Rendering\RenderingContextInterface;
@@ -111,7 +112,7 @@ use TYPO3Fluid\Fluid\Core\ViewHelper\Traits\CompileWithRenderStatic;
  *
  *    TYPO3 is a cool <strong>CMS</strong> (<a href="https://www.typo3.org" target="_blank">TYPO3</a>).
  *
- * .. _parseFunc: https://docs.typo3.org/m/typo3/reference-typoscript/master/en-us/Functions/Parsefunc.html
+ * .. _parseFunc: https://docs.typo3.org/m/typo3/reference-typoscript/main/en-us/Functions/Parsefunc.html
  */
 final class HtmlViewHelper extends AbstractViewHelper
 {
@@ -148,6 +149,7 @@ final class HtmlViewHelper extends AbstractViewHelper
         $currentValueKey = $arguments['currentValueKey'];
         $table = $arguments['table'];
 
+        /** @var RenderingContext $renderingContext */
         $request = $renderingContext->getRequest();
         $isBackendRequest = $request instanceof ServerRequestInterface
             && $request->getAttribute('applicationType')
@@ -166,7 +168,7 @@ final class HtmlViewHelper extends AbstractViewHelper
         }
 
         $contentObject = GeneralUtility::makeInstance(ContentObjectRenderer::class);
-        $contentObject->start($data, $table);
+        $contentObject->start($data, $table, $request);
 
         if ($current !== null) {
             $contentObject->setCurrentVal($current);
@@ -191,6 +193,10 @@ final class HtmlViewHelper extends AbstractViewHelper
      */
     protected static function simulateFrontendEnvironment(): ?TypoScriptFrontendController
     {
+        // @todo: We may want to deprecate this entirely and throw an exception in v13 when this VH is used in BE scope:
+        //        Core has no BE related usages to this anymore and in general it shouldn't be needed in BE scope at all.
+        //        If BE really relies on content being processed via FE parseFunc, a controller should do this and assign
+        //        the processed value directly, which could then be rendered using f:format.raw.
         $tsfeBackup = $GLOBALS['TSFE'] ?? null;
         $GLOBALS['TSFE'] = new \stdClass();
         $GLOBALS['TSFE']->tmpl = new \stdClass();

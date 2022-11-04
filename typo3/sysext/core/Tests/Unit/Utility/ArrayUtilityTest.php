@@ -23,7 +23,6 @@ use TYPO3\CMS\Core\Utility\Exception\MissingArrayPathException;
 use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
- * Test case
  * @todo When further defining the method parameter types test bench errors occur
  */
 class ArrayUtilityTest extends UnitTestCase
@@ -1267,6 +1266,24 @@ class ArrayUtilityTest extends UnitTestCase
                 ],
                 [
                     'first.firstSub' => 1,
+                    'second.secondSub' => 2,
+                ],
+            ],
+            'nested array of 2 levels and values on first level' => [
+                [
+                    'first' => 'first',
+                    'first.' => [
+                        'firstSub' => 1,
+                    ],
+                    'second' => 'second',
+                    'second.' => [
+                        'secondSub' => 2,
+                    ],
+                ],
+                [
+                    'first' => 'first',
+                    'first.firstSub' => 1,
+                    'second' => 'second',
                     'second.secondSub' => 2,
                 ],
             ],
@@ -3154,7 +3171,7 @@ class ArrayUtilityTest extends UnitTestCase
             'integer' => 1,
             'float' => 1.9,
             'object' => $testObject,
-            'objectWithStringConversion' => new class() {
+            'objectWithStringConversion' => new class () {
                 /**
                  * @return string
                  */

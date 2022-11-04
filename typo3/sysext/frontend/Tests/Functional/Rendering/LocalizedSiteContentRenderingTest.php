@@ -100,9 +100,9 @@ class LocalizedSiteContentRenderingTest extends AbstractDataHandlerActionTestCas
 {
     use SiteBasedTestTrait;
 
-    const VALUE_PageId = 89;
-    const TABLE_Content = 'tt_content';
-    const TABLE_Pages = 'pages';
+    public const VALUE_PageId = 89;
+    public const TABLE_Content = 'tt_content';
+    public const TABLE_Pages = 'pages';
 
     protected array $coreExtensionsToLoad = ['workspaces'];
 
@@ -124,7 +124,7 @@ class LocalizedSiteContentRenderingTest extends AbstractDataHandlerActionTestCas
     {
         parent::setUp();
 
-        $this->importDataSet('PACKAGE:typo3/testing-framework/Resources/Core/Functional/Fixtures/sys_file_storage.xml');
+        $this->importCSVDataSet(__DIR__ . '/../Fixtures/sys_file_storage.csv');
         $this->importCSVDataSet(__DIR__ . '/DataSet/LiveDefaultPages.csv');
         $this->importCSVDataSet(__DIR__ . '/DataSet/LiveDefaultElements.csv');
 
@@ -699,7 +699,6 @@ class LocalizedSiteContentRenderingTest extends AbstractDataHandlerActionTestCas
 
     public function contentOnPartiallyTranslatedPageDataProvider(): array
     {
-
         //Expected behaviour:
         //Setting sys_language_mode to different values doesn't influence the result as the requested page is translated to Polish,
         //Page title is always [PL]Page, and both languageId/contentId are always 3

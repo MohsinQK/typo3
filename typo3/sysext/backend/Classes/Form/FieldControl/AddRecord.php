@@ -89,7 +89,6 @@ class AddRecord extends AbstractNode
 
         $id = StringUtility::getUniqueId('t3js-formengine-fieldcontrol-');
 
-        /** @var \TYPO3\CMS\Backend\Routing\UriBuilder $uriBuilder */
         $uriBuilder = GeneralUtility::makeInstance(UriBuilder::class);
         return [
             'iconIdentifier' => 'actions-add',
@@ -98,7 +97,7 @@ class AddRecord extends AbstractNode
                 'id' => htmlspecialchars($id),
                 'href' => (string)$uriBuilder->buildUriFromRoute('wizard_add', $urlParameters),
             ],
-            'requireJsModules' => [
+            'javaScriptModules' => [
                 JavaScriptModuleInstruction::create('@typo3/backend/form-engine/field-control/add-record.js')->instance('#' . $id),
             ],
         ];

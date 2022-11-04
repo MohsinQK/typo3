@@ -44,9 +44,6 @@ use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Core\Utility\StringUtility;
 use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
-/**
- * Test case
- */
 class TcaSelectItemsTest extends UnitTestCase
 {
     use ProphecyTrait;
@@ -329,7 +326,7 @@ class TcaSelectItemsTest extends UnitTestCase
                 'an-icon-reference',
                 'example-group',
                 null,
-            ],            [
+            ], [
                 'non-existing-group',
                 '--div--',
                 null,

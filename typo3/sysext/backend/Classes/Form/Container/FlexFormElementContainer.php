@@ -45,7 +45,7 @@ class FlexFormElementContainer extends AbstractContainer
 
         $languageService = $this->getLanguageService();
         $resultArray = $this->initializeResultArray();
-        $showFieldName = $GLOBALS['TYPO3_CONF_VARS']['BE']['debug'] && $this->getBackendUserAuthentication()->isAdmin();
+        $showFieldName = $this->getBackendUserAuthentication()->shallDisplayDebugInformation();
 
         foreach ($flexFormDataStructureArray as $flexFormFieldName => $flexFormFieldArray) {
             if (
@@ -78,7 +78,7 @@ class FlexFormElementContainer extends AbstractContainer
                         'label' => $languageService->sL(trim($flexFormFieldArray['label'] ?? '')),
                         'config' => $flexFormFieldArray['config'] ?? [],
                         'children' => $flexFormFieldArray['children'] ?? [],
-                        // https://docs.typo3.org/m/typo3/reference-tca/master/en-us/Columns/Properties/OnChange.html
+                        // https://docs.typo3.org/m/typo3/reference-tca/main/en-us/Columns/Properties/OnChange.html
                         'onChange' => $flexFormFieldArray['onChange'] ?? '',
                     ],
                     'fieldChangeFunc' => $parameterArray['fieldChangeFunc'],
@@ -138,7 +138,7 @@ class FlexFormElementContainer extends AbstractContainer
                     $html[] =   '<div class="form-group t3js-formengine-palette-field t3js-formengine-validation-marker">';
                     $html[] =       '<label class="t3js-formengine-label">';
                     $html[] =           $processedTitle;
-                    $html[] =           $showFieldName ? ('<code>[' . htmlspecialchars($flexFormFieldName) . ']</code>') : '';
+                    $html[] =           $showFieldName ? (' <code>[' . htmlspecialchars($flexFormFieldName) . ']</code>') : '';
                     $html[] =       '</label>';
                     $html[] =       '<div class="formengine-field-item t3js-formengine-field-item">';
                     $html[] =           $childResult['html'];

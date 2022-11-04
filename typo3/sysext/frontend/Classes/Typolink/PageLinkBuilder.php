@@ -24,6 +24,7 @@ use TYPO3\CMS\Core\Cache\CacheManager;
 use TYPO3\CMS\Core\Context\Context;
 use TYPO3\CMS\Core\Context\LanguageAspect;
 use TYPO3\CMS\Core\Context\LanguageAspectFactory;
+use TYPO3\CMS\Core\Database\Connection;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Database\Query\Restriction\DeletedRestriction;
 use TYPO3\CMS\Core\Domain\Access\RecordAccessVoter;
@@ -33,13 +34,16 @@ use TYPO3\CMS\Core\Exception\SiteNotFoundException;
 use TYPO3\CMS\Core\Http\Uri;
 use TYPO3\CMS\Core\LinkHandling\LinkService;
 use TYPO3\CMS\Core\Routing\InvalidRouteArgumentsException;
+use TYPO3\CMS\Core\Routing\PageArguments;
 use TYPO3\CMS\Core\Routing\RouterInterface;
 use TYPO3\CMS\Core\Site\Entity\Site;
 use TYPO3\CMS\Core\Site\Entity\SiteInterface;
 use TYPO3\CMS\Core\Site\Entity\SiteLanguage;
 use TYPO3\CMS\Core\Site\SiteFinder;
 use TYPO3\CMS\Core\Type\Bitmask\PageTranslationVisibility;
+use TYPO3\CMS\Core\Utility\ArrayUtility;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\CMS\Core\Utility\HttpUtility;
 use TYPO3\CMS\Core\Utility\MathUtility;
 use TYPO3\CMS\Core\Utility\RootlineUtility;
 use TYPO3\CMS\Frontend\Controller\TypoScriptFrontendController;
@@ -71,7 +75,7 @@ class PageLinkBuilder extends AbstractTypolinkBuilder
         $page = $this->resolvePage($linkDetails, $conf, $disableGroupAccessCheck);
 
         if (empty($page)) {
-            throw new UnableToLinkException('Page id "' . $linkDetails['typoLinkParameter'] . '" was not found, so "' . $linkText . '" was not linked.', 1490987336, null, $linkText);
+            throw new UnableToLinkException('Page id "' . $linkDetails['pageuid'] . '" was not found, so "' . $linkText . '" was not linked.', 1490987336, null, $linkText);
         }
 
         $fragment = $this->calculateUrlFragment($conf, $linkDetails);
@@ -112,7 +116,7 @@ class PageLinkBuilder extends AbstractTypolinkBuilder
 
         // Now overlay the page in the target language, in order to have valid title attributes etc.
         if ($siteLanguageOfTargetPage->getLanguageId() > 0) {
-            $page = $pageRepository->getPageOverlay($page);
+            $page = $pageRepository->getLanguageOverlay('pages', $page);
             // Check if the translated page is a shortcut, but the default page wasn't a shortcut, so this is
             // resolved as well, see ScenarioDTest in functional tests.
             // Currently not supported: When this is the case (only a translated page is a shortcut),
@@ -126,14 +130,14 @@ class PageLinkBuilder extends AbstractTypolinkBuilder
         if (!$pageRepository->isPageSuitableForLanguage($page, $languageAspect)) {
             $pageTranslationVisibility = new PageTranslationVisibility((int)($page['l18n_cfg'] ?? 0));
             if ($siteLanguageOfTargetPage->getLanguageId() === 0 && $pageTranslationVisibility->shouldBeHiddenInDefaultLanguage()) {
-                throw new UnableToLinkException('Default language of page  "' . $linkDetails['typoLinkParameter'] . '" is hidden, so "' . $linkText . '" was not linked.', 1551621985, null, $linkText);
+                throw new UnableToLinkException('Default language of page  "' . ($linkDetails['typoLinkParameter'] ?? 'unknown') . '" is hidden, so "' . $linkText . '" was not linked.', 1551621985, null, $linkText);
             }
             // If the requested language is not the default language and the page has no overlay for this language
             // generating a link would cause a 404 error when using this like if one of those conditions apply:
             //  - The page is set to be hidden if it is not translated (evaluated in TSFE)
             //  - The site configuration has a "strict" fallback set (evaluated in the Router - very early)
             if ($siteLanguageOfTargetPage->getLanguageId() > 0 && !isset($page['_PAGES_OVERLAY']) && ($pageTranslationVisibility->shouldHideTranslationIfNoTranslatedRecordExists() || $siteLanguageOfTargetPage->getFallbackType() === 'strict')) {
-                throw new UnableToLinkException('Fallback to default language of page "' . $linkDetails['typoLinkParameter'] . '" is disabled, so "' . $linkText . '" was not linked.', 1551621996, null, $linkText);
+                throw new UnableToLinkException('Fallback to default language of page "' . ($linkDetails['typoLinkParameter'] ?? 'unknown') . '" is disabled, so "' . $linkText . '" was not linked.', 1551621996, null, $linkText);
             }
         }
 
@@ -219,7 +223,7 @@ class PageLinkBuilder extends AbstractTypolinkBuilder
         }
 
         $queryParameters = [];
-        $addQueryParams = ($conf['addQueryString'] ?? false) ? $this->contentObjectRenderer->getQueryArguments($conf['addQueryString.'] ?? []) : '';
+        $addQueryParams = ($conf['addQueryString'] ?? false) ? $this->getQueryArguments($conf['addQueryString'], $conf['addQueryString.'] ?? []) : '';
         $addQueryParams .= trim((string)$this->contentObjectRenderer->stdWrapValue('additionalParams', $conf));
         if ($addQueryParams === '&' || ($addQueryParams[0] ?? '') !== '&') {
             $addQueryParams = '';
@@ -302,13 +306,12 @@ class PageLinkBuilder extends AbstractTypolinkBuilder
      */
     protected function calculateTargetAttribute(array $page, array $conf, bool $treatAsExternalLink, string $target): string
     {
-        $tsfe = $this->getTypoScriptFrontendController();
         if ($treatAsExternalLink) {
-            $target = $target ?: $this->resolveTargetAttribute($conf, 'extTarget', false, $tsfe->extTarget);
+            $target = $target ?: $this->resolveTargetAttribute($conf, 'extTarget');
         } else {
             $target = (isset($page['target']) && trim($page['target'])) ? $page['target'] : $target;
             if (empty($target)) {
-                $target = $this->resolveTargetAttribute($conf, 'target', true, $tsfe->intTarget);
+                $target = $this->resolveTargetAttribute($conf, 'target', true);
             }
         }
         return $target;
@@ -486,7 +489,7 @@ class PageLinkBuilder extends AbstractTypolinkBuilder
             && (empty($conf['addQueryString']) || !isset($conf['addQueryString.']))
             && !($tsfe->config['config']['baseURL'] ?? false)
             && count($queryParameters) === 1 // _language is always set
-            ) {
+        ) {
             $uri = (new Uri())->withFragment($fragment);
         } else {
             try {
@@ -536,12 +539,12 @@ class PageLinkBuilder extends AbstractTypolinkBuilder
         } catch (RootLineException $e) {
             $tCR_rootline = [];
         }
-        $inverseTmplRootline = array_reverse($tsfe->tmpl->rootLine);
+        $inverseLocalRootLine = array_reverse($tsfe->config['rootLine'] ?? []);
         $rl_mpArray = [];
         $startMPaccu = false;
         // Traverse root line of link uid and inside of that the REAL root line of current position.
         foreach ($tCR_rootline as $tCR_data) {
-            foreach ($inverseTmplRootline as $rlKey => $invTmplRLRec) {
+            foreach ($inverseLocalRootLine as $rlKey => $invTmplRLRec) {
                 // Force accumulating when in overlay mode: Links to this page have to stay within the current branch
                 if (($invTmplRLRec['_MOUNT_OL'] ?? false) && (int)$tCR_data['uid'] === (int)$invTmplRLRec['uid']) {
                     $startMPaccu = true;
@@ -553,7 +556,7 @@ class PageLinkBuilder extends AbstractTypolinkBuilder
                 // If two PIDs matches and this is NOT the site root, start accumulation of MP data (on the next level):
                 // (The check for site root is done so links to branches outside the site but sharing the site roots PID
                 // is NOT detected as within the branch!)
-                if ((int)$tCR_data['pid'] === (int)$invTmplRLRec['pid'] && count($inverseTmplRootline) !== $rlKey + 1) {
+                if ((int)$tCR_data['pid'] === (int)$invTmplRLRec['pid'] && count($inverseLocalRootLine) !== $rlKey + 1) {
                     $startMPaccu = true;
                 }
             }
@@ -620,7 +623,7 @@ class PageLinkBuilder extends AbstractTypolinkBuilder
         foreach ($rootPoints as $p) {
             $initMParray = [];
             if ($p === 'root') {
-                $rootPage = $this->getTypoScriptFrontendController()->tmpl->rootLine[0];
+                $rootPage = $this->getTypoScriptFrontendController()->config['rootLine'][0];
                 $p = $rootPage['uid'];
                 if (($rootPage['_MOUNT_OL'] ?? false) && ($rootPage['_MP_PARAM'] ?? false)) {
                     $initMParray[] = $rootPage['_MP_PARAM'];
@@ -677,15 +680,15 @@ class PageLinkBuilder extends AbstractTypolinkBuilder
                 ->where(
                     $queryBuilder->expr()->eq(
                         'pid',
-                        $queryBuilder->createNamedParameter($id, \PDO::PARAM_INT)
+                        $queryBuilder->createNamedParameter($id, Connection::PARAM_INT)
                     ),
                     $queryBuilder->expr()->neq(
                         'doktype',
-                        $queryBuilder->createNamedParameter(PageRepository::DOKTYPE_RECYCLER, \PDO::PARAM_INT)
+                        $queryBuilder->createNamedParameter(PageRepository::DOKTYPE_RECYCLER, Connection::PARAM_INT)
                     ),
                     $queryBuilder->expr()->neq(
                         'doktype',
-                        $queryBuilder->createNamedParameter(PageRepository::DOKTYPE_BE_USER_SECTION, \PDO::PARAM_INT)
+                        $queryBuilder->createNamedParameter(PageRepository::DOKTYPE_BE_USER_SECTION, Connection::PARAM_INT)
                     )
                 )->executeQuery();
             while ($row = $queryResult->fetchAssociative()) {
@@ -716,6 +719,42 @@ class PageLinkBuilder extends AbstractTypolinkBuilder
                 $this->populateMountPointMapForPageRecursively($mountPointMap, $pSet[0], $pSet[1], $level + 1);
             }
         }
+    }
+
+    /**
+     * Gets the query arguments and assembles them for URLs.
+     * By default, only the resolved query arguments from the route are used, using "untrusted" as $queryInformation
+     * allows to also include ANY query parameter - use with care.
+     *
+     * Arguments may be removed or set, depending on configuration.
+     *
+     * @param bool|string|int $queryInformation is set to "1", "true", "0", "false" or "untrusted"
+     * @param array $configuration Configuration
+     * @return string The URL query part (starting with a &) or empty
+     */
+    protected function getQueryArguments(bool|string|int $queryInformation, array $configuration): string
+    {
+        if (!$queryInformation || $queryInformation === 'false') {
+            return '';
+        }
+        $request = $this->contentObjectRenderer->getRequest();
+        $pageArguments = $request->getAttribute('routing');
+        if (!$pageArguments instanceof PageArguments) {
+            return '';
+        }
+        $currentQueryArray = $pageArguments->getRouteArguments();
+        if ($queryInformation === 'untrusted') {
+            $currentQueryArray = array_replace_recursive($pageArguments->getQueryArguments(), $currentQueryArray);
+        }
+        if ($configuration['exclude'] ?? false) {
+            $excludeString = str_replace(',', '&', $configuration['exclude']);
+            $excludedQueryParts = [];
+            parse_str($excludeString, $excludedQueryParts);
+            $newQueryArray = ArrayUtility::arrayDiffKeyRecursive($currentQueryArray, $excludedQueryParts);
+        } else {
+            $newQueryArray = $currentQueryArray;
+        }
+        return HttpUtility::buildQueryString($newQueryArray, '&');
     }
 
     /**

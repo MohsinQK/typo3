@@ -156,6 +156,7 @@ class TcaRecordTitle implements FormDataProviderInterface
                 $recordTitle = $this->getRecordTitleForRadioType($rawValue, $fieldConfig);
                 break;
             case 'inline':
+            case 'file':
                 $recordTitle = $this->getRecordTitleForInlineType(
                     $rawValue,
                     $result['processedTca']['columns'][$fieldName]['children']
@@ -193,7 +194,6 @@ class TcaRecordTitle implements FormDataProviderInterface
             case 'flex':
                 // @todo: Check if and how a label could be generated from flex field data
             default:
-
         }
 
         return $recordTitle;

@@ -30,6 +30,7 @@ use TYPO3\CMS\Backend\Utility\BackendUtility;
 use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Database\Query\Restriction\DeletedRestriction;
+use TYPO3\CMS\Core\DataHandling\PageDoktypeRegistry;
 use TYPO3\CMS\Core\Domain\Repository\PageRepository;
 use TYPO3\CMS\Core\Http\RedirectResponse;
 use TYPO3\CMS\Core\Imaging\Icon;
@@ -194,7 +195,7 @@ class NewRecordController
         // Page-selection permission clause (reading)
         $this->perms_clause = $beUser->getPagePermsClause(Permission::PAGE_SHOW);
         // This will hide records from display - it has nothing to do with user rights!!
-        $pidList = $beUser->getTSConfig()['options.']['hideRecords.']['pages'] ?? '';
+        $pidList = (string)($beUser->getTSConfig()['options.']['hideRecords.']['pages'] ?? '');
         if (!empty($pidList)) {
             $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)
                 ->getQueryBuilderForTable('pages');
@@ -302,7 +303,7 @@ class NewRecordController
             if (isset($pagesTSconfig['TCEMAIN.']['preview.']['disableButtonForDokType'])) {
                 $excludeDokTypes = GeneralUtility::intExplode(
                     ',',
-                    $pagesTSconfig['TCEMAIN.']['preview.']['disableButtonForDokType'],
+                    (string)$pagesTSconfig['TCEMAIN.']['preview.']['disableButtonForDokType'],
                     true
                 );
             } else {
@@ -321,6 +322,7 @@ class NewRecordController
                     ->setHref('#')
                     ->setDataAttributes($previewDataAttributes ?? [])
                     ->setTitle($lang->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.showPage'))
+                    ->setShowLabelText(true)
                     ->setIcon($this->iconFactory->getIcon(
                         'actions-view-page',
                         Icon::SIZE_SMALL
@@ -413,7 +415,7 @@ class NewRecordController
                             'items' => $newPageLinks,
                         ];
                     }
-                break;
+                    break;
                 case 'tt_content':
                     if (!$this->newContentInto || !$this->isRecordCreationAllowedForTable($table) || !$this->isTableAllowedOnPage($table, $this->pageinfo)) {
                         break;
@@ -435,7 +437,7 @@ class NewRecordController
                     $groupName = $v['ctrl']['groupName'] ?? null;
                     $title = (string)($v['ctrl']['title'] ?? '');
                     if (!isset($iconFile[$groupName]) || $nameParts[0] === 'tx' || $nameParts[0] === 'tt') {
-                        $groupName = $nameParts[1] ?? null;
+                        $groupName = $groupName ?? $nameParts[1] ?? null;
                         // Try to extract extension name
                         if ($groupName) {
                             $_EXTKEY = '';
@@ -478,8 +480,8 @@ class NewRecordController
                             $groupName = 'system';
                         }
                     }
-                    $this->tRows[$groupName]['title'] = $groupTitles[$groupName] ?? $nameParts[1] ?? $title;
-                    $this->tRows[$groupName]['icon'] = $iconFile[$groupName] ?? $iconFile['system'] ?? '';
+                    $this->tRows[$groupName]['title'] = $this->tRows[$groupName]['title'] ?? $groupTitles[$groupName] ?? $nameParts[1] ?? $title;
+                    $this->tRows[$groupName]['icon'] = $this->tRows[$groupName]['icon'] ?? $iconFile[$groupName] ?? $iconFile['system'] ?? '';
                     $this->tRows[$groupName]['html'][$table] = $this->renderLink(htmlspecialchars($lang->sL($v['ctrl']['title'])), $table, $this->id);
             }
         }
@@ -574,9 +576,7 @@ class NewRecordController
      */
     protected function renderNewContentElementWizardLink(): string
     {
-        // If mod.newContentElementWizard.override is set, use that extension's wizard instead:
-        $moduleName = BackendUtility::getPagesTSconfig($this->id)['mod.']['newContentElementWizard.']['override'] ?? 'new_content_element_wizard';
-        $url = (string)$this->uriBuilder->buildUriFromRoute($moduleName, ['id' => $this->id, 'returnUrl' => $this->returnUrl]);
+        $url = (string)$this->uriBuilder->buildUriFromRoute('new_content_element_wizard', ['id' => $this->id, 'returnUrl' => $this->returnUrl]);
         $title = $this->getLanguageService()->getLL('newContentElement');
         return '
             <typo3-backend-new-content-element-wizard-button url="' . htmlspecialchars($url) . '" title="' . htmlspecialchars($title) . '">
@@ -605,10 +605,8 @@ class NewRecordController
             return false;
         }
         // Checking doktype
-        $doktype = (int)$page['doktype'];
-        $allowedTableList = $GLOBALS['PAGES_TYPES'][$doktype]['allowedTables'] ?? $GLOBALS['PAGES_TYPES']['default']['allowedTables'] ?? '';
-        // If all tables or the table is listed as an allowed type, return TRUE
-        return $rootLevelConstraintMatches && (str_contains($allowedTableList, '*') || GeneralUtility::inList($allowedTableList, $table));
+        $isAllowed = GeneralUtility::makeInstance(PageDoktypeRegistry::class)->isRecordTypeAllowedForDoktype($table, $page['doktype']);
+        return $rootLevelConstraintMatches && $isAllowed;
     }
 
     /**

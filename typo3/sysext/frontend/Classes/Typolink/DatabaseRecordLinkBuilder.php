@@ -31,7 +31,9 @@ class DatabaseRecordLinkBuilder extends AbstractTypolinkBuilder
         $tsfe = $this->getTypoScriptFrontendController();
         $pageTsConfig = $tsfe->getPagesTSconfig();
         $configurationKey = $linkDetails['identifier'] . '.';
-        $configuration = $tsfe->tmpl->setup['config.']['recordLinks.'] ?? [];
+        $request = $this->contentObjectRenderer->getRequest();
+        $typoScriptArray = $request->getAttribute('frontend.typoscript')->getSetupArray();
+        $configuration = $typoScriptArray['config.']['recordLinks.'] ?? [];
         $linkHandlerConfiguration = $pageTsConfig['TCEMAIN.']['linkHandler.'] ?? [];
 
         if (!isset($configuration[$configurationKey], $linkHandlerConfiguration[$configurationKey])) {
@@ -53,11 +55,10 @@ class DatabaseRecordLinkBuilder extends AbstractTypolinkBuilder
             $languageAspect = $tsfe->getContext()->getAspect('language');
 
             if ($languageAspect->doOverlays()) {
-                $overlay = $tsfe->sys_page->getRecordOverlay(
+                $overlay = $tsfe->sys_page->getLanguageOverlay(
                     $databaseTable,
                     $record,
-                    $languageAspect->getContentId(),
-                    $languageAspect->getLegacyOverlayType()
+                    $languageAspect
                 );
 
                 if (empty($overlay['_LOCALIZED_UID'])) {

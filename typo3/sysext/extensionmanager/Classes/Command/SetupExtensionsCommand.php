@@ -66,7 +66,17 @@ class SetupExtensionsCommand extends Command
     {
         $this
             ->setDescription('Set up extensions')
-            ->setHelp('The given extension keys must be recognized by TYPO3, or will be ignored otherwise')
+            ->setHelp(
+                <<<'EOD'
+Setup all extensions or the given extension by extension key. This must
+be performed after new extensions are required via Composer.
+
+The command performs all necessary setup operations, such as database
+schema changes, static data import, distribution files import etc.
+
+The given extension keys must be recognized by TYPO3 or will be ignored.
+EOD
+            )
             ->addOption(
                 'extension',
                 '-e',
@@ -78,7 +88,7 @@ class SetupExtensionsCommand extends Command
     /**
      * Sets up one or all extensions
      */
-    protected function execute(InputInterface $input, OutputInterface $output)
+    protected function execute(InputInterface $input, OutputInterface $output): int
     {
         Bootstrap::initializeBackendAuthentication();
         $this->eventDispatcher->dispatch(new PackagesMayHaveChangedEvent());
@@ -100,10 +110,10 @@ class SetupExtensionsCommand extends Command
         }
         if (empty($extensionKeysToSetUp)) {
             $io->error('Given extensions "' . implode(', ', $extensionKeys) . '" not found in the system.');
-            return 1;
+            return Command::FAILURE;
         }
         $io->success('Extension(s) "' . implode(', ', $extensionKeysToSetUp) . '" successfully set up.');
 
-        return 0;
+        return Command::SUCCESS;
     }
 }

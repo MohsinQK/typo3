@@ -314,7 +314,7 @@ abstract class AbstractFormElement extends AbstractNode
 
     /**
      * Handle custom javascript `eval` implementations. $evalObject is a hook object
-     * for custom eval's. It is transferred to JS as a requireJsModule if possible.
+     * for custom eval's. It is transferred to JS as a JavaScriptModuleInstruction if possible.
      * This is used by a couple of renderType's like various type="input", should
      * be used with care and is internal for now.
      *
@@ -334,13 +334,16 @@ abstract class AbstractFormElement extends AbstractNode
         if ($javaScriptEvaluation instanceof JavaScriptModuleInstruction) {
             if ($javaScriptEvaluation->shallLoadRequireJs()) {
                 // just use the module name and export-name
-                $resultArray['requireJsModules'][] = JavaScriptModuleInstruction::forRequireJS(
+                // @deprecated will be removed in TYPO3 v13.0
+                $resultArray['javaScriptModules'][] = JavaScriptModuleInstruction::forRequireJS(
                     $javaScriptEvaluation->getName(),
-                    $javaScriptEvaluation->getExportName()
+                    $javaScriptEvaluation->getExportName(),
+                    // silence deprecation error, has already been triggered by the original JavaScriptModuleInstruction instance
+                    true
                 )->invoke('registerCustomEvaluation', $name);
             } else {
                 // just use the module name and export-name
-                $resultArray['requireJsModules'][] = JavaScriptModuleInstruction::create(
+                $resultArray['javaScriptModules'][] = JavaScriptModuleInstruction::create(
                     $javaScriptEvaluation->getName(),
                     $javaScriptEvaluation->getExportName()
                 )->invoke('registerCustomEvaluation', $name);
@@ -445,7 +448,7 @@ abstract class AbstractFormElement extends AbstractNode
      */
     protected function appendValueToLabelInDebugMode($label, $value): string
     {
-        if ($value !== '' && $GLOBALS['TYPO3_CONF_VARS']['BE']['debug'] && $this->getBackendUser()->isAdmin()) {
+        if ($value !== '' && $this->getBackendUser()->shallDisplayDebugInformation()) {
             return $label . ' [' . $value . ']';
         }
 

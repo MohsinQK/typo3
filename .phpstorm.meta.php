@@ -8,12 +8,8 @@
  */
 
 namespace PHPSTORM_META {
-    // Tests
-    override(\TYPO3\TestingFramework\Core\BaseTestCase::getAccessibleMock(0), type(0));
-    override(\TYPO3\TestingFramework\Core\BaseTestCase::getAccessibleMockForAbstractClass(0), type(0));
-
     // Contexts
-    // @see https://docs.typo3.org/c/typo3/cms-core/master/en-us/Changelog/9.4/Feature-85389-ContextAPIForConsistentDataHandling.html
+    // @see https://docs.typo3.org/c/typo3/cms-core/main/en-us/Changelog/9.4/Feature-85389-ContextAPIForConsistentDataHandling.html
     expectedArguments(
         \TYPO3\CMS\Core\Context\Context::getAspect(),
         0,
@@ -100,7 +96,9 @@ namespace PHPSTORM_META {
         'language',
         'routing',
         'module',
-        'moduleData'
+        'moduleData',
+        'frontend.controller',
+        'frontend.typoscript',
     );
 
     override(\Psr\Http\Message\ServerRequestInterface::getAttribute(), map([
@@ -112,6 +110,8 @@ namespace PHPSTORM_META {
         'routing' => '\TYPO3\CMS\Core\Routing\SiteRouteResult|\TYPO3\CMS\Core\Routing\PageArguments',
         'module' => \TYPO3\CMS\Backend\Module\ModuleInterface::class,
         'moduleData' => \TYPO3\CMS\Backend\Module\ModuleData::class,
+        'frontend.controller' => \TYPO3\CMS\Frontend\Controller\TypoScriptFrontendController::class,
+        'frontend.typoscript' => \TYPO3\CMS\Core\TypoScript\FrontendTypoScript::class,
     ]));
 
     expectedArguments(

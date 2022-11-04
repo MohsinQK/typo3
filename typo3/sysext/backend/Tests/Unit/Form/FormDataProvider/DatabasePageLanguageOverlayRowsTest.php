@@ -21,9 +21,6 @@ use PHPUnit\Framework\MockObject\MockObject;
 use TYPO3\CMS\Backend\Form\FormDataProvider\DatabasePageLanguageOverlayRows;
 use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
-/**
- * Test case
- */
 class DatabasePageLanguageOverlayRowsTest extends UnitTestCase
 {
     /**
@@ -33,6 +30,7 @@ class DatabasePageLanguageOverlayRowsTest extends UnitTestCase
 
     protected function setUp(): void
     {
+        parent::setUp();
         $this->subject = $this->getMockBuilder(DatabasePageLanguageOverlayRows::class)
             ->onlyMethods(['getDatabaseRows'])
             ->getMock();

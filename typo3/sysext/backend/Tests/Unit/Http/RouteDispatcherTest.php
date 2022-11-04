@@ -32,16 +32,12 @@ use TYPO3\CMS\Core\FormProtection\FormProtectionFactory;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
-/**
- * Test case
- */
 class RouteDispatcherTest extends UnitTestCase
 {
     use ProphecyTrait;
 
     public function tearDown(): void
     {
-        FormProtectionFactory::purgeInstances();
         GeneralUtility::purgeInstances();
         parent::tearDown();
     }
@@ -53,7 +49,8 @@ class RouteDispatcherTest extends UnitTestCase
     {
         $formProtectionProphecy = $this->prophesize(AbstractFormProtection::class);
         $formProtectionProphecy->validateToken(Argument::cetera())->willReturn(true);
-        FormProtectionFactory::set('default', $formProtectionProphecy->reveal());
+        $formProtectionFactory = $this->createMock(FormProtectionFactory::class);
+        $formProtectionFactory->method('createFromRequest')->willReturn($formProtectionProphecy->reveal());
 
         $requestProphecy = $this->prophesize(ServerRequestInterface::class);
         $route = new Route('not important', ['access' => 'public', 'referrer' => false, 'target' => 42]);
@@ -64,7 +61,7 @@ class RouteDispatcherTest extends UnitTestCase
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionCode(1425381442);
 
-        $subject = new RouteDispatcher($containerProphecy->reveal());
+        $subject = new RouteDispatcher($formProtectionFactory, $containerProphecy->reveal());
         $subject->dispatch($requestProphecy->reveal());
     }
 
@@ -75,7 +72,9 @@ class RouteDispatcherTest extends UnitTestCase
     {
         $formProtectionProphecy = $this->prophesize(AbstractFormProtection::class);
         $formProtectionProphecy->validateToken(Argument::cetera())->willReturn(true);
-        FormProtectionFactory::set('default', $formProtectionProphecy->reveal());
+        $formProtectionFactory = $this->createMock(FormProtectionFactory::class);
+        $formProtectionFactory->method('createFromRequest')->willReturn($formProtectionProphecy->reveal());
+
         $target = [
             new RouteDispatcherClassFixture(),
             'mainAction',
@@ -89,7 +88,7 @@ class RouteDispatcherTest extends UnitTestCase
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionCode(1520756142);
 
-        $subject = new RouteDispatcher($containerProphecy->reveal());
+        $subject = new RouteDispatcher($formProtectionFactory, $containerProphecy->reveal());
         $subject->dispatch($requestProphecy->reveal());
     }
 
@@ -100,7 +99,8 @@ class RouteDispatcherTest extends UnitTestCase
     {
         $formProtectionProphecy = $this->prophesize(AbstractFormProtection::class);
         $formProtectionProphecy->validateToken(Argument::cetera())->willReturn(true);
-        FormProtectionFactory::set('default', $formProtectionProphecy->reveal());
+        $formProtectionFactory = $this->createMock(FormProtectionFactory::class);
+        $formProtectionFactory->method('createFromRequest')->willReturn($formProtectionProphecy->reveal());
 
         $target = static function (ServerRequestInterface $request) {
             throw new \RuntimeException('I have been called. Good!', 1520756466);
@@ -114,7 +114,7 @@ class RouteDispatcherTest extends UnitTestCase
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionCode(1520756466);
 
-        $subject = new RouteDispatcher($containerProphecy->reveal());
+        $subject = new RouteDispatcher($formProtectionFactory, $containerProphecy->reveal());
         $subject->dispatch($requestProphecy->reveal());
     }
 
@@ -125,7 +125,9 @@ class RouteDispatcherTest extends UnitTestCase
     {
         $formProtectionProphecy = $this->prophesize(AbstractFormProtection::class);
         $formProtectionProphecy->validateToken(Argument::cetera())->willReturn(true);
-        FormProtectionFactory::set('default', $formProtectionProphecy->reveal());
+        $formProtectionFactory = $this->createMock(FormProtectionFactory::class);
+        $formProtectionFactory->method('createFromRequest')->willReturn($formProtectionProphecy->reveal());
+
         $target = RouteDispatcherClassInvokeFixture::class;
         $route = new Route('not important', ['access' => 'public', 'target' => $target]);
 
@@ -137,7 +139,7 @@ class RouteDispatcherTest extends UnitTestCase
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionCode(1520756623);
 
-        $subject = new RouteDispatcher($containerProphecy->reveal());
+        $subject = new RouteDispatcher($formProtectionFactory, $containerProphecy->reveal());
         $subject->dispatch($requestProphecy->reveal());
     }
 
@@ -148,7 +150,8 @@ class RouteDispatcherTest extends UnitTestCase
     {
         $formProtectionProphecy = $this->prophesize(AbstractFormProtection::class);
         $formProtectionProphecy->validateToken(Argument::cetera())->willReturn(true);
-        FormProtectionFactory::set('default', $formProtectionProphecy->reveal());
+        $formProtectionFactory = $this->createMock(FormProtectionFactory::class);
+        $formProtectionFactory->method('createFromRequest')->willReturn($formProtectionProphecy->reveal());
 
         $target = 'routedispatcher.classinvokefixture';
         $route = new Route('not important', ['access' => 'public', 'target' => $target]);
@@ -161,7 +164,7 @@ class RouteDispatcherTest extends UnitTestCase
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionCode(1520756623);
 
-        $subject = new RouteDispatcher($containerProphecy->reveal());
+        $subject = new RouteDispatcher($formProtectionFactory, $containerProphecy->reveal());
         $subject->dispatch($requestProphecy->reveal());
     }
 
@@ -172,7 +175,8 @@ class RouteDispatcherTest extends UnitTestCase
     {
         $formProtectionProphecy = $this->prophesize(AbstractFormProtection::class);
         $formProtectionProphecy->validateToken(Argument::cetera())->willReturn(true);
-        FormProtectionFactory::set('default', $formProtectionProphecy->reveal());
+        $formProtectionFactory = $this->createMock(FormProtectionFactory::class);
+        $formProtectionFactory->method('createFromRequest')->willReturn($formProtectionProphecy->reveal());
 
         $containerProphecy = $this->prophesize(ContainerInterface::class);
         $containerProphecy->has(Argument::any())->willReturn(false);
@@ -185,7 +189,7 @@ class RouteDispatcherTest extends UnitTestCase
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionCode(1442431631);
 
-        $subject = new RouteDispatcher($containerProphecy->reveal());
+        $subject = new RouteDispatcher($formProtectionFactory, $containerProphecy->reveal());
         $subject->dispatch($requestProphecy->reveal());
     }
 
@@ -196,7 +200,8 @@ class RouteDispatcherTest extends UnitTestCase
     {
         $formProtectionProphecy = $this->prophesize(AbstractFormProtection::class);
         $formProtectionProphecy->validateToken(Argument::cetera())->willReturn(true);
-        FormProtectionFactory::set('default', $formProtectionProphecy->reveal());
+        $formProtectionFactory = $this->createMock(FormProtectionFactory::class);
+        $formProtectionFactory->method('createFromRequest')->willReturn($formProtectionProphecy->reveal());
 
         $target = RouteDispatcherClassFixture::class . '::mainAction';
         $route = new Route('not important', ['access' => 'public', 'target' => $target]);
@@ -208,7 +213,7 @@ class RouteDispatcherTest extends UnitTestCase
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionCode(1520756142);
 
-        $subject = new RouteDispatcher($containerProphecy->reveal());
+        $subject = new RouteDispatcher($formProtectionFactory, $containerProphecy->reveal());
         $subject->dispatch($requestProphecy->reveal());
     }
 
@@ -219,7 +224,8 @@ class RouteDispatcherTest extends UnitTestCase
     {
         $formProtectionProphecy = $this->prophesize(AbstractFormProtection::class);
         $formProtectionProphecy->validateToken(Argument::cetera())->willReturn(true);
-        FormProtectionFactory::set('default', $formProtectionProphecy->reveal());
+        $formProtectionFactory = $this->createMock(FormProtectionFactory::class);
+        $formProtectionFactory->method('createFromRequest')->willReturn($formProtectionProphecy->reveal());
 
         $target = RouteDispatcherStaticClassFixture::class . '::mainAction';
         $route = new Route('not important', ['access' => 'public', 'target' => $target]);
@@ -231,7 +237,7 @@ class RouteDispatcherTest extends UnitTestCase
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionCode(1520757000);
 
-        $subject = new RouteDispatcher($containerProphecy->reveal());
+        $subject = new RouteDispatcher($formProtectionFactory, $containerProphecy->reveal());
         $subject->dispatch($requestProphecy->reveal());
     }
 }

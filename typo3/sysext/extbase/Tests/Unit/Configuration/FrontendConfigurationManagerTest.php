@@ -19,18 +19,20 @@ namespace TYPO3\CMS\Extbase\Tests\Unit\Configuration;
 
 use PHPUnit\Framework\MockObject\MockObject;
 use TYPO3\CMS\Core\Domain\Repository\PageRepository;
+use TYPO3\CMS\Core\Http\ServerRequest;
 use TYPO3\CMS\Core\Service\FlexFormService;
+use TYPO3\CMS\Core\TypoScript\AST\Node\RootNode;
+use TYPO3\CMS\Core\TypoScript\FrontendTypoScript;
 use TYPO3\CMS\Core\TypoScript\TypoScriptService;
 use TYPO3\CMS\Extbase\Configuration\FrontendConfigurationManager;
 use TYPO3\CMS\Frontend\ContentObject\ContentObjectRenderer;
 use TYPO3\TestingFramework\Core\AccessibleObjectInterface;
 use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
-/**
- * Test case
- */
 class FrontendConfigurationManagerTest extends UnitTestCase
 {
+    protected bool $resetSingletonInstances = true;
+
     /**
      * @var ContentObjectRenderer|MockObject
      */
@@ -46,14 +48,68 @@ class FrontendConfigurationManagerTest extends UnitTestCase
      */
     protected $mockTypoScriptService;
 
+    protected array $testTypoScriptSetup = [
+        'foo.' => [
+            'bar' => 'baz',
+        ],
+        'config.' => [
+            'tx_extbase.' => [
+                'settings.' => [
+                    'setting1' => 'value1',
+                    'setting2' => 'value2',
+                ],
+                'view.' => [
+                    'viewSub.' => [
+                        'key1' => 'value1',
+                        'key2' => 'value2',
+                    ],
+                ],
+            ],
+        ],
+    ];
+
+    protected array $testTypoScriptSetupConverted = [
+        'foo' => [
+            'bar' => 'baz',
+        ],
+        'config' => [
+            'tx_extbase' => [
+                'settings' => [
+                    'setting1' => 'value1',
+                    'setting2' => 'value2',
+                ],
+                'view' => [
+                    'viewSub' => [
+                        'key1' => 'value1',
+                        'key2' => 'value2',
+                    ],
+                ],
+            ],
+        ],
+    ];
+
+    protected array $testPluginConfiguration = [
+        'settings' => [
+            'setting1' => 'overriddenValue1',
+            'setting3' => 'additionalValue',
+        ],
+        'view' => [
+            'viewSub' => [
+                'key1' => 'overridden',
+                'key3' => 'new key',
+            ],
+        ],
+        'persistence' => [
+            'storagePid' => '123',
+        ],
+    ];
+
     /**
      * Sets up this testcase
      */
     protected function setUp(): void
     {
         parent::setUp();
-        $GLOBALS['TSFE'] = new \stdClass();
-        $GLOBALS['TSFE']->tmpl = new \stdClass();
         $this->mockContentObject = $this->getMockBuilder(ContentObjectRenderer::class)
             ->onlyMethods(['getTreeList'])
             ->getMock();
@@ -72,9 +128,388 @@ class FrontendConfigurationManagerTest extends UnitTestCase
     /**
      * @test
      */
-    public function getTypoScriptSetupReturnsSetupFromTsfe(): void
+    public function setConfigurationResetsConfigurationCache(): void
     {
-        $GLOBALS['TSFE']->tmpl->setup = ['foo' => 'bar'];
+        $this->frontendConfigurationManager->_set('configurationCache', ['foo' => 'bar']);
+        $this->frontendConfigurationManager->setConfiguration([]);
+        self::assertEquals([], $this->frontendConfigurationManager->_get('configurationCache'));
+    }
+
+    /**
+     * @test
+     */
+    public function setConfigurationSetsExtensionAndPluginName(): void
+    {
+        $configuration = [
+            'extensionName' => 'SomeExtensionName',
+            'pluginName' => 'SomePluginName',
+        ];
+        $this->frontendConfigurationManager->setConfiguration($configuration);
+        self::assertEquals('SomeExtensionName', $this->frontendConfigurationManager->_get('extensionName'));
+        self::assertEquals('SomePluginName', $this->frontendConfigurationManager->_get('pluginName'));
+    }
+
+    /**
+     * @test
+     */
+    public function setConfigurationConvertsTypoScriptArrayToPlainArray(): void
+    {
+        $configuration = [
+            'foo' => 'bar',
+            'settings.' => ['foo' => 'bar'],
+            'view.' => ['subkey.' => ['subsubkey' => 'subsubvalue']],
+        ];
+        $expectedResult = [
+            'foo' => 'bar',
+            'settings' => ['foo' => 'bar'],
+            'view' => ['subkey' => ['subsubkey' => 'subsubvalue']],
+        ];
+        $this->mockTypoScriptService->expects(self::atLeastOnce())->method('convertTypoScriptArrayToPlainArray')->with($configuration)->willReturn($expectedResult);
+        $this->frontendConfigurationManager->setConfiguration($configuration);
+        self::assertEquals($expectedResult, $this->frontendConfigurationManager->_get('configuration'));
+    }
+
+    /**
+     * @test
+     */
+    public function getConfigurationReturnsCachedResultOfCurrentPlugin(): void
+    {
+        $this->frontendConfigurationManager->_set('extensionName', 'CurrentExtensionName');
+        $this->frontendConfigurationManager->_set('pluginName', 'CurrentPluginName');
+        $this->frontendConfigurationManager->_set('configurationCache', [
+            'currentextensionname_currentpluginname' => ['foo' => 'bar'],
+            'someotherextension_somepluginname' => ['baz' => 'shouldnotbereturned'],
+        ]);
+        $expectedResult = ['foo' => 'bar'];
+        $actualResult = $this->frontendConfigurationManager->getConfiguration();
+        self::assertEquals($expectedResult, $actualResult);
+    }
+
+    /**
+     * @test
+     */
+    public function getConfigurationReturnsCachedResultForGivenExtension(): void
+    {
+        $this->frontendConfigurationManager->_set('configurationCache', [
+            'someextensionname_somepluginname' => ['foo' => 'bar'],
+            'someotherextension_somepluginname' => ['baz' => 'shouldnotbereturned'],
+        ]);
+        $expectedResult = ['foo' => 'bar'];
+        $actualResult = $this->frontendConfigurationManager->getConfiguration('SomeExtensionName', 'SomePluginName');
+        self::assertEquals($expectedResult, $actualResult);
+    }
+
+    /**
+     * @test
+     */
+    public function getConfigurationRecursivelyMergesCurrentPluginConfigurationWithFrameworkConfiguration(): void
+    {
+        $frontendConfigurationManager = $this->getAccessibleMock(
+            FrontendConfigurationManager::class,
+            [
+                'getContextSpecificFrameworkConfiguration',
+                'getTypoScriptSetup',
+                'getPluginConfiguration',
+                'getControllerConfiguration',
+                'getRecursiveStoragePids',
+            ],
+            [],
+            '',
+            false
+        );
+        $frontendConfigurationManager->_set('typoScriptService', $this->mockTypoScriptService);
+        $frontendConfigurationManager->_set('extensionName', 'CurrentExtensionName');
+        $frontendConfigurationManager->_set('pluginName', 'CurrentPluginName');
+        $frontendConfigurationManager->expects(self::once())->method('getTypoScriptSetup')->willReturn($this->testTypoScriptSetup);
+        $this->mockTypoScriptService->expects(self::atLeastOnce())->method('convertTypoScriptArrayToPlainArray')->with($this->testTypoScriptSetup['config.']['tx_extbase.'])->willReturn($this->testTypoScriptSetupConverted['config']['tx_extbase']);
+        $frontendConfigurationManager->expects(self::once())->method('getPluginConfiguration')->with(
+            'CurrentExtensionName',
+            'CurrentPluginName'
+        )->willReturn($this->testPluginConfiguration);
+        $expectedResult = [
+            'settings' => [
+                'setting1' => 'overriddenValue1',
+                'setting2' => 'value2',
+                'setting3' => 'additionalValue',
+            ],
+            'view' => [
+                'viewSub' => [
+                    'key1' => 'overridden',
+                    'key2' => 'value2',
+                    'key3' => 'new key',
+                ],
+            ],
+            'persistence' => [
+                'storagePid' => '123',
+            ],
+            'controllerConfiguration' => [],
+        ];
+        $frontendConfigurationManager->expects(self::once())->method('getContextSpecificFrameworkConfiguration')->with($expectedResult)->willReturn($expectedResult);
+        $actualResult = $frontendConfigurationManager->getConfiguration();
+        self::assertEquals($expectedResult, $actualResult);
+    }
+
+    /**
+     * @test
+     */
+    public function getConfigurationRecursivelyMergesPluginConfigurationOfSpecifiedPluginWithFrameworkConfiguration(): void
+    {
+        $frontendConfigurationManager = $this->getAccessibleMock(
+            FrontendConfigurationManager::class,
+            [
+                'getContextSpecificFrameworkConfiguration',
+                'getTypoScriptSetup',
+                'getPluginConfiguration',
+                'getControllerConfiguration',
+                'getRecursiveStoragePids',
+            ],
+            [],
+            '',
+            false
+        );
+        $frontendConfigurationManager->_set('typoScriptService', $this->mockTypoScriptService);
+        $frontendConfigurationManager->expects(self::once())->method('getTypoScriptSetup')->willReturn($this->testTypoScriptSetup);
+        $frontendConfigurationManager->expects(self::once())->method('getPluginConfiguration')->with(
+            'SomeExtensionName',
+            'SomePluginName'
+        )->willReturn($this->testPluginConfiguration);
+        $this->mockTypoScriptService->expects(self::atLeastOnce())->method('convertTypoScriptArrayToPlainArray')->with($this->testTypoScriptSetup['config.']['tx_extbase.'])->willReturn($this->testTypoScriptSetupConverted['config']['tx_extbase']);
+        $expectedResult = [
+            'settings' => [
+                'setting1' => 'overriddenValue1',
+                'setting2' => 'value2',
+                'setting3' => 'additionalValue',
+            ],
+            'view' => [
+                'viewSub' => [
+                    'key1' => 'overridden',
+                    'key2' => 'value2',
+                    'key3' => 'new key',
+                ],
+            ],
+            'persistence' => [
+                'storagePid' => '123',
+            ],
+            'controllerConfiguration' => [],
+        ];
+        $frontendConfigurationManager->expects(self::never())->method('getContextSpecificFrameworkConfiguration');
+        $actualResult = $frontendConfigurationManager->getConfiguration('SomeExtensionName', 'SomePluginName');
+        self::assertEquals($expectedResult, $actualResult);
+    }
+
+    /**
+     * @test
+     */
+    public function getConfigurationDoesNotOverrideConfigurationWithContextSpecificFrameworkConfigurationIfDifferentPluginIsSpecified(): void
+    {
+        $frontendConfigurationManager = $this->getAccessibleMock(
+            FrontendConfigurationManager::class,
+            [
+                'getContextSpecificFrameworkConfiguration',
+                'getTypoScriptSetup',
+                'getPluginConfiguration',
+                'getControllerConfiguration',
+                'getRecursiveStoragePids',
+            ],
+            [],
+            '',
+            false
+        );
+        $frontendConfigurationManager->_set('typoScriptService', $this->mockTypoScriptService);
+        $frontendConfigurationManager->expects(self::never())->method('getContextSpecificFrameworkConfiguration');
+        $frontendConfigurationManager->getConfiguration('SomeExtensionName', 'SomePluginName');
+    }
+
+    /**
+     * @test
+     */
+    public function getConfigurationOverridesConfigurationWithContextSpecificFrameworkConfigurationIfNoPluginWasSpecified(): void
+    {
+        $frontendConfigurationManager = $this->getAccessibleMock(
+            FrontendConfigurationManager::class,
+            [
+                'getContextSpecificFrameworkConfiguration',
+                'getTypoScriptSetup',
+                'getPluginConfiguration',
+                'getControllerConfiguration',
+                'getRecursiveStoragePids',
+            ],
+            [],
+            '',
+            false
+        );
+        $frontendConfigurationManager->_set('typoScriptService', $this->mockTypoScriptService);
+        $frontendConfigurationManager->expects(self::once())->method('getTypoScriptSetup')->willReturn($this->testTypoScriptSetup);
+        $frontendConfigurationManager->expects(self::once())->method('getPluginConfiguration')->with()->willReturn($this->testPluginConfiguration);
+        $contextSpecificFrameworkConfiguration = [
+            'context' => [
+                'specific' => 'framework',
+                'conf' => 'iguration',
+            ],
+        ];
+        $frontendConfigurationManager->expects(self::once())->method('getContextSpecificFrameworkConfiguration')->willReturn($contextSpecificFrameworkConfiguration);
+        $actualResult = $frontendConfigurationManager->getConfiguration();
+        self::assertEquals($contextSpecificFrameworkConfiguration, $actualResult);
+    }
+
+    /**
+     * @test
+     */
+    public function getConfigurationOverridesConfigurationWithContextSpecificFrameworkConfigurationIfSpecifiedPluginIsTheCurrentPlugin(): void
+    {
+        $frontendConfigurationManager = $this->getAccessibleMock(
+            FrontendConfigurationManager::class,
+            [
+                'getContextSpecificFrameworkConfiguration',
+                'getTypoScriptSetup',
+                'getPluginConfiguration',
+                'getControllerConfiguration',
+                'getRecursiveStoragePids',
+            ],
+            [],
+            '',
+            false
+        );
+        $frontendConfigurationManager->_set('typoScriptService', $this->mockTypoScriptService);
+        $frontendConfigurationManager->_set('extensionName', 'CurrentExtensionName');
+        $frontendConfigurationManager->_set('pluginName', 'CurrentPluginName');
+        $frontendConfigurationManager->expects(self::once())->method('getTypoScriptSetup')->willReturn($this->testTypoScriptSetup);
+        $frontendConfigurationManager->expects(self::once())->method('getPluginConfiguration')->with(
+            'CurrentExtensionName',
+            'CurrentPluginName'
+        )->willReturn($this->testPluginConfiguration);
+        $contextSpecificFrameworkConfiguration = [
+            'context' => [
+                'specific' => 'framework',
+                'conf' => 'iguration',
+            ],
+        ];
+        $frontendConfigurationManager->expects(self::once())->method('getContextSpecificFrameworkConfiguration')->willReturn($contextSpecificFrameworkConfiguration);
+        $actualResult = $frontendConfigurationManager->getConfiguration(
+            'CurrentExtensionName',
+            'CurrentPluginName'
+        );
+        self::assertEquals($contextSpecificFrameworkConfiguration, $actualResult);
+    }
+
+    /**
+     * @test
+     */
+    public function getConfigurationStoresResultInConfigurationCache(): void
+    {
+        $frontendConfigurationManager = $this->getAccessibleMock(
+            FrontendConfigurationManager::class,
+            [
+                'getContextSpecificFrameworkConfiguration',
+                'getTypoScriptSetup',
+                'getPluginConfiguration',
+                'getControllerConfiguration',
+                'getRecursiveStoragePids',
+            ],
+            [],
+            '',
+            false
+        );
+        $frontendConfigurationManager->_set('typoScriptService', $this->mockTypoScriptService);
+        $frontendConfigurationManager->_set('extensionName', 'CurrentExtensionName');
+        $frontendConfigurationManager->_set('pluginName', 'CurrentPluginName');
+        $frontendConfigurationManager->method('getPluginConfiguration')->willReturn(['foo' => 'bar']);
+        $frontendConfigurationManager->getConfiguration();
+        $frontendConfigurationManager->getConfiguration('SomeOtherExtensionName', 'SomeOtherCurrentPluginName');
+        $expectedResult = [
+            'currentextensionname_currentpluginname',
+            'someotherextensionname_someothercurrentpluginname',
+        ];
+        $actualResult = array_keys($frontendConfigurationManager->_get('configurationCache'));
+        self::assertEquals($expectedResult, $actualResult);
+    }
+
+    /**
+     * @test
+     */
+    public function getConfigurationRetrievesStoragePidIncludingGivenStoragePidWithRecursiveSetForSingleStoragePid(): void
+    {
+        $frontendConfigurationManager = $this->getAccessibleMock(
+            FrontendConfigurationManager::class,
+            [
+                'getContextSpecificFrameworkConfiguration',
+                'getTypoScriptSetup',
+                'getPluginConfiguration',
+                'getControllerConfiguration',
+                'getRecursiveStoragePids',
+            ],
+            [],
+            '',
+            false
+        );
+        $frontendConfigurationManager->_set('typoScriptService', $this->mockTypoScriptService);
+        $pluginConfiguration = [
+            'persistence' => [
+                'storagePid' => 1,
+                'recursive' => 99,
+            ],
+        ];
+        $frontendConfigurationManager->expects(self::once())->method('getPluginConfiguration')->willReturn($pluginConfiguration);
+        $frontendConfigurationManager->expects(self::once())->method('getRecursiveStoragePids')->with([1]);
+        $frontendConfigurationManager->getConfiguration('SomeOtherExtensionName', 'SomeOtherCurrentPluginName');
+    }
+
+    /**
+     * @test
+     */
+    public function getConfigurationRetrievesStoragePidIncludingGivenStoragePidWithRecursiveSetForMultipleStoragePid(): void
+    {
+        $frontendConfigurationManager = $this->getAccessibleMock(
+            FrontendConfigurationManager::class,
+            [
+                'getContextSpecificFrameworkConfiguration',
+                'getTypoScriptSetup',
+                'getPluginConfiguration',
+                'getControllerConfiguration',
+                'getRecursiveStoragePids',
+            ],
+            [],
+            '',
+            false
+        );
+        $frontendConfigurationManager->_set('typoScriptService', $this->mockTypoScriptService);
+        $pluginConfiguration = [
+            'persistence' => [
+                'storagePid' => '1,25',
+                'recursive' => 99,
+            ],
+        ];
+        $frontendConfigurationManager->expects(self::once())->method('getPluginConfiguration')->willReturn($pluginConfiguration);
+        $frontendConfigurationManager->expects(self::once())->method('getRecursiveStoragePids')->with([1, 25]);
+        $frontendConfigurationManager->getConfiguration('SomeOtherExtensionName', 'SomeOtherCurrentPluginName');
+    }
+
+    /**
+     * @test
+     */
+    public function getContentObjectReturnsInstanceOfContentObjectRenderer(): void
+    {
+        self::assertInstanceOf(ContentObjectRenderer::class, $this->frontendConfigurationManager->getContentObject());
+    }
+
+    /**
+     * @test
+     */
+    public function getContentObjectTheCurrentContentObject(): void
+    {
+        $mockContentObject = $this->createMock(ContentObjectRenderer::class);
+        $this->frontendConfigurationManager->setContentObject($mockContentObject);
+        self::assertSame($this->frontendConfigurationManager->getContentObject(), $mockContentObject);
+    }
+
+    /**
+     * @test
+     */
+    public function getTypoScriptSetupReturnsSetupFromRequest(): void
+    {
+        $frontendTypoScript = new FrontendTypoScript(new RootNode(), []);
+        $frontendTypoScript->setSetupArray(['foo' => 'bar']);
+        $GLOBALS['TYPO3_REQUEST'] = (new ServerRequest())->withAttribute('frontend.typoscript', $frontendTypoScript);
         self::assertEquals(['foo' => 'bar'], $this->frontendConfigurationManager->_call('getTypoScriptSetup'));
     }
 
@@ -83,7 +518,9 @@ class FrontendConfigurationManagerTest extends UnitTestCase
      */
     public function getPluginConfigurationReturnsEmptyArrayIfNoPluginConfigurationWasFound(): void
     {
-        $GLOBALS['TSFE']->tmpl->setup = ['foo' => 'bar'];
+        $frontendTypoScript = new FrontendTypoScript(new RootNode(), []);
+        $frontendTypoScript->setSetupArray(['foo' => 'bar']);
+        $GLOBALS['TYPO3_REQUEST'] = (new ServerRequest())->withAttribute('frontend.typoscript', $frontendTypoScript);
         $expectedResult = [];
         $actualResult = $this->frontendConfigurationManager->_call(
             'getPluginConfiguration',
@@ -114,7 +551,9 @@ class FrontendConfigurationManagerTest extends UnitTestCase
             ],
         ];
         $this->mockTypoScriptService->method('convertTypoScriptArrayToPlainArray')->with($testSettings)->willReturn($testSettingsConverted);
-        $GLOBALS['TSFE']->tmpl->setup = $testSetup;
+        $frontendTypoScript = new FrontendTypoScript(new RootNode(), []);
+        $frontendTypoScript->setSetupArray($testSetup);
+        $GLOBALS['TYPO3_REQUEST'] = (new ServerRequest())->withAttribute('frontend.typoscript', $frontendTypoScript);
         $expectedResult = [
             'settings' => [
                 'foo' => 'bar',
@@ -145,7 +584,9 @@ class FrontendConfigurationManagerTest extends UnitTestCase
             ],
         ];
         $this->mockTypoScriptService->method('convertTypoScriptArrayToPlainArray')->with($testSettings)->willReturn($testSettingsConverted);
-        $GLOBALS['TSFE']->tmpl->setup = $testSetup;
+        $frontendTypoScript = new FrontendTypoScript(new RootNode(), []);
+        $frontendTypoScript->setSetupArray($testSetup);
+        $GLOBALS['TYPO3_REQUEST'] = (new ServerRequest())->withAttribute('frontend.typoscript', $frontendTypoScript);
         $expectedResult = [
             'settings' => [
                 'foo' => 'bar',
@@ -205,7 +646,9 @@ class FrontendConfigurationManagerTest extends UnitTestCase
         $this->mockTypoScriptService->expects(self::exactly(2))->method('convertTypoScriptArrayToPlainArray')
             ->withConsecutive([$testExtensionSettings], [$testPluginSettings])
             ->willReturnOnConsecutiveCalls($testExtensionSettingsConverted, $testPluginSettingsConverted);
-        $GLOBALS['TSFE']->tmpl->setup = $testSetup;
+        $frontendTypoScript = new FrontendTypoScript(new RootNode(), []);
+        $frontendTypoScript->setSetupArray($testSetup);
+        $GLOBALS['TYPO3_REQUEST'] = (new ServerRequest())->withAttribute('frontend.typoscript', $frontendTypoScript);
         $expectedResult = [
             'settings' => [
                 'foo' => 'bar',
@@ -280,7 +723,6 @@ class FrontendConfigurationManagerTest extends UnitTestCase
                 'framework' => 'configuration',
             ],
         ];
-        /** @var FrontendConfigurationManager|MockObject|AccessibleObjectInterface */
         $frontendConfigurationManager = $this->getAccessibleMock(
             FrontendConfigurationManager::class,
             [
@@ -455,7 +897,6 @@ class FrontendConfigurationManagerTest extends UnitTestCase
      */
     public function overrideConfigurationFromPluginOverridesCorrectly(): void
     {
-        /** @var FrontendConfigurationManager|MockObject|AccessibleObjectInterface $frontendConfigurationManager */
         $frontendConfigurationManager = $this->getAccessibleMock(
             FrontendConfigurationManager::class,
             ['getTypoScriptSetup'],

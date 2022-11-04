@@ -449,7 +449,7 @@ services:
       "
 
   build_css:
-    image: typo3/core-testing-js:latest
+    image: typo3/core-testing-nodejs16:latest
     user: "${HOST_UID}"
     volumes:
     - ${CORE_ROOT}:${CORE_ROOT}
@@ -462,12 +462,12 @@ services:
           set -x
         fi
         mkdir -p ${CORE_ROOT}/.cache
-        yarn install || exit 1
+        npm install || exit 1
         node_modules/grunt/bin/grunt css
       "
 
   build_javascript:
-    image: typo3/core-testing-js:latest
+    image: typo3/core-testing-nodejs16:latest
     user: "${HOST_UID}"
     volumes:
     - ${CORE_ROOT}:${CORE_ROOT}
@@ -480,7 +480,7 @@ services:
           set -x
         fi
         mkdir -p ${CORE_ROOT}/.cache
-        yarn install || exit 1
+        npm install || exit 1
         node_modules/grunt/bin/grunt scripts
       "
 
@@ -509,8 +509,36 @@ services:
         if [ ${SCRIPT_VERBOSE} -eq 1 ]; then
           set -x
         fi
+        php -dxdebug.mode=off bin/php-cs-fixer fix -v ${CGLCHECK_DRY_RUN} --config=Build/php-cs-fixer/config.php
+      "
+
+  cgl_header_git:
+    image: typo3/core-testing-${DOCKER_PHP_IMAGE}:latest
+    user: "${HOST_UID}"
+    volumes:
+      - ${CORE_ROOT}:${CORE_ROOT}
+    working_dir: ${CORE_ROOT}
+    command: >
+      /bin/sh -c "
+        if [ ${SCRIPT_VERBOSE} -eq 1 ]; then
+          set -x
+        fi
+        Build/Scripts/cglFixMyCommitFileHeader.sh ${CGLCHECK_DRY_RUN};
+      "
+
+  cgl_header_all:
+    image: typo3/core-testing-${DOCKER_PHP_IMAGE}:latest
+    user: "${HOST_UID}"
+    volumes:
+      - ${CORE_ROOT}:${CORE_ROOT}
+    working_dir: ${CORE_ROOT}
+    command: >
+      /bin/sh -c "
+        if [ ${SCRIPT_VERBOSE} -eq 1 ]; then
+          set -x
+        fi
         php -dxdebug.mode=off bin/php-cs-fixer fix -v ${CGLCHECK_DRY_RUN} --path-mode intersection \
-          --config=Build/php-cs-fixer.php typo3/
+          --config=Build/php-cs-fixer/header-comment.php typo3/
       "
 
   check_annotations:
@@ -629,7 +657,7 @@ services:
       "
 
   check_grunt_clean:
-    image: typo3/core-testing-js:latest
+    image: typo3/core-testing-nodejs16:latest
     user: "${HOST_UID}"
     volumes:
       - ${CORE_ROOT}:${CORE_ROOT}
@@ -642,12 +670,26 @@ services:
           set -x
         fi
         mkdir -p ${CORE_ROOT}/.cache
-        yarn install || exit 1
-        node_modules/grunt/bin/grunt build;
+        npm ci || exit 1
+        node_modules/grunt/bin/grunt default;
         cd ..;
         git add *;
         git status;
         git status | grep -q \"nothing to commit, working tree clean\"
+      "
+
+  check_namespace_integrity:
+    image: typo3/core-testing-${DOCKER_PHP_IMAGE}:latest
+    user: "${HOST_UID}"
+    volumes:
+      - ${CORE_ROOT}:${CORE_ROOT}
+    working_dir: ${CORE_ROOT}
+    command: >
+      /bin/sh -c "
+        if [ ${SCRIPT_VERBOSE} -eq 1 ]; then
+          set -x
+        fi
+        php -dxdebug.mode=off Build/Scripts/checkNamespaceIntegrity.php;
       "
 
   check_permissions:
@@ -708,7 +750,12 @@ services:
           set -x
         fi
         composer config --unset platform.php;
-        composer update --no-progress --no-interaction;
+        if [ ${PHP_VERSION} == \"8.2\" ]; then
+          # @todo: Needed until prophecy (req by phpunit) allows PHP 8.2, https://github.com/phpspec/prophecy/issues/556
+          composer update --no-progress --no-interaction --ignore-platform-req=php+;
+        else
+          composer update --no-progress --no-interaction;
+        fi
         composer dumpautoload;
       "
 
@@ -727,6 +774,12 @@ services:
         fi
         composer config platform.php ${PHP_VERSION}.0;
         composer update --prefer-lowest --no-progress --no-interaction;
+        if [ ${PHP_VERSION} == \"8.2\" ]; then
+          # @todo: Needed until prophecy (req by phpunit) allows PHP 8.2, https://github.com/phpspec/prophecy/issues/556
+          composer update --prefer-lowest --no-progress --no-interaction --ignore-platform-req=php+;
+        else
+          composer update --prefer-lowest --no-progress --no-interaction;
+        fi
         composer dumpautoload;
       "
 
@@ -1127,7 +1180,7 @@ services:
       "
 
   lint_scss:
-    image: typo3/core-testing-js:latest
+    image: typo3/core-testing-nodejs16:latest
     user: "${HOST_UID}"
     volumes:
     - ${CORE_ROOT}:${CORE_ROOT}
@@ -1140,12 +1193,12 @@ services:
           set -x
         fi
         mkdir -p ${CORE_ROOT}/.cache
-        yarn install || exit 1
+        npm ci || exit 1
         node_modules/grunt/bin/grunt stylelint;
       "
 
   lint_html:
-    image: typo3/core-testing-js:latest
+    image: typo3/core-testing-nodejs16:latest
     user: "${HOST_UID}"
     volumes:
     - ${CORE_ROOT}:${CORE_ROOT}
@@ -1158,12 +1211,12 @@ services:
           set -x
         fi
         mkdir -p ${CORE_ROOT}/.cache
-        yarn install || exit 1
-        node_modules/grunt/bin/grunt lintspaces;
+        npm ci || exit 1
+        node_modules/grunt/bin/grunt exec:lintspaces;
       "
 
   lint_typescript:
-    image: typo3/core-testing-js:latest
+    image: typo3/core-testing-nodejs16:latest
     user: "${HOST_UID}"
     volumes:
     - ${CORE_ROOT}:${CORE_ROOT}
@@ -1176,7 +1229,7 @@ services:
           set -x
         fi
         mkdir -p ${CORE_ROOT}/.cache
-        yarn install || exit 1
+        npm ci || exit 1
         node_modules/grunt/bin/grunt eslint;
       "
 
@@ -1275,7 +1328,7 @@ services:
       "
 
   unitJavascript:
-    image: typo3/core-testing-js-chrome:latest
+    image: typo3/core-testing-nodejs16-chrome:latest
     user: "${HOST_UID}"
     volumes:
       - ${CORE_ROOT}:${CORE_ROOT}
@@ -1288,7 +1341,7 @@ services:
           set -x
         fi
         mkdir -p ${CORE_ROOT}/.cache
-        yarn install || exit 1
+        npm ci || exit 1
         cd ..;
         Build/node_modules/karma/bin/karma start Build/JSUnit/karma.conf.ci.js --single-run
       "

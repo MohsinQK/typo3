@@ -77,6 +77,13 @@ class Richtext
             $configuration['proc.']['overruleMode'] = 'default';
         }
 
+        if (is_array($configuration['editor']['config'] ?? null)) {
+            $configuration['editor']['config'] = GeneralUtility::makeInstance(
+                CKEditor5Migrator::class,
+                $configuration['editor']['config']
+            )->get();
+        }
+
         return $configuration;
     }
 
@@ -150,7 +157,6 @@ class Richtext
             if (substr($key, -1) !== '.') {
                 continue;
             }
-            /** @var TypoScriptService $typoScriptService */
             $typoScriptService = GeneralUtility::makeInstance(TypoScriptService::class);
             $typoScriptArray[substr($key, 0, -1)] = $typoScriptService->convertTypoScriptArrayToPlainArray($typoScriptArray[$key]);
         }

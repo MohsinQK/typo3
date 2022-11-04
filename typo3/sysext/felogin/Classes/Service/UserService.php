@@ -24,10 +24,7 @@ use TYPO3\CMS\Frontend\Authentication\FrontendUserAuthentication;
  */
 class UserService
 {
-    /**
-     * @var FrontendUserAuthentication
-     */
-    protected $feUser;
+    protected FrontendUserAuthentication $feUser;
 
     public function __construct()
     {
@@ -36,8 +33,6 @@ class UserService
 
     /**
      * Get user- and sessiondata from Frontend User
-     *
-     * @return array
      */
     public function getFeUserData(): array
     {
@@ -46,8 +41,6 @@ class UserService
 
     /**
      * Should return true if a cookie warning is needed to be displayed
-     *
-     * @return bool
      */
     public function cookieWarningRequired(): bool
     {

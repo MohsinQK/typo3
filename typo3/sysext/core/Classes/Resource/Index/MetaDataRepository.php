@@ -117,7 +117,7 @@ class MetaDataRepository implements SingletonInterface
             ->select('*')
             ->from($this->tableName)
             ->where(
-                $queryBuilder->expr()->eq('file', $queryBuilder->createNamedParameter($uid, \PDO::PARAM_INT)),
+                $queryBuilder->expr()->eq('file', $queryBuilder->createNamedParameter($uid, Connection::PARAM_INT)),
                 $queryBuilder->expr()->in('sys_language_uid', $queryBuilder->createNamedParameter([0, -1], Connection::PARAM_INT_ARRAY))
             )
             ->executeQuery()
@@ -144,7 +144,6 @@ class MetaDataRepository implements SingletonInterface
             'pid' => 0,
             'crdate' => $GLOBALS['EXEC_TIME'],
             'tstamp' => $GLOBALS['EXEC_TIME'],
-            'cruser_id' => isset($GLOBALS['BE_USER']->user['uid']) ? (int)$GLOBALS['BE_USER']->user['uid'] : 0,
             'l10n_diffsource' => '',
         ];
         $additionalFields = array_intersect_key($additionalFields, $this->getTableFields());

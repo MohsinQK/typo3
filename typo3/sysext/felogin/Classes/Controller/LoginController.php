@@ -17,11 +17,11 @@ declare(strict_types=1);
 
 namespace TYPO3\CMS\FrontendLogin\Controller;
 
-use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Http\Message\ResponseInterface;
 use TYPO3\CMS\Core\Authentication\LoginType;
 use TYPO3\CMS\Core\Context\Context;
 use TYPO3\CMS\Core\Context\UserAspect;
+use TYPO3\CMS\Core\Security\RequestToken;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Extbase\Http\ForwardResponse;
 use TYPO3\CMS\FrontendLogin\Configuration\RedirectConfiguration;
@@ -39,76 +39,21 @@ use TYPO3\CMS\FrontendLogin\Service\UserService;
  */
 class LoginController extends AbstractLoginFormController
 {
-    /**
-     * @var string
-     */
     public const MESSAGEKEY_DEFAULT = 'welcome';
-
-    /**
-     * @var string
-     */
     public const MESSAGEKEY_ERROR = 'error';
-
-    /**
-     * @var string
-     */
     public const MESSAGEKEY_LOGOUT = 'logout';
 
-    /**
-     * @var RedirectHandler
-     */
-    protected $redirectHandler;
-
-    /**
-     * @var string
-     */
-    protected $loginType = '';
-
-    /**
-     * @var string
-     */
-    protected $redirectUrl = '';
-
-    /**
-     * @var ServerRequestHandler
-     */
-    protected $requestHandler;
-
-    /**
-     * @var UserService
-     */
-    protected $userService;
-
-    /**
-     * @var RedirectConfiguration
-     */
-    protected $configuration;
-
-    /**
-     * @var EventDispatcherInterface
-     */
-    protected $eventDispatcher;
-
-    /**
-     * @var UserAspect
-     */
-    protected $userAspect;
-
-    /**
-     * @var bool
-     */
-    protected $showCookieWarning = false;
+    protected string $loginType = '';
+    protected string $redirectUrl = '';
+    protected RedirectConfiguration $configuration;
+    protected UserAspect $userAspect;
+    protected bool $showCookieWarning = false;
 
     public function __construct(
-        RedirectHandler $redirectHandler,
-        ServerRequestHandler $requestHandler,
-        UserService $userService,
-        EventDispatcherInterface $eventDispatcher
+        protected RedirectHandler $redirectHandler,
+        protected ServerRequestHandler $requestHandler,
+        protected UserService $userService
     ) {
-        $this->redirectHandler = $redirectHandler;
-        $this->requestHandler = $requestHandler;
-        $this->userService = $userService;
-        $this->eventDispatcher = $eventDispatcher;
         $this->userAspect = GeneralUtility::makeInstance(Context::class)->getAspect('frontend.user');
     }
 
@@ -161,9 +106,10 @@ class LoginController extends AbstractLoginFormController
                 'storagePid' => implode(',', $this->getStorageFolders()),
                 'permaloginStatus' => $this->getPermaloginStatus(),
                 'redirectURL' => $this->redirectHandler->getLoginFormRedirectUrl($this->configuration, $this->isRedirectDisabled()),
-                'redirectReferrer' => $this->request->hasArgument('redirectReferrer') ? (string)$this->request->getArgument('redirectReferrer'): '',
+                'redirectReferrer' => $this->request->hasArgument('redirectReferrer') ? (string)$this->request->getArgument('redirectReferrer') : '',
                 'referer' => $this->requestHandler->getPropertyFromGetAndPost('referer'),
                 'noRedirect' => $this->isRedirectDisabled(),
+                'requestToken' => RequestToken::create('core/user-auth/fe'),
             ]
         );
 
@@ -172,9 +118,6 @@ class LoginController extends AbstractLoginFormController
 
     /**
      * User overview for logged in users
-     *
-     * @param bool $showLoginMessage
-     * @return ResponseInterface
      */
     public function overviewAction(bool $showLoginMessage = false): ResponseInterface
     {
@@ -200,8 +143,6 @@ class LoginController extends AbstractLoginFormController
 
     /**
      * Show logout form
-     * @param int $redirectPageLogout
-     * @return ResponseInterface
      */
     public function logoutAction(int $redirectPageLogout = 0): ResponseInterface
     {
@@ -253,8 +194,6 @@ class LoginController extends AbstractLoginFormController
     /**
      * The permanent login checkbox should only be shown if permalogin is not deactivated (-1),
      * not forced to be always active (2) and lifetime is greater than 0
-     *
-     * @return int
      */
     protected function getPermaloginStatus(): int
     {
@@ -272,8 +211,6 @@ class LoginController extends AbstractLoginFormController
 
     /**
      * Redirect to overview on login successful and setting showLogoutFormAfterLogin disabled
-     *
-     * @return bool
      */
     protected function shouldRedirectToOverview(): bool
     {
@@ -284,8 +221,6 @@ class LoginController extends AbstractLoginFormController
 
     /**
      * Return message key based on user login status
-     *
-     * @return string
      */
     protected function getStatusMessageKey(): string
     {
@@ -306,8 +241,6 @@ class LoginController extends AbstractLoginFormController
 
     /**
      * Is redirect disabled by setting or noredirect parameter
-     *
-     * @return bool
      */
     public function isRedirectDisabled(): bool
     {

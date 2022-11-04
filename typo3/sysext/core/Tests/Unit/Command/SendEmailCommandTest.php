@@ -23,12 +23,9 @@ use Symfony\Component\Console\Tester\CommandTester;
 use Symfony\Component\Mailer\Transport\TransportInterface;
 use TYPO3\CMS\Core\Command\SendEmailCommand;
 use TYPO3\CMS\Core\Mail\DelayedTransportInterface;
-use TYPO3\CMS\Core\Mail\Mailer;
+use TYPO3\CMS\Core\Mail\MailerInterface;
 use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
-/**
- * Test case
- */
 class SendEmailCommandTest extends UnitTestCase
 {
     use ProphecyTrait;
@@ -42,10 +39,7 @@ class SendEmailCommandTest extends UnitTestCase
         $delayedTransportProphecy->flushQueue(Argument::any())->willReturn(5);
         $realTransportProphecy = $this->prophesize(TransportInterface::class);
 
-        $mailer = $this->getMockBuilder(Mailer::class)
-            ->disableOriginalConstructor()
-            ->onlyMethods(['getTransport', 'getRealTransport'])
-            ->getMock();
+        $mailer = $this->createMock(MailerInterface::class);
 
         $mailer
             ->method('getTransport')
@@ -55,7 +49,6 @@ class SendEmailCommandTest extends UnitTestCase
             ->method('getRealTransport')
             ->willReturn($realTransportProphecy->reveal());
 
-        /** @var SendEmailCommand|\PHPUnit\Framework\MockObject\MockObject $command */
         $command = $this->getMockBuilder(SendEmailCommand::class)
             ->setConstructorArgs(['mailer:spool:send'])
             ->onlyMethods(['getMailer'])

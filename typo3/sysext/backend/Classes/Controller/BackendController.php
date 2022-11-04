@@ -17,16 +17,20 @@ declare(strict_types=1);
 
 namespace TYPO3\CMS\Backend\Controller;
 
+use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
+use TYPO3\CMS\Backend\Controller\Event\AfterBackendPageRenderEvent;
 use TYPO3\CMS\Backend\Module\MenuModule;
 use TYPO3\CMS\Backend\Module\ModuleInterface;
 use TYPO3\CMS\Backend\Module\ModuleProvider;
 use TYPO3\CMS\Backend\Routing\Router;
 use TYPO3\CMS\Backend\Routing\RouteRedirect;
 use TYPO3\CMS\Backend\Routing\UriBuilder;
+use TYPO3\CMS\Backend\Search\LiveSearch\SearchProviderRegistry;
 use TYPO3\CMS\Backend\Template\PageRendererBackendSetupTrait;
 use TYPO3\CMS\Backend\Toolbar\RequestAwareToolbarItemInterface;
+use TYPO3\CMS\Backend\Toolbar\ToolbarItemInterface;
 use TYPO3\CMS\Backend\Toolbar\ToolbarItemsRegistry;
 use TYPO3\CMS\Backend\View\BackendViewFactory;
 use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
@@ -50,8 +54,6 @@ class BackendController
 {
     use PageRendererBackendSetupTrait;
 
-    protected string $css = '';
-
     /**
      * @var ModuleInterface[]
      */
@@ -63,11 +65,11 @@ class BackendController
         protected readonly PageRenderer $pageRenderer,
         protected readonly ModuleProvider $moduleProvider,
         protected readonly ToolbarItemsRegistry $toolbarItemsRegistry,
+        protected readonly SearchProviderRegistry $searchProviderRegistry,
         protected readonly ExtensionConfiguration $extensionConfiguration,
         protected readonly BackendViewFactory $viewFactory,
+        protected readonly EventDispatcherInterface $eventDispatcher,
     ) {
-        // @todo: This hook is essentially useless.
-        $this->executeHook('constructPostProcess');
         $this->modules = $this->moduleProvider->getModulesForModuleMenu($this->getBackendUser());
     }
 
@@ -78,8 +80,6 @@ class BackendController
     {
         $backendUser = $this->getBackendUser();
         $pageRenderer = $this->pageRenderer;
-
-        $this->executeHook('renderPreProcess');
 
         $this->setUpBasicPageRendererForBackend($pageRenderer, $this->extensionConfiguration, $request, $this->getLanguageService());
 
@@ -131,16 +131,15 @@ class BackendController
         $dateFormat = ['DD-MM-Y', 'HH:mm DD-MM-Y'];
         // Needed for FormEngine manipulation (date picker)
         $pageRenderer->addInlineSetting('DateTimePicker', 'DateFormat', $dateFormat);
-        $pageRenderer->addCssInlineBlock('BackendInlineCSS', $this->css);
         $typo3Version = 'TYPO3 CMS ' . $this->typo3Version->getVersion();
         $title = $GLOBALS['TYPO3_CONF_VARS']['SYS']['sitename'] ? $GLOBALS['TYPO3_CONF_VARS']['SYS']['sitename'] . ' [' . $typo3Version . ']' : $typo3Version;
         $pageRenderer->setTitle($title);
-        $moduleMenuCollapsed = $this->getCollapseStateOfMenu();
 
         $view = $this->viewFactory->create($request);
         $this->assignTopbarDetailsToView($request, $view);
         $view->assignMultiple([
             'modules' => $this->modules,
+            'modulesCollapsed' => $this->getCollapseStateOfMenu(),
             'modulesInformation' => GeneralUtility::jsonEncodeForHtmlAttribute($this->getModulesInformation(), false),
             'startupModule' => $this->getStartupModule($request),
             'stateTracker' => (string)$this->uriBuilder->buildUriFromRoute('state-tracker'),
@@ -148,9 +147,8 @@ class BackendController
             'sitenameFirstInBackendTitle' => ($backendUser->uc['backendTitleFormat'] ?? '') === 'sitenameFirst',
         ]);
         $content = $view->render('Backend/Main');
-        $this->executeHook('renderPostProcess', ['content' => &$content]);
-        $bodyTag = '<body class="scaffold t3js-scaffold' . (!$moduleMenuCollapsed && $this->modules ? ' scaffold-modulemenu-expanded' : '') . '">';
-        $pageRenderer->addBodyContent($bodyTag . $content);
+        $content = $this->eventDispatcher->dispatch(new AfterBackendPageRenderEvent($content, $view))->getContent();
+        $pageRenderer->addBodyContent('<body>' . $content);
         return $pageRenderer->renderResponse();
     }
 
@@ -175,16 +173,6 @@ class BackendController
         $view = $this->viewFactory->create($request);
         $this->assignTopbarDetailsToView($request, $view);
         return new JsonResponse(['topbar' => $view->render('Backend/Topbar')]);
-    }
-
-    /**
-     * Adds a css snippet to the backend. This method is old and its purpose
-     * seems to be that hooks (see executeHook()) can add css?
-     * @todo: Candidate for deprecation / removal.
-     */
-    public function addCss(string $css): void
-    {
-        $this->css .= $css;
     }
 
     /**
@@ -224,72 +212,25 @@ class BackendController
         $view->assign('logoHeight', $logoHeight);
         $view->assign('applicationVersion', $this->typo3Version->getVersion());
         $view->assign('siteName', $GLOBALS['TYPO3_CONF_VARS']['SYS']['sitename']);
-        $view->assign('toolbar', $this->renderToolbar($request));
+        $view->assign('toolbarItems', $this->getToolbarItems($request));
+        $view->assign('isInWorkspace', $this->getBackendUser()->workspace > 0);
     }
 
     /**
-     * Renders the items in the top toolbar.
-     *
-     * @todo: Inline this to the topbar template
+     * @param ServerRequestInterface $request
+     * @return ToolbarItemInterface[]
      */
-    protected function renderToolbar(ServerRequestInterface $request): string
+    protected function getToolbarItems(ServerRequestInterface $request): array
     {
-        $toolbarItems = $this->toolbarItemsRegistry->getToolbarItems();
-        $toolbar = [];
-        foreach ($toolbarItems as $toolbarItem) {
+        return array_map(static function (ToolbarItemInterface $toolbarItem) use ($request) {
             if ($toolbarItem instanceof RequestAwareToolbarItemInterface) {
                 $toolbarItem->setRequest($request);
             }
-            if ($toolbarItem->checkAccess()) {
-                $hasDropDown = (bool)$toolbarItem->hasDropDown();
-                $additionalAttributes = (array)$toolbarItem->getAdditionalAttributes();
-
-                $liAttributes = [];
-
-                // Merge class: Add dropdown class if hasDropDown, add classes from additional attributes
-                $classes = [];
-                $classes[] = 'toolbar-item';
-                $classes[] = 't3js-toolbar-item';
-                if (isset($additionalAttributes['class'])) {
-                    $classes[] = $additionalAttributes['class'];
-                    unset($additionalAttributes['class']);
-                }
-                $liAttributes['class'] = implode(' ', $classes);
-
-                // Add further attributes
-                foreach ($additionalAttributes as $name => $value) {
-                    $liAttributes[(string)$name] = (string)$value;
-                }
-
-                // Create a unique id from class name
-                $fullyQualifiedClassName = \get_class($toolbarItem);
-                $className = GeneralUtility::underscoredToLowerCamelCase($fullyQualifiedClassName);
-                $className = GeneralUtility::camelCaseToLowerCaseUnderscored($className);
-                $className = str_replace(['_', '\\'], '-', $className);
-                $liAttributes['id'] = $className;
-
-                // Create data attribute identifier
-                $shortName = substr($fullyQualifiedClassName, (int)strrpos($fullyQualifiedClassName, '\\') + 1);
-                $dataToolbarIdentifier = GeneralUtility::camelCaseToLowerCaseUnderscored($shortName);
-                $dataToolbarIdentifier = str_replace('_', '-', $dataToolbarIdentifier);
-                $liAttributes['data-toolbar-identifier'] = $dataToolbarIdentifier;
-
-                $toolbar[] = '<li ' . GeneralUtility::implodeAttributes($liAttributes, true) . '>';
-
-                if ($hasDropDown) {
-                    $toolbar[] = '<a href="#" class="toolbar-item-link dropdown-toggle" data-bs-toggle="dropdown" data-bs-offset="0,-2">';
-                    $toolbar[] = $toolbarItem->getItem();
-                    $toolbar[] = '</a>';
-                    $toolbar[] = '<div class="dropdown-menu" role="menu">';
-                    $toolbar[] = $toolbarItem->getDropDown();
-                    $toolbar[] = '</div>';
-                } else {
-                    $toolbar[] = $toolbarItem->getItem();
-                }
-                $toolbar[] = '</li>';
-            }
-        }
-        return implode(LF, $toolbar);
+            return $toolbarItem;
+        }, array_filter(
+            $this->toolbarItemsRegistry->getToolbarItems(),
+            static fn (ToolbarItemInterface $toolbarItem) => $toolbarItem->checkAccess()
+        ));
     }
 
     /**
@@ -358,27 +299,12 @@ class BackendController
                 'name' => $identifier,
                 'component' => $menuModule->getComponent(),
                 'navigationComponentId' => $menuModule->getNavigationComponent(),
+                'parent' => $menuModule->hasParentModule() ? $menuModule->getParentIdentifier() : '',
                 'link' => $menuModule->getShouldBeLinked() ? (string)$this->uriBuilder->buildUriFromRoute($module->getIdentifier()) : '',
             ];
         }
 
         return $modules;
-    }
-
-    /**
-     * Executes defined hooks functions for the given identifier.
-     *
-     * These hook identifiers are valid:
-     * + constructPostProcess
-     * + renderPreProcess
-     * + renderPostProcess
-     */
-    protected function executeHook(string $identifier, array $hookConfiguration = []): void
-    {
-        $options = &$GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['typo3/backend.php'];
-        foreach ($options[$identifier] ?? [] as $hookFunction) {
-            GeneralUtility::callUserFunction($hookFunction, $hookConfiguration, $this);
-        }
     }
 
     protected function getCollapseStateOfMenu(): bool

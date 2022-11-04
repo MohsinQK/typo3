@@ -127,7 +127,7 @@ class FormFlexAjaxController extends AbstractFormEngineAjaxController
                 ['data'][$flexFormSheetName]
                 ['lDEF'][$flexFormFieldName]
                 ['el'][$flexFormContainerIdentifier][$flexFormContainerName]['el']
-            )
+        )
             && is_array(
                 $formData['databaseRow'][$fieldName]
                 ['data'][$flexFormSheetName]
@@ -184,9 +184,9 @@ class FormFlexAjaxController extends AbstractFormEngineAjaxController
             }
             $scriptItems->addGlobalAssignment(['TYPO3' => ['lang' => $labels]]);
         }
-        $this->addRegisteredRequireJsModulesToJavaScriptItems($newContainerResult, $scriptItems);
-        // @todo deprecate modules with arbitrary JavaScript callback function in TYPO3 v12.0
-        $jsonResult['scriptCall'] = $this->createExecutableStringRepresentationOfRegisteredRequireJsModules($newContainerResult, true);
+        $this->addJavaScriptModulesToJavaScriptItems($newContainerResult['javaScriptModules'] ?? [], $scriptItems);
+        /** @deprecated will be removed in TYPO3 v13.0 */
+        $this->addJavaScriptModulesToJavaScriptItems($newContainerResult['requireJsModules'] ?? [], $scriptItems, true);
 
         return new JsonResponse($jsonResult);
     }

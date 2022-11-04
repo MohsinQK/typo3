@@ -17,32 +17,24 @@ declare(strict_types=1);
 
 namespace TYPO3\CMS\Core\Tests\Unit\EventDispatcher;
 
-use Prophecy\PhpUnit\ProphecyTrait;
-use Prophecy\Prophecy\ObjectProphecy;
+use PHPUnit\Framework\MockObject\MockObject;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\EventDispatcher\ListenerProviderInterface;
 use Psr\EventDispatcher\StoppableEventInterface;
 use TYPO3\CMS\Core\EventDispatcher\EventDispatcher;
 use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
-/**
- * Test case
- */
 class EventDispatcherTest extends UnitTestCase
 {
-    use ProphecyTrait;
-
-    /** @var ObjectProphecy<ListenerProviderInterface> */
-    protected ObjectProphecy $listenerProviderProphecy;
-
+    protected ListenerProviderInterface&MockObject $listenerProviderMock;
     protected EventDispatcher $eventDispatcher;
 
     protected function setUp(): void
     {
         parent::setUp();
-        $this->listenerProviderProphecy = $this->prophesize(ListenerProviderInterface::class);
+        $this->listenerProviderMock = $this->createMock(ListenerProviderInterface::class);
         $this->eventDispatcher = new EventDispatcher(
-            $this->listenerProviderProphecy->reveal()
+            $this->listenerProviderMock
         );
     }
 
@@ -63,7 +55,7 @@ class EventDispatcherTest extends UnitTestCase
         $event = new \stdClass();
         $event->invoked = 0;
 
-        $this->listenerProviderProphecy->getListenersForEvent($event)->will(static function () use ($callable): iterable {
+        $this->listenerProviderMock->method('getListenersForEvent')->with($event)->willReturnCallback(static function () use ($callable): iterable {
             yield $callable;
         });
 
@@ -78,8 +70,8 @@ class EventDispatcherTest extends UnitTestCase
      */
     public function doesNotDispatchStoppedEvent(callable $callable): void
     {
-        $event = new class() implements StoppableEventInterface {
-            public $invoked = 0;
+        $event = new class () implements StoppableEventInterface {
+            public int $invoked = 0;
 
             public function isPropagationStopped(): bool
             {
@@ -87,7 +79,7 @@ class EventDispatcherTest extends UnitTestCase
             }
         };
 
-        $this->listenerProviderProphecy->getListenersForEvent($event)->will(static function () use ($callable): iterable {
+        $this->listenerProviderMock->method('getListenersForEvent')->with($event)->willReturnCallback(static function () use ($callable): iterable {
             yield $callable;
         });
 
@@ -105,7 +97,7 @@ class EventDispatcherTest extends UnitTestCase
         $event = new \stdClass();
         $event->invoked = 0;
 
-        $this->listenerProviderProphecy->getListenersForEvent($event)->will(static function () use ($callable): iterable {
+        $this->listenerProviderMock->method('getListenersForEvent')->with($event)->willReturnCallback(static function () use ($callable): iterable {
             yield $callable;
             yield $callable;
         });
@@ -121,9 +113,9 @@ class EventDispatcherTest extends UnitTestCase
      */
     public function stopsOnStoppedEvent(callable $callable): void
     {
-        $event = new class() implements StoppableEventInterface {
-            public $invoked = 0;
-            public $stopped = false;
+        $event = new class () implements StoppableEventInterface {
+            public int $invoked = 0;
+            public bool $stopped = false;
 
             public function isPropagationStopped(): bool
             {
@@ -131,7 +123,7 @@ class EventDispatcherTest extends UnitTestCase
             }
         };
 
-        $this->listenerProviderProphecy->getListenersForEvent($event)->will(static function () use ($callable): iterable {
+        $this->listenerProviderMock->method('getListenersForEvent')->with($event)->willReturnCallback(static function () use ($callable): iterable {
             yield $callable;
             yield static function (object $event): void {
                 $event->invoked += 1;
@@ -155,7 +147,7 @@ class EventDispatcherTest extends UnitTestCase
 
         $event = new \stdClass();
 
-        $this->listenerProviderProphecy->getListenersForEvent($event)->will(static function (): iterable {
+        $this->listenerProviderMock->method('getListenersForEvent')->with($event)->willReturnCallback(static function (): iterable {
             yield static function (object $event): void {
                 throw new \BadMethodCallException('some invalid state', 1563270337);
             };
@@ -173,7 +165,7 @@ class EventDispatcherTest extends UnitTestCase
         return [
             [
                 // Invokable
-                new class() {
+                new class () {
                     public function __invoke(object $event): void
                     {
                         $event->invoked += 1;
@@ -183,7 +175,7 @@ class EventDispatcherTest extends UnitTestCase
             [
                 // Class + method
                 [
-                    new class() {
+                    new class () {
                         public function onEvent(object $event): void
                         {
                             $event->invoked += 1;

@@ -301,8 +301,6 @@ class RecordProvider extends AbstractProvider
             $attributes += $this->getEnableDisableAdditionalAttributes();
         }
         if ($itemName === 'newWizard' && $this->table === 'tt_content') {
-            $moduleName = BackendUtility::getPagesTSconfig($this->record['pid'])['mod.']['newContentElementWizard.']['override']
-                ?? 'new_content_element_wizard';
             $urlParameters = [
                 'id' => $this->record['pid'],
                 'sys_language_uid' => $this->record['sys_language_uid'],
@@ -310,7 +308,7 @@ class RecordProvider extends AbstractProvider
                 'uid_pid' => -$this->record['uid'],
             ];
             $uriBuilder = GeneralUtility::makeInstance(UriBuilder::class);
-            $url = (string)$uriBuilder->buildUriFromRoute($moduleName, $urlParameters);
+            $url = (string)$uriBuilder->buildUriFromRoute('new_content_element_wizard', $urlParameters);
             $attributes += [
                 'data-new-wizard-url' => htmlspecialchars($url),
                 'data-title' => $this->languageService->getLL('newContentElement'),
@@ -377,8 +375,8 @@ class RecordProvider extends AbstractProvider
             $confirmMessage = sprintf(
                 $this->languageService->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:mess.'
                     . ($this->clipboard->currentMode() === 'copy' ? 'copy' : 'move') . '_' . $type),
-                GeneralUtility::fixed_lgd_cs($selItem['_RECORD_TITLE'], $this->backendUser->uc['titleLen']),
-                GeneralUtility::fixed_lgd_cs(BackendUtility::getRecordTitle($this->table, $this->record), $this->backendUser->uc['titleLen'])
+                GeneralUtility::fixed_lgd_cs($selItem['_RECORD_TITLE'], (int)$this->backendUser->uc['titleLen']),
+                GeneralUtility::fixed_lgd_cs(BackendUtility::getRecordTitle($this->table, $this->record), (int)$this->backendUser->uc['titleLen'])
             );
             $attributes += [
                 'data-title' => htmlspecialchars($title),
@@ -401,23 +399,27 @@ class RecordProvider extends AbstractProvider
         $okText = $this->languageService->sL('LLL:EXT:core/Resources/Private/Language/locallang_mod_web_list.xlf:delete');
         $attributes = [];
         if ($this->backendUser->jsConfirmation(JsConfirmation::DELETE)) {
-            $recordTitle = GeneralUtility::fixed_lgd_cs(BackendUtility::getRecordTitle($this->table, $this->record), $this->backendUser->uc['titleLen']);
-
             $title = $this->languageService->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:mess.delete.title');
+
+            $recordInfo = GeneralUtility::fixed_lgd_cs(BackendUtility::getRecordTitle($this->table, $this->record), (int)$this->backendUser->uc['titleLen']);
+            if ($this->backendUser->shallDisplayDebugInformation()) {
+                $recordInfo .= ' [' . $this->table . ':' . $this->record['uid'] . ']';
+            }
             $confirmMessage = sprintf(
                 $this->languageService->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:mess.delete'),
-                $recordTitle
+                trim($recordInfo)
             );
             $confirmMessage .= BackendUtility::referenceCount(
                 $this->table,
                 $this->record['uid'],
-                ' ' . $this->languageService->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.referencesToRecord')
+                LF . $this->languageService->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.referencesToRecord')
             );
             $confirmMessage .= BackendUtility::translationCount(
                 $this->table,
                 $this->record['uid'],
-                ' ' . $this->languageService->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.translationsOfRecord')
+                LF . $this->languageService->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.translationsOfRecord')
             );
+
             $attributes += [
                 'data-title' => htmlspecialchars($title),
                 'data-message' => htmlspecialchars($confirmMessage),
@@ -578,9 +580,7 @@ class RecordProvider extends AbstractProvider
      */
     protected function canOpenNewCEWizard(): bool
     {
-        return $this->table === 'tt_content'
-            && (bool)(BackendUtility::getPagesTSconfig($this->record['pid'])['mod.']['web_layout.']['disableNewContentElementWizard'] ?? true)
-            && $this->canBeEdited() && !$this->isRecordATranslation();
+        return $this->table === 'tt_content' && $this->canBeEdited() && !$this->isRecordATranslation();
     }
 
     /**

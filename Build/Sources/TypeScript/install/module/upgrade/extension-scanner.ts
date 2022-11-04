@@ -67,7 +67,7 @@ class ExtensionScanner extends AbstractInteractableModule {
         this.scanSingleExtension(extension);
         $me.data('scanned', true);
       }
-    }).on('hide.bs.modal', (): void => {
+    }).on('typo3-modal-hide', (): void => {
       AjaxQueue.flush();
     }).on('click', this.selectorScanSingleTrigger, (e: JQueryEventObject): void => {
       // Scan a single extension by clicking "Rescan"
@@ -198,6 +198,7 @@ class ExtensionScanner extends AbstractInteractableModule {
     const hitTemplate = '#t3js-extensionScanner-file-hit-template';
     const restTemplate = '#t3js-extensionScanner-file-hit-rest-template';
     let hitFound = false;
+    $extensionContainer.addClass('panel-default');
     $extensionContainer.removeClass('panel-danger panel-warning panel-success t3js-extensionscan-finished');
     $extensionContainer.data('hasRun', 'true');
     $extensionContainer.find('.t3js-extensionScanner-scan-single').text('Scanning...').attr('disabled', 'disabled');
@@ -223,6 +224,7 @@ class ExtensionScanner extends AbstractInteractableModule {
 
           this.setStatusMessageForScan(extension, 0, numberOfFiles);
           $extensionContainer.find('.t3js-extensionScanner-extension-body').text('');
+          $extensionContainer.addClass('panel-has-progress');
           let doneFiles = 0;
           data.files.forEach((file: string): void => {
             AjaxQueue.add({
@@ -244,28 +246,28 @@ class ExtensionScanner extends AbstractInteractableModule {
                 if (fileData.success && $.isArray(fileData.matches)) {
                   fileData.matches.forEach((match: Match): void => {
                     hitFound = true;
-                    const aMatch: any = modalContent.find(hitTemplate).clone();
+                    const aMatch: any = modalContent.find(hitTemplate).find('.panel').clone();
                     aMatch.find('.t3js-extensionScanner-hit-file-panel-head').attr('href', '#collapse' + match.uniqueId);
                     aMatch.find('.t3js-extensionScanner-hit-file-panel-body').attr('id', 'collapse' + match.uniqueId);
                     aMatch.find('.t3js-extensionScanner-hit-filename').text(file);
                     aMatch.find('.t3js-extensionScanner-hit-message').text(match.message);
                     if (match.indicator === 'strong') {
                       aMatch.find('.t3js-extensionScanner-hit-file-panel-head .badges')
-                        .append('<span class="badge" title="Reliable match, false positive unlikely">strong</span>');
+                        .append('<span class="badge badge-danger" title="Reliable match, false positive unlikely">strong</span>');
                     } else {
                       aMatch.find('.t3js-extensionScanner-hit-file-panel-head .badges')
-                        .append('<span class="badge" title="Probable match, but can be a false positive">weak</span>');
+                        .append('<span class="badge badge-warning" title="Probable match, but can be a false positive">weak</span>');
                     }
                     if (match.silenced === true) {
                       aMatch.find('.t3js-extensionScanner-hit-file-panel-head .badges')
-                        .append('<span class="badge" title="Match has been annotated by extension author' +
+                        .append('<span class="badge badge-info" title="Match has been annotated by extension author' +
                           ' as false positive match">silenced</span>');
                     }
                     aMatch.find('.t3js-extensionScanner-hit-file-lineContent').empty().text(match.lineContent);
                     aMatch.find('.t3js-extensionScanner-hit-file-line').empty().text(match.line + ': ');
                     if ($.isArray(match.restFiles)) {
                       match.restFiles.forEach((restFile: RestFile): void => {
-                        const aRest = modalContent.find(restTemplate).clone();
+                        const aRest = modalContent.find(restTemplate).find('.panel').clone();
                         aRest.find('.t3js-extensionScanner-hit-rest-panel-head').attr('href', '#collapse' + restFile.uniqueId);
                         aRest.find('.t3js-extensionScanner-hit-rest-panel-head .badge').empty().text(restFile.version);
                         aRest.find('.t3js-extensionScanner-hit-rest-panel-body').attr('id', 'collapse' + restFile.uniqueId);
@@ -281,9 +283,12 @@ class ExtensionScanner extends AbstractInteractableModule {
                         ? 'panel-danger'
                         : 'panel-warning';
                     aMatch.addClass(panelClass);
+                    aMatch.removeClass('panel-default');
                     $extensionContainer.find('.t3js-extensionScanner-extension-body').removeClass('hide').append(aMatch);
+                    $extensionContainer.removeClass('panel-default');
                     if (panelClass === 'panel-danger') {
-                      $extensionContainer.removeClass('panel-warning').addClass(panelClass);
+                      $extensionContainer.removeClass('panel-warning');
+                      $extensionContainer.addClass(panelClass);
                     }
                     if (panelClass === 'panel-warning' && !$extensionContainer.hasClass('panel-danger')) {
                       $extensionContainer.addClass(panelClass);
@@ -310,9 +315,11 @@ class ExtensionScanner extends AbstractInteractableModule {
                 }
                 if (doneFiles === numberOfFiles) {
                   if (!hitFound) {
+                    $extensionContainer.removeClass('panel-default');
                     $extensionContainer.addClass('panel-success');
                   }
                   $extensionContainer.addClass('t3js-extensionscan-finished');
+                  $extensionContainer.removeClass('panel-has-progress');
                   this.setProgressForAll();
                   $extensionContainer.find('.t3js-extensionScanner-scan-single').text('Rescan').attr('disabled', null);
                 }
@@ -321,6 +328,7 @@ class ExtensionScanner extends AbstractInteractableModule {
                 doneFiles = doneFiles + 1;
                 this.setStatusMessageForScan(extension, doneFiles, numberOfFiles);
                 this.setProgressForScan(extension, doneFiles, numberOfFiles);
+                $extensionContainer.removeClass('panel-has-progress');
                 this.setProgressForAll();
                 console.error(reason);
               },

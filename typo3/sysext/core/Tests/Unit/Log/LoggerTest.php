@@ -25,9 +25,6 @@ use TYPO3\CMS\Core\Log\Writer\NullWriter;
 use TYPO3\CMS\Core\Tests\Unit\Log\Fixtures\WriterFixture;
 use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
-/**
- * Test case
- */
 class LoggerTest extends UnitTestCase
 {
     /**
@@ -50,40 +47,6 @@ class LoggerTest extends UnitTestCase
         // warning < error, thus must not be logged
         $logger->log(LogLevel::WARNING, 'test message');
         self::assertEmpty($writer->getRecords());
-    }
-
-    /**
-     * @test
-     */
-    public function loggerReturnsItselfAfterLogging(): void
-    {
-        $logger = new Logger('test.core.log');
-        $writer = new WriterFixture();
-        $logger->addWriter(LogLevel::DEBUG, $writer);
-        $returnValue = $logger->log(LogLevel::WARNING, 'test message');
-        self::assertInstanceOf(Logger::class, $returnValue);
-    }
-
-    /**
-     * @test
-     */
-    public function loggerReturnsItselfAfterLoggingWithoutWriter(): void
-    {
-        $logger = new Logger('test.core.log');
-        $returnValue = $logger->log(LogLevel::WARNING, 'test message');
-        self::assertInstanceOf(Logger::class, $returnValue);
-    }
-
-    /**
-     * @test
-     */
-    public function loggerReturnsItselfAfterLoggingLessCritical(): void
-    {
-        $logger = new Logger('test.core.log');
-        $writer = new WriterFixture();
-        $logger->addWriter(LogLevel::EMERGENCY, $writer);
-        $returnValue = $logger->log(LogLevel::WARNING, 'test message');
-        self::assertInstanceOf(Logger::class, $returnValue);
     }
 
     /**

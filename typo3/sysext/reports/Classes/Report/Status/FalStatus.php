@@ -19,6 +19,7 @@ use TYPO3\CMS\Core\Database\Connection;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Localization\LanguageService;
 use TYPO3\CMS\Core\Resource\StorageRepository;
+use TYPO3\CMS\Core\Type\ContextualFeedbackSeverity;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Reports\Status;
 use TYPO3\CMS\Reports\Status as ReportStatus;
@@ -58,15 +59,13 @@ class FalStatus implements StatusProviderInterface
         $count = 0;
         $maxFilesToShow = 100;
         $message = '';
-        $severity = ReportStatus::OK;
+        $severity = ContextualFeedbackSeverity::OK;
 
-        /** @var StorageRepository $storageRepository */
         $storageRepository = GeneralUtility::makeInstance(StorageRepository::class);
         $storageObjects = $storageRepository->findAll();
         $storages = [];
 
         foreach ($storageObjects as $storageObject) {
-
             // We only check missing files for storages that are online
             if ($storageObject->isOnline()) {
                 $storages[$storageObject->getUid()] = $storageObject;
@@ -81,7 +80,7 @@ class FalStatus implements StatusProviderInterface
                 ->where(
                     $queryBuilder->expr()->eq(
                         'missing',
-                        $queryBuilder->createNamedParameter(1, \PDO::PARAM_INT)
+                        $queryBuilder->createNamedParameter(1, Connection::PARAM_INT)
                     ),
                     $queryBuilder->expr()->in(
                         'storage',
@@ -94,7 +93,7 @@ class FalStatus implements StatusProviderInterface
 
         if ($count) {
             $value = sprintf($this->getLanguageService()->getLL('status_missingFilesCount'), $count);
-            $severity = ReportStatus::WARNING;
+            $severity = ContextualFeedbackSeverity::WARNING;
 
             $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable('sys_file');
             $files = $queryBuilder
@@ -103,7 +102,7 @@ class FalStatus implements StatusProviderInterface
                 ->where(
                     $queryBuilder->expr()->eq(
                         'missing',
-                        $queryBuilder->createNamedParameter(1, \PDO::PARAM_INT)
+                        $queryBuilder->createNamedParameter(1, Connection::PARAM_INT)
                     ),
                     $queryBuilder->expr()->in(
                         'storage',

@@ -13,7 +13,7 @@
 
 module.exports = function (grunt) {
 
-  const sass = require('node-sass');
+  const sass = require('sass');
   const esModuleLexer = require('es-module-lexer');
 
   /**
@@ -22,7 +22,8 @@ module.exports = function (grunt) {
   grunt.registerMultiTask('formatsass', 'Grunt task for stylefmt', function () {
     var options = this.options(),
       done = this.async(),
-      stylefmt = require('stylefmt'),
+      stylefmt = require('@ronilaukkarinen/stylefmt'),
+      postcss = require('postcss'),
       scss = require('postcss-scss'),
       files = this.filesSrc.filter(function (file) {
         return grunt.file.isFile(file);
@@ -35,7 +36,7 @@ module.exports = function (grunt) {
           from: filepath,
           syntax: scss
         };
-        stylefmt.process(content, settings).then(function (result) {
+        postcss([stylefmt]).process(content, settings).then(function (result) {
           grunt.file.write(file.dest, result.css);
           grunt.log.success('Source file "' + filepath + '" was processed.');
           counter++;
@@ -70,7 +71,7 @@ module.exports = function (grunt) {
     },
     stylelint: {
       options: {
-        configFile: '<%= paths.root %>.stylelintrc',
+        configFile: '<%= paths.root %>/Build/.stylelintrc',
       },
       sass: ['<%= paths.sass %>**/*.scss']
     },
@@ -115,14 +116,14 @@ module.exports = function (grunt) {
           "<%= paths.adminpanel %>Public/Css/adminpanel.css": "<%= paths.sass %>adminpanel.scss"
         }
       },
+      webfonts: {
+        files: {
+          "<%= paths.backend %>Public/Css/webfonts.css": "<%= paths.sass %>webfonts.scss"
+        }
+      },
       workspaces: {
         files: {
           "<%= paths.workspaces %>Public/Css/preview.css": "<%= paths.sass %>workspace.scss"
-        }
-      },
-      t3editor: {
-        files: {
-          '<%= paths.t3editor %>Public/Css/t3editor.css': '<%= paths.sass %>editor.scss'
         }
       }
     },
@@ -185,7 +186,10 @@ module.exports = function (grunt) {
     },
     exec: {
       ts: ((process.platform === 'win32') ? 'node_modules\\.bin\\tsc.cmd' : './node_modules/.bin/tsc') + ' --project tsconfig.json',
-      'yarn-install': 'yarn install'
+      ckeditor: ((process.platform === 'win32') ? 'node_modules\\.bin\\rollup.cmd' : './node_modules/.bin/rollup') + ' -c ckeditor5.rollup.config.js',
+      lintspaces: ((process.platform === 'win32') ? 'node_modules\\.bin\\lintspaces.cmd' : './node_modules/.bin/lintspaces') + ' --editorconfig ../.editorconfig "../typo3/sysext/*/Resources/Private/**/*.html"',
+      squoosh: ((process.platform === 'win32') ? 'node_modules\\.bin\\squoosh-cli.cmd' : './node_modules/.bin/squoosh-cli') + ' --oxipng auto --output-dir ../typo3/sysext/core/Resources/Public/Icons/Flags/ ../typo3/sysext/core/Resources/Public/Icons/Flags/*.png' + ((process.platform === 'win32') ? '' : ' 2>&1'),
+      'npm-install': 'npm install'
     },
     eslint: {
       options: {
@@ -206,11 +210,11 @@ module.exports = function (grunt) {
       },
       sass: {
         files: '<%= paths.sass %>**/*.scss',
-        tasks: 'css'
+        tasks: ['css', 'bell']
       },
       ts: {
         files: '<%= paths.typescript %>/**/*.ts',
-        tasks: 'scripts'
+        tasks: ['scripts', 'bell']
       }
     },
     copy: {
@@ -308,15 +312,9 @@ module.exports = function (grunt) {
         files: [
           {
             expand: true,
-            cwd: '<%= paths.node_modules %>source-sans-pro',
-            src: ['WOFF/OTF/**', 'WOFF2/TTF/**'],
-            dest: '<%= paths.sysext %>backend/Resources/Public/Fonts/SourceSansPro'
-          },
-          {
-            expand: true,
-            cwd: '<%= paths.node_modules %>font-awesome/fonts',
-            src: ['**/*', '!FontAwesome.otf'],
-            dest: '<%= paths.sysext %>backend/Resources/Public/Fonts/FontAwesome'
+            cwd: '<%= paths.node_modules %>source-sans/WOFF2/VAR/',
+            src: ['*.otf.woff2'],
+            dest: '<%= paths.sysext %>backend/Resources/Public/Fonts/SourceSans'
           }
         ]
       },
@@ -361,10 +359,34 @@ module.exports = function (grunt) {
         files: [
           {
             expand: true,
-            cwd: '<%= paths.node_modules %>codemirror',
-            dest: '<%= paths.t3editor %>Public/JavaScript/Contrib/codemirror',
-            src: ['**/*', '!**/src/**', '!rollup.config.js']
-          }
+            cwd: '<%= paths.node_modules %>@codemirror',
+            dest: '<%= paths.t3editor %>Public/JavaScript/Contrib/@codemirror/',
+            rename: (dest, src) => dest + src.replace('/dist/index', ''),
+            src: ['*/dist/index.js']
+          },
+          {
+            expand: true,
+            cwd: '<%= paths.node_modules %>@lezer',
+            dest: '<%= paths.t3editor %>Public/JavaScript/Contrib/@lezer/',
+            rename: (dest, src) => dest + src.replace('/dist/index.es', ''),
+            src: ['*/dist/index.es.js']
+          },
+          {
+            src: '<%= paths.node_modules %>@lezer/lr/dist/index.js',
+            dest: '<%= paths.t3editor %>Public/JavaScript/Contrib/@lezer/lr.js'
+          },
+          {
+            src: '<%= paths.node_modules %>crelt/index.es.js',
+            dest: '<%= paths.t3editor %>Public/JavaScript/Contrib/crelt.js'
+          },
+          {
+            src: '<%= paths.node_modules %>style-mod/src/style-mod.js',
+            dest: '<%= paths.t3editor %>Public/JavaScript/Contrib/style-mod.js'
+          },
+          {
+            src: '<%= paths.node_modules %>w3c-keyname/index.es.js',
+            dest: '<%= paths.t3editor %>Public/JavaScript/Contrib/w3c-keyname.js'
+          },
         ]
       }
     },
@@ -476,39 +498,6 @@ module.exports = function (grunt) {
         report: false,
         srcPrefix: "node_modules/"
       },
-      ckeditor: {
-        options: {
-          copyOptions: {
-            // Using null encoding to allow passthrough of binary files in `process`
-            encoding: null,
-            // Convert CRLF to LF in plain text files to mimic git's autocrlf behaviour
-            process: (content, srcpath) => srcpath.match(/\.(css|js|txt|html|md)$/) ? content.toString('utf8').replace(/\r\n/g, '\n') : content
-          },
-          destPrefix: "<%= paths.ckeditor %>Public/JavaScript/Contrib"
-        },
-        files: {
-          'ckeditor.js': 'ckeditor4/ckeditor.js',
-          'plugins/': 'ckeditor4/plugins/',
-          'skins/': 'ckeditor4/skins/',
-          'lang/': 'ckeditor4/lang/'
-        }
-      },
-      ckeditor_externalplugins: {
-        options: {
-          copyOptions: {
-            // Using null encoding to allow passthrough of binary files in `process`
-            encoding: null,
-            // Convert CRLF to LF in plain text files to mimic git's autocrlf behaviour
-            process: (content, srcpath) => srcpath.match(/\.(css|js|txt|html|md)$/) ? content.toString('utf8').replace(/\r\n/g, '\n') : content
-          },
-          destPrefix: "<%= paths.ckeditor %>Public/JavaScript/Contrib/plugins"
-        },
-        files: {
-          'wordcount/plugin.js': 'ckeditor-wordcount-plugin/wordcount/plugin.js',
-          'wordcount/lang/': 'ckeditor-wordcount-plugin/wordcount/lang/',
-          'wordcount/css/': 'ckeditor-wordcount-plugin/wordcount/css/',
-        }
-      },
       dashboard: {
         options: {
           destPrefix: "<%= paths.dashboard %>Public",
@@ -541,16 +530,8 @@ module.exports = function (grunt) {
             process: (source, srcpath) => {
               let imports = [], prefix = '';
 
-              if (srcpath === 'node_modules/devbridge-autocomplete/dist/jquery.autocomplete.min.js') {
-                imports.push('jquery');
-              }
-
               if (srcpath === 'node_modules/@claviska/jquery-minicolors/jquery.minicolors.min.js') {
                 imports.push('jquery');
-              }
-
-              if (srcpath === 'node_modules/imagesloaded/imagesloaded.js') {
-                imports.push('ev-emitter');
               }
 
               if (srcpath === 'node_modules/tablesort/dist/sorts/tablesort.dotsep.min.js') {
@@ -564,12 +545,10 @@ module.exports = function (grunt) {
         files: {
           'autosize.js': 'autosize/dist/autosize.min.js',
           'broadcastchannel.js': 'broadcastchannel-polyfill/index.js',
-          'ev-emitter.js': 'ev-emitter/ev-emitter.js',
           'flatpickr/flatpickr.min.js': 'flatpickr/dist/flatpickr.js',
           'flatpickr/locales.js': 'flatpickr/dist/l10n/index.js',
-          'imagesloaded.js': 'imagesloaded/imagesloaded.js',
+          'interact.js': 'interactjs/dist/interact.min.js',
           'jquery.js': 'jquery/dist/jquery.js',
-          'jquery.autocomplete.js': 'devbridge-autocomplete/dist/jquery.autocomplete.min.js',
           'jquery/minicolors.js': '../node_modules/@claviska/jquery-minicolors/jquery.minicolors.min.js',
           'moment.js': 'moment/min/moment-with-locales.min.js',
           'moment-timezone.js': 'moment-timezone/builds/moment-timezone-with-data.min.js',
@@ -669,8 +648,6 @@ module.exports = function (grunt) {
           "<%= paths.core %>Public/JavaScript/Contrib/es-module-shims.js": ["<%= paths.core %>Public/JavaScript/Contrib/es-module-shims.js"],
           "<%= paths.core %>Public/JavaScript/Contrib/broadcastchannel.js": ["<%= paths.core %>Public/JavaScript/Contrib/broadcastchannel.js"],
           "<%= paths.core %>Public/JavaScript/Contrib/cropperjs.js": ["<%= paths.core %>Public/JavaScript/Contrib/cropperjs.js"],
-          "<%= paths.core %>Public/JavaScript/Contrib/imagesloaded.js": ["<%= paths.core %>Public/JavaScript/Contrib/imagesloaded.js"],
-          "<%= paths.core %>Public/JavaScript/Contrib/ev-emitter.js": ["<%= paths.core %>Public/JavaScript/Contrib/ev-emitter.js"],
           "<%= paths.core %>Public/JavaScript/Contrib/flatpickr/flatpickr.min.js": ["<%= paths.core %>Public/JavaScript/Contrib/flatpickr/flatpickr.min.js"],
           "<%= paths.core %>Public/JavaScript/Contrib/flatpickr/locales.js": ["<%= paths.core %>Public/JavaScript/Contrib/flatpickr/locales.js"],
           "<%= paths.core %>Public/JavaScript/Contrib/require.js": ["<%= paths.core %>Public/JavaScript/Contrib/require.js"],
@@ -693,10 +670,9 @@ module.exports = function (grunt) {
           {
             expand: true,
             src: [
-              '<%= paths.t3editor %>Public/JavaScript/Contrib/codemirror/**/*.js',
-              '!<%= paths.t3editor %>Public/JavaScript/Contrib/codemirror/**/*.min.js'
+              '<%= paths.t3editor %>Public/JavaScript/Contrib/**/*.js'
             ],
-            dest: '<%= paths.t3editor %>Public/JavaScript/Contrib/codemirror',
+            dest: '<%= paths.t3editor %>Public/JavaScript/Contrib',
             cwd: '.',
             rename: function (dest, src) {
               return src;
@@ -735,31 +711,9 @@ module.exports = function (grunt) {
         ]
       }
     },
-    imagemin: {
-      flags: {
-        files: [
-          {
-            cwd: '<%= paths.sysext %>core/Resources/Public/Icons/Flags',
-            src: ['**/*.{png,jpg,gif}'],
-            dest: '<%= paths.sysext %>core/Resources/Public/Icons/Flags',
-            expand: true
-          }
-        ]
-      }
-    },
-    lintspaces: {
-      html: {
-        src: [
-          '<%= paths.sysext %>*/Resources/Private/**/*.html'
-        ],
-        options: {
-          editorconfig: '../.editorconfig'
-        }
-      }
-    },
     concurrent: {
-      npmcopy: ['npmcopy:ckeditor', 'npmcopy:ckeditor_externalplugins', 'npmcopy:dashboard', 'npmcopy:umdToEs6', 'npmcopy:jqueryUi', 'npmcopy:install', 'npmcopy:all'],
-      lint: ['eslint', 'stylelint', 'lintspaces'],
+      npmcopy: ['npmcopy:dashboard', 'npmcopy:umdToEs6', 'npmcopy:jqueryUi', 'npmcopy:install', 'npmcopy:all'],
+      lint: ['eslint', 'stylelint', 'exec:lintspaces'],
       compile_assets: ['scripts', 'css'],
       minify_assets: ['terser:thirdparty', 'terser:t3editor'],
       copy_static: ['copy:core_icons', 'copy:install_icons', 'copy:module_icons', 'copy:extension_icons', 'copy:fonts', 'copy:t3editor'],
@@ -773,24 +727,13 @@ module.exports = function (grunt) {
   grunt.loadNpmTasks('grunt-rollup');
   grunt.loadNpmTasks('grunt-npmcopy');
   grunt.loadNpmTasks('grunt-terser');
-  grunt.loadNpmTasks('grunt-postcss');
+  grunt.loadNpmTasks('@lodder/grunt-postcss');
   grunt.loadNpmTasks('grunt-contrib-copy');
   grunt.loadNpmTasks('grunt-exec');
   grunt.loadNpmTasks('grunt-eslint');
   grunt.loadNpmTasks('grunt-stylelint');
-  grunt.loadNpmTasks('grunt-lintspaces');
-  grunt.loadNpmTasks('grunt-contrib-imagemin');
   grunt.loadNpmTasks('grunt-newer');
   grunt.loadNpmTasks('grunt-concurrent');
-
-  /**
-   * grunt default task
-   *
-   * call "$ grunt"
-   *
-   * this will trigger the CSS build
-   */
-  grunt.registerTask('default', ['css']);
 
   /**
    * grunt lint
@@ -822,10 +765,9 @@ module.exports = function (grunt) {
    * call "$ grunt update"
    *
    * this task does the following things:
-   * - yarn install
    * - copy some components to a specific destinations because they need to be included via PHP
    */
-  grunt.registerTask('update', ['exec:yarn-install', 'rollup', 'concurrent:npmcopy']);
+  grunt.registerTask('update', ['rollup', 'exec:ckeditor', 'concurrent:npmcopy']);
 
   /**
    * grunt compile-typescript task
@@ -883,9 +825,16 @@ module.exports = function (grunt) {
   });
 
   /**
-   * grunt build task
+   * Outputs a "bell" character. When output, modern terminals flash shortly or produce a notification (usually configurable).
+   * This Grunt config uses it after the "watch" task finished compiling, signaling to the developer that her/his changes
+   * are now compiled.
+   */
+  grunt.registerTask('bell', () => console.log('\u0007'));
+
+  /**
+   * grunt default task
    *
-   * call "$ grunt build"
+   * call "$ grunt default"
    *
    * this task does the following things:
    * - execute update task
@@ -895,5 +844,16 @@ module.exports = function (grunt) {
    * - minifies svg files
    * - compiles TypeScript files
    */
-  grunt.registerTask('build', ['clear-build', 'update', 'concurrent:copy_static', 'concurrent:compile_assets', 'concurrent:minify_assets', 'imagemin']);
+  grunt.registerTask('default', ['clear-build', 'update', 'concurrent:copy_static', 'concurrent:compile_assets', 'concurrent:minify_assets', 'exec:squoosh']);
+
+  /**
+   * grunt build task (legacy, for those used to it). Use `grunt default` instead.
+   *
+   * call "$ grunt build"
+   *
+   * this task does the following things:
+   * - execute exec:npm-install task
+   * - execute all task
+   */
+  grunt.registerTask('build', ['exec:npm-install', 'default']);
 };

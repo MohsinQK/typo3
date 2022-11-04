@@ -207,7 +207,7 @@ class LoginRefresh {
           'aria-valuemin': '0',
           'aria-valuemax': '100',
         }).append(
-          $('<span />', {class: 'sr-only'}),
+          $('<span />', {class: 'visually-hidden'}),
         ),
       ),
     );
@@ -279,7 +279,7 @@ class LoginRefresh {
         href: this.logoutUrl,
         class: 'btn btn-default',
       }).text(TYPO3.lang['mess.refresh_exit_button']),
-      $('<button />', {type: 'button', class: 'btn btn-primary', 'data-action': 'refreshSession'})
+      $('<button />', {type: 'submit', class: 'btn btn-primary', 'data-action': 'refreshSession', form: 'beLoginRefresh'})
         .text(TYPO3.lang['mess.refresh_login_button'])
         .on('click', () => {
           this.$loginForm.find('form').trigger('submit');
@@ -323,7 +323,7 @@ class LoginRefresh {
     const max = 100;
     let current = 0;
     const $progressBar = $activeModal.find('.progress-bar');
-    const $srText = $progressBar.children('.sr-only');
+    const $srText = $progressBar.children('.visually-hidden');
 
     const progress = setInterval(() => {
       const isOverdue = (current >= max);

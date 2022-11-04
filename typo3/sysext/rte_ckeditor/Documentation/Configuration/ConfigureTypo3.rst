@@ -8,17 +8,23 @@ TYPO3 Configuration Basics
 ==========================
 
 Just in case you are not familiar with how to configure TYPO3, we will
-give you a very brief introduction. In case you are , you can safely
+give you a very brief introduction. Otherwise, you can safely
 skip this part and continue reading
 :ref:`config-concepts`.
 
 We only cover configuration methods that are used to configure `rte_ckeditor`.
 
-
 .. _config-typo3-page-tsconfig:
 
 Page TSconfig
 =============
+
+We recommend you to put all configurations for the preset in the
+:ref:`YAML <config-typo3-yaml>` configuration. However, it is still possible to
+override these settings through the page TSconfig.
+
+You can find a list of configuration properties in the :ref:`Page TSconfig
+reference, chapter RTE <t3tsconfig:pageTsRte>`.
 
 Relevant Settings for `rte_ckeditor`
 ------------------------------------
@@ -34,51 +40,28 @@ Page TSconfig can be used to change:
       RTE.config.tt_content.bodytext.preset = myCustomPreset
       RTE.config.tx_news_domain_model_news.bodytext.preset = minimal
 
-#. Override for one field defined in flexform (:typoscript:`RTE.config.[tableName].[flexForm\.field\.name].preset`)::
+#. Override for one field defined in flexform (:typoscript:`RTE.config.[tableName].[flexForm.field.name].preset`)::
 
-      RTE.config.tt_content.settings\.notifications\.emailText.preset = myCustomPreset
+      RTE.config.tt_content.settings.notifications.emailText.preset = myCustomPreset
 
 #. Override for one field, if type matches (:typoscript:`RTE.config.[tableName].[fieldName].types.[type].preset`)::
 
       RTE.config.tt_content.bodytext.types.textmedia.preset = minimal
 
-For more examples, see :ref:`t3tsconfig:pageTsRte` in "TSconfig Reference".
 
 How to change values
 --------------------
 
-As Page TSconfig always applies to a page and its subpages, you can modify it by
-editing a page.
-
-#. Go to the :guilabel:`"WEB" > "Page"` module.
-#. Select a page in the page tree (usually
-   your root page).
-#. Click on the button to :guilabel:`Edit page properties`
-
-   .. figure:: images/edit_page_properties.png
-      :class: with-shadow
-
-#. Select the :guilabel:`"Resources"` tab
-#. Enter the Page TSconfig in the field :guilabel:`"Page TSconfig"`
-
-
-Additionally, you can add Page TSconfig in an extension: :file:`Configuration/TSconfig/Page`, see
-:ref:`best-practice-sitepackage`.
-
-How to view settings
---------------------
-
-Go to the module :guilabel:`"WEB" > "Info"` and select :guilabel:`"Page TSconfig"`.
-
-
-
+See the :ref:`Page TSconfig reference,
+chapter Setting Page TSconfig <t3tsconfig:setting-page-tsconfig>`. This chapter
+also expains how to verify the settings.
 
 .. _config-typo3-global-configuration:
 
 Global Configuration
 ====================
 
-Global Configuration is system wide general configuration.
+Global Configuration is a system-wide general configuration.
 
 Relevant Settings for `rte_ckeditor`
 ------------------------------------
@@ -95,14 +78,14 @@ How to change values
 --------------------
 
 Usually, Global Configuration can be configured in the backend in
-:guilabel:`"ADMIN TOOLS" > "Settings" > "Configure Installation-Wide Options"`.
+:guilabel:`Admin Tools > Settings > Configure Installation-Wide Options`.
 
 However, the settings relevant for rich text editing, :php:`$GLOBALS['TYPO3_CONF_VARS']['RTE']['Presets']`
 cannot be configured in the backend.
 
 You must either configure this in:
 
-#. The file :file:`typo3conf/AdditionalConfiguration.php`
+#. The file :file:`%config-dir%/system/additional.php`
 #. Or in an extension in the file :file:`EXT:<extkey>/ext_localconf.php`
 
 .. code-block:: php
@@ -116,7 +99,7 @@ How to view settings
 --------------------
 
 You can view the Global Configuration in
-:guilabel:`"SYSTEM" > "Configuration" > "$GLOBAL['TYPO3_CONF_VARS'] (Global Configuration)" > "RTE"`.
+:guilabel:`System > Configuration > $GLOBAL['TYPO3_CONF_VARS'] (Global Configuration) > RTE`.
 
 .. figure:: images/global-configuration-rte.png
    :class: with-shadow
@@ -171,7 +154,7 @@ How to view settings
 --------------------
 
 You can view TCA in the backend:
-:guilabel:`"SYSTEM" > "Configuration" > "$GLOBAL['TCA'] (Table configuration array)"`.
+:guilabel:`System > Configuration > $GLOBAL['TCA'] (Table configuration array)`.
 
 For example, look at :guilabel:`tt_content > columns > bodytext`.
 
@@ -184,6 +167,3 @@ look at :guilabel:`tt_content > types > text > columnsOverrides`.
    :class: with-shadow
 
    TCA: tt_content > types > text > columnsOverrides > bodytext
-
-
-

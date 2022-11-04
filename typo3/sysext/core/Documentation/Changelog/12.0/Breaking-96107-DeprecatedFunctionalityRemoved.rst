@@ -1,5 +1,7 @@
 .. include:: /Includes.rst.txt
 
+.. _breaking-96107:
+
 ===================================================
 Breaking: #96107 - Deprecated functionality removed
 ===================================================
@@ -51,7 +53,7 @@ The following PHP classes that have previously been marked as deprecated for v11
 
 The following PHP classes have been declared final:
 
-- All fluid ViewHelpers
+- All Fluid ViewHelpers
 
 The following PHP interfaces that have previously been marked as deprecated for v11 and were now removed:
 
@@ -71,8 +73,8 @@ The following PHP interfaces changed:
 - :php:`\TYPO3\CMS\Core\Collection\CollectionInterface` (no longer extends \Serializable)
 - :php:`\TYPO3\CMS\Core\Resource\FolderInterface` (method :php:`getFile()` added)
 - :php:`\TYPO3\CMS\Extbase\Persistence\QueryInterface` (method :php:`setType()` added)
-- :php:`\TYPO3\CMS\Extbase\Persistence\QueryInterface->logicalAnd` (all three arguments are now type hinted as `ConstraintInterface`)
-- :php:`\TYPO3\CMS\Extbase\Persistence\QueryInterface->logicalOr` (all three arguments are now type hinted as `ConstraintInterface`)
+- :php:`\TYPO3\CMS\Extbase\Persistence\QueryInterface->logicalAnd` (all arguments are now type hinted as `ConstraintInterface`)
+- :php:`\TYPO3\CMS\Extbase\Persistence\QueryInterface->logicalOr` (all arguments are now type hinted as `ConstraintInterface`)
 - :php:`\TYPO3\CMS\Extbase\Persistence\QueryResultInterface` (method :php:`setQuery()` added)
 - :php:`\TYPO3\CMS\Form\Domain\Finishers\FinisherInterface` (method :php:`setFinisherIdentifier()` added)
 - :php:`\TYPO3\CMS\Frontend\ContentObject\Exception\ExceptionHandlerInterface` (method :php:`setConfiguration()` added)
@@ -206,11 +208,12 @@ The following PHP static class methods changed signature according to previous d
 
 The following PHP class methods changed signature according to previous deprecations in v11 and are now type hinted:
 
+- :php:`\TYPO3\CMS\Core\Database\Query\Expression\ExpressionBuilder->literal()` (second argument requires an integer)
 - :php:`\TYPO3\CMS\Core\Database\Query\QueryBuilder->quote()` (second argument requires an integer)
 - :php:`\TYPO3\CMS\Core\TimeTracker\TimeTracker->setTSlogMessage()` (second argument requires a string)
 - :php:`\TYPO3\CMS\Backend\Tree\View\AbstractTreeView->getIcon()` (first argument is now type hinted `array`)
-- :php:`\TYPO3\CMS\Extbase\Persistence\Generic\Query->logicalAnd()` (all three arguments are now type hinted as `ConstraintInterface`)
-- :php:`\TYPO3\CMS\Extbase\Persistence\Generic\Query->logicalOr()` (all three arguments are now type hinted as `ConstraintInterface`)
+- :php:`\TYPO3\CMS\Extbase\Persistence\Generic\Query->logicalAnd()` (all arguments are now type hinted as `ConstraintInterface`)
+- :php:`\TYPO3\CMS\Extbase\Persistence\Generic\Query->logicalOr()` (all arguments are now type hinted as `ConstraintInterface`)
 - :php:`\TYPO3\CMS\Recordlist\RecordList\DatabaseRecordList->linkUrlMail()` (all arguments are now type hinted as `string`)
 
 The following PHP class methods changed signature according to previous deprecations:
@@ -345,12 +348,14 @@ The following single field configurations have been removed from :php:`$GLOBALS[
 The following features are now always enabled:
 
 - `runtimeDbQuotingOfTcaConfiguration`
+- `subrequestPageErrors`
+- `yamlImportsFollowDeclarationOrder`
 
 The following features have been removed:
 
 - Extbase switchable controller actions
-- Upgrade wizard "Migrate felogin plugins to use prefixed flexform keys"
-- Upgrade wizard "Migrate felogin plugins to use extbase CType"
+- Upgrade wizard "Migrate felogin plugins to use prefixed FlexForm keys"
+- Upgrade wizard "Migrate felogin plugins to use Extbase CType"
 - Upgrade wizard "Install extension 'feedit' from TER"
 - Upgrade wizard "Install extension 'sys_action' from TER"
 - Upgrade wizard "Install extension "taskcenter" from TER"
@@ -360,15 +365,15 @@ The following fallbacks have been removed:
 
 - Usage of the :html:`t3js-toggle-new-content-element-wizard` class to trigger the new content element wizard
 - Usage of the :php:`DataHandler->inlineLocalizeSynchronize()` functionality without an array as input argument
-- The :php:`route` parameter is no longer added to backend urls
-- Extensions, which are located in `typo3conf/ext`, but not installed by Composer, are no longer evaluated for installations in "composer mode"
+- The :php:`route` parameter is no longer added to backend URLs
+- Extensions, which are located in `typo3conf/ext`, but not installed by Composer, are no longer evaluated for installations in "Composer mode"
 - Extbase no longer accepts :php:`MyVendor.` prefixed :php:`MyExtensionName` as first argument in
   :php:`\TYPO3\CMS\Extbase\Utility\ExtensionUtility::configurePlugin()`, :php:`\TYPO3\CMS\Extbase\Utility\ExtensionUtility::registerPlugin()`
   and :php:`\TYPO3\CMS\Extbase\Utility\ExtensionUtility::registerModule()` and controller class names must be registered
   with their fully qualified name.
 - Extbase no longer determines types from doc block annotations for dependency injection methods and actions with validators,
   defined types in method signatures must be used.
-- Accessing core related caches with :php:`cache_` prefix has been removed.
+- Accessing Core related caches with :php:`cache_` prefix has been removed.
 - Accessing :php:`\TYPO3\CMS\Frontend\Typolink\LinkResult` properties as arrays - ArrayAccess functionality removed
 
 The following database tables have been removed:

@@ -23,7 +23,6 @@ use TYPO3\CMS\Core\Type\Bitmask\Permission;
 
 class PagePermissionRestrictionTest extends AbstractRestrictionTestCase
 {
-
     /**
      * Builds a shell for the user aspect object which returns the checked values in the Restriction.
      *
@@ -35,7 +34,7 @@ class PagePermissionRestrictionTest extends AbstractRestrictionTestCase
      */
     protected function getPreparedUserAspect(bool $isLoggedIn, bool $isAdmin, int $userId, array $groupIds): UserAspect
     {
-        return new class($isLoggedIn, $isAdmin, $userId, $groupIds) extends UserAspect {
+        return new class ($isLoggedIn, $isAdmin, $userId, $groupIds) extends UserAspect {
             private $isAdmin;
             private $isLoggedIn;
             private $userId;

@@ -22,6 +22,7 @@ use Prophecy\Argument;
 use Prophecy\PhpUnit\ProphecyTrait;
 use Psr\Container\ContainerInterface;
 use TYPO3\CMS\Core\Context\Context;
+use TYPO3\CMS\Core\Context\LanguageAspect;
 use TYPO3\CMS\Core\Context\WorkspaceAspect;
 use TYPO3\CMS\Core\Core\SystemEnvironmentBuilder;
 use TYPO3\CMS\Core\Database\ConnectionPool;
@@ -40,12 +41,11 @@ use TYPO3\CMS\Extbase\Persistence\Generic\Query;
 use TYPO3\CMS\Extbase\Persistence\Generic\Storage\Typo3DbBackend;
 use TYPO3\CMS\Extbase\Persistence\Generic\Typo3QuerySettings;
 use TYPO3\CMS\Extbase\Persistence\PersistenceManagerInterface;
+use TYPO3\CMS\Extbase\Reflection\ClassSchema;
+use TYPO3\CMS\Extbase\Reflection\ReflectionService;
 use TYPO3\CMS\Extbase\Service\CacheService;
 use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
-/**
- * Test case
- */
 class Typo3DbBackendTest extends UnitTestCase
 {
     use ProphecyTrait;
@@ -73,12 +73,6 @@ class Typo3DbBackendTest extends UnitTestCase
      */
     public function uidOfAlreadyPersistedValueObjectIsDeterminedCorrectly(bool $isFrontendEnvironment): void
     {
-        $mockValueObject = $this->getMockBuilder(AbstractValueObject::class)
-            ->onlyMethods(['_getProperties'])
-            ->disableOriginalConstructor()
-            ->getMock();
-        $mockValueObject->expects(self::once())->method('_getProperties')
-            ->willReturn(['propertyName' => 'propertyValue']);
         $mockColumnMap = $this->getMockBuilder(DataMap::class)
             ->onlyMethods(['isPersistableProperty'])
             ->addMethods(['getColumnName'])
@@ -130,12 +124,22 @@ class Typo3DbBackendTest extends UnitTestCase
                 ->shouldBeCalled();
         }
 
+        $domainObject = new class () extends AbstractValueObject {
+            protected string $propertyName = 'propertyValue';
+        };
+
+        $reflectionServiceProphecy = $this->prophesize(ReflectionService::class);
+        $reflectionServiceProphecy
+            ->getClassSchema(Argument::exact(get_class($domainObject)))
+            ->willReturn(new ClassSchema(get_class($domainObject)));
+
         GeneralUtility::addInstance(DataMapper::class, $mockDataMapper);
         GeneralUtility::addInstance(ConnectionPool::class, $connectionPoolProphet->reveal());
         $subject = new Typo3DbBackend(
-            $this->prophesize(CacheService::class)->reveal()
+            $this->prophesize(CacheService::class)->reveal(),
+            $reflectionServiceProphecy->reveal()
         );
-        $result = $subject->getUidOfAlreadyPersistedValueObject($mockValueObject);
+        $result = $subject->getUidOfAlreadyPersistedValueObject($domainObject);
         self::assertSame($expectedUid, $result);
     }
 
@@ -162,6 +166,7 @@ class Typo3DbBackendTest extends UnitTestCase
             ->addMethods(['dummy'])
             ->disableOriginalConstructor()
             ->getMock();
+        $mockQuerySettings->setLanguageAspect(new LanguageAspect());
 
         $workspaceUid = 2;
 

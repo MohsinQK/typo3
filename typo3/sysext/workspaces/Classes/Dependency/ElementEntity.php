@@ -15,6 +15,7 @@
 
 namespace TYPO3\CMS\Workspaces\Dependency;
 
+use TYPO3\CMS\Core\Database\Connection;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 
@@ -23,12 +24,12 @@ use TYPO3\CMS\Core\Utility\GeneralUtility;
  */
 class ElementEntity
 {
-    const REFERENCES_ChildOf = 'childOf';
-    const REFERENCES_ParentOf = 'parentOf';
-    const EVENT_Construct = 'TYPO3\\CMS\\Version\\Dependency\\ElementEntity::construct';
-    const EVENT_CreateChildReference = 'TYPO3\\CMS\\Version\\Dependency\\ElementEntity::createChildReference';
-    const EVENT_CreateParentReference = 'TYPO3\\CMS\\Version\\Dependency\\ElementEntity::createParentReference';
-    const RESPONSE_Skip = 'TYPO3\\CMS\\Version\\Dependency\\ElementEntity->skip';
+    public const REFERENCES_ChildOf = 'childOf';
+    public const REFERENCES_ParentOf = 'parentOf';
+    public const EVENT_Construct = 'TYPO3\\CMS\\Version\\Dependency\\ElementEntity::construct';
+    public const EVENT_CreateChildReference = 'TYPO3\\CMS\\Version\\Dependency\\ElementEntity::createChildReference';
+    public const EVENT_CreateParentReference = 'TYPO3\\CMS\\Version\\Dependency\\ElementEntity::createParentReference';
+    public const RESPONSE_Skip = 'TYPO3\\CMS\\Version\\Dependency\\ElementEntity->skip';
 
     /**
      * @var bool
@@ -234,15 +235,15 @@ class ElementEntity
                 ->where(
                     $queryBuilder->expr()->eq(
                         'tablename',
-                        $queryBuilder->createNamedParameter($this->table, \PDO::PARAM_STR)
+                        $queryBuilder->createNamedParameter($this->table)
                     ),
                     $queryBuilder->expr()->eq(
                         'recuid',
-                        $queryBuilder->createNamedParameter($this->id, \PDO::PARAM_INT)
+                        $queryBuilder->createNamedParameter($this->id, Connection::PARAM_INT)
                     ),
                     $queryBuilder->expr()->eq(
                         'workspace',
-                        $queryBuilder->createNamedParameter($this->dependency->getWorkspace(), \PDO::PARAM_INT)
+                        $queryBuilder->createNamedParameter($this->dependency->getWorkspace(), Connection::PARAM_INT)
                     )
                 )
                 ->orderBy('sorting')
@@ -296,15 +297,15 @@ class ElementEntity
                 ->where(
                     $queryBuilder->expr()->eq(
                         'ref_table',
-                        $queryBuilder->createNamedParameter($this->table, \PDO::PARAM_STR)
+                        $queryBuilder->createNamedParameter($this->table)
                     ),
                     $queryBuilder->expr()->eq(
                         'ref_uid',
-                        $queryBuilder->createNamedParameter($this->id, \PDO::PARAM_INT)
+                        $queryBuilder->createNamedParameter($this->id, Connection::PARAM_INT)
                     ),
                     $queryBuilder->expr()->eq(
                         'workspace',
-                        $queryBuilder->createNamedParameter($this->dependency->getWorkspace(), \PDO::PARAM_INT)
+                        $queryBuilder->createNamedParameter($this->dependency->getWorkspace(), Connection::PARAM_INT)
                     )
                 )
                 ->orderBy('sorting')
@@ -430,7 +431,7 @@ class ElementEntity
                 ->where(
                     $queryBuilder->expr()->eq(
                         'uid',
-                        $queryBuilder->createNamedParameter($this->getId(), \PDO::PARAM_INT)
+                        $queryBuilder->createNamedParameter($this->getId(), Connection::PARAM_INT)
                     )
                 )
                 ->executeQuery()

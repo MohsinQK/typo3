@@ -1,0 +1,78 @@
+//
+// Badges
+//
+
+// Mixins
+@mixin badge-create-variant($state, $value) {
+    --badge-#{$state}-color: #{color-contrast($value)};
+    --badge-#{$state}-bg: #{$value};
+    --badge-#{$state}-link-bg-hover: #{darken($value, 10%)};
+}
+
+@mixin badge-use-variant($state) {
+    --badge-color: var(--badge-#{$state}-color);
+    --badge-bg: var(--badge-#{$state}-bg);
+    --badge-link-bg-hover: var(--badge-#{$state}-link-bg-hover);
+}
+
+// Variables
+@each $state, $value in $theme-colors {
+    :root {
+        @include badge-create-variant($state, $value);
+    }
+}
+
+// Base
+.badge {
+    color: var(--badge-color);
+    background-color: var(--badge-bg);
+
+    &[href] {
+        &:hover,
+        &:focus {
+            text-decoration: none;
+            color: var(--badge-color, inherit);
+            background-color: var(--badge-link-bg-hover);
+        }
+    }
+
+    // Default also used for:
+    // .badge-default,
+    // .badge-obsolete,
+    // .badge-test,
+    // .badge-excludeFromUpdates
+    @include badge-use-variant('default');
+}
+
+// Colors
+@each $state, $value in $theme-colors {
+    .badge-#{$state} {
+        @include badge-use-variant($state);
+    }
+}
+
+.badge-stable {
+    @include badge-use-variant('success');
+}
+
+.badge-experimental {
+    @include badge-use-variant('info');
+}
+
+.badge-beta {
+    @include badge-use-variant('warning');
+}
+
+.badge-alpha,
+.badge-deprecated {
+    @include badge-use-variant('danger');
+}
+
+// Display Variants
+.badge-space-left {
+    margin-left: 1em;
+}
+
+.badge-space-right {
+    margin-right: 1em;
+}

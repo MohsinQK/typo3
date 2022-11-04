@@ -17,12 +17,12 @@ namespace TYPO3\CMS\Filelist;
 
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Http\Message\ServerRequestInterface;
-use TYPO3\CMS\Backend\Backend\Avatar\Avatar;
 use TYPO3\CMS\Backend\Clipboard\Clipboard;
 use TYPO3\CMS\Backend\Configuration\TranslationConfigurationProvider;
 use TYPO3\CMS\Backend\Routing\UriBuilder;
 use TYPO3\CMS\Backend\Utility\BackendUtility;
 use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
+use TYPO3\CMS\Core\Database\Connection;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Imaging\Icon;
 use TYPO3\CMS\Core\Imaging\IconFactory;
@@ -181,18 +181,12 @@ class FileList
     protected ?FileSearchDemand $searchDemand = null;
     protected ?FileExtensionFilter $fileExtensionFilter = null;
 
-    /**
-     * A runtime first-level cache to avoid unneeded calls to BackendUtility::getRecord()
-     * @var array
-     */
-    protected array $backendUserCache = [];
-
     protected EventDispatcherInterface $eventDispatcher;
 
     public function __construct(?ServerRequestInterface $request = null)
     {
         // Setting the maximum length of the filenames to the user's settings or minimum 30 (= $this->fixedL)
-        $this->fixedL = max($this->fixedL, $this->getBackendUser()->uc['titleLen'] ?? 1);
+        $this->fixedL = max($this->fixedL, (int)($this->getBackendUser()->uc['titleLen'] ?? 1));
         $this->iconFactory = GeneralUtility::makeInstance(IconFactory::class);
         $this->eventDispatcher = GeneralUtility::makeInstance(EventDispatcherInterface::class);
         $this->translateTools = GeneralUtility::makeInstance(TranslationConfigurationProvider::class);
@@ -739,10 +733,7 @@ class FileList
                         $theData[$field] = '';
                         if ($fileObject->hasProperty($field)) {
                             $concreteTableName = $this->getConcreteTableName($field);
-                            if ($field === ($GLOBALS['TCA'][$concreteTableName]['ctrl']['cruser_id'] ?? '')) {
-                                // Handle cruser_id by adding the avatar along with the username
-                                $theData[$field] = $this->getBackendUserInformation((int)$fileObject->getProperty($field));
-                            } elseif ($field === 'storage') {
+                            if ($field === 'storage') {
                                 // Fetch storage name of the current file
                                 $storage = GeneralUtility::makeInstance(StorageRepository::class)->findByUid((int)$fileObject->getProperty($field));
                                 if ($storage !== null) {
@@ -771,22 +762,25 @@ class FileList
      * Fetch the translations for a sys_file_metadata record
      *
      * @param array $metaDataRecord
-     * @return array keys are the site language ids, values are the $rows
+     * @return array<int, array<string, mixed>> keys are the site language ids, values are the $rows
      */
     protected function getTranslationsForMetaData($metaDataRecord)
     {
+        $languageField = $GLOBALS['TCA']['sys_file_metadata']['ctrl']['languageField'] ?? '';
+        $languageParentField = $GLOBALS['TCA']['sys_file_metadata']['ctrl']['transOrigPointerField'] ?? '';
+
         $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable('sys_file_metadata');
         $queryBuilder->getRestrictions()->removeAll();
         $translationRecords = $queryBuilder->select('*')
             ->from('sys_file_metadata')
             ->where(
                 $queryBuilder->expr()->eq(
-                    $GLOBALS['TCA']['sys_file_metadata']['ctrl']['transOrigPointerField'],
-                    $queryBuilder->createNamedParameter($metaDataRecord['uid'] ?? 0, \PDO::PARAM_INT)
+                    $languageParentField,
+                    $queryBuilder->createNamedParameter($metaDataRecord['uid'] ?? 0, Connection::PARAM_INT)
                 ),
                 $queryBuilder->expr()->gt(
-                    $GLOBALS['TCA']['sys_file_metadata']['ctrl']['languageField'],
-                    $queryBuilder->createNamedParameter(0, \PDO::PARAM_INT)
+                    $languageField,
+                    $queryBuilder->createNamedParameter(0, Connection::PARAM_INT)
                 )
             )
             ->executeQuery()
@@ -794,7 +788,8 @@ class FileList
 
         $translations = [];
         foreach ($translationRecords as $record) {
-            $translations[$record[$GLOBALS['TCA']['sys_file_metadata']['ctrl']['languageField']]] = $record;
+            $languageId = $record[$languageField];
+            $translations[$languageId] = $record;
         }
         return $translations;
     }
@@ -1025,7 +1020,7 @@ class FileList
                 if ($fileUrl) {
                     $cells['download'] = '<a href="' . htmlspecialchars($fileUrl) . '" download="' . htmlspecialchars($fileOrFolderObject->getName()) . '" class="btn btn-default" title="' . htmlspecialchars($this->getLanguageService()->sL('LLL:EXT:filelist/Resources/Private/Language/locallang.xlf:download')) . '">' . $this->iconFactory->getIcon('actions-download', Icon::SIZE_SMALL)->render() . '</a>';
                 }
-                // Folder download
+            // Folder download
             } elseif ($fileOrFolderObject instanceof Folder) {
                 $cells['download'] = '<button type="button" data-folder-download="' . htmlspecialchars($this->uriBuilder->buildUriFromRoute('file_download')) . '" data-folder-identifier="' . htmlspecialchars($fileOrFolderObject->getCombinedIdentifier()) . '" class="btn btn-default" title="' . htmlspecialchars($this->getLanguageService()->sL('LLL:EXT:filelist/Resources/Private/Language/locallang.xlf:download')) . '">' . $this->iconFactory->getIcon('actions-download', Icon::SIZE_SMALL)->render() . '</button>';
             }
@@ -1056,13 +1051,21 @@ class FileList
 
         // delete the file
         if ($fileOrFolderObject->checkActionPermission('delete')) {
-            $identifier = $fileOrFolderObject->getIdentifier();
+            $recordInfo = $fileOrFolderObject->getName();
+
             if ($fileOrFolderObject instanceof Folder) {
-                $referenceCountText = BackendUtility::referenceCount('_FILE', $identifier, ' ' . $this->getLanguageService()->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.referencesToFolder'));
+                $identifier = $fileOrFolderObject->getIdentifier();
+                $referenceCountText = BackendUtility::referenceCount('_FILE', $identifier, LF . $this->getLanguageService()->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.referencesToFolder'));
                 $deleteType = 'delete_folder';
+                if ($this->getBackendUser()->shallDisplayDebugInformation()) {
+                    $recordInfo .= ' [' . $identifier . ']';
+                }
             } else {
-                $referenceCountText = BackendUtility::referenceCount('sys_file', (string)$fileOrFolderObject->getUid(), ' ' . $this->getLanguageService()->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.referencesToFile'));
+                $referenceCountText = BackendUtility::referenceCount('sys_file', (string)$fileOrFolderObject->getUid(), LF . $this->getLanguageService()->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.referencesToFile'));
                 $deleteType = 'delete_file';
+                if ($this->getBackendUser()->shallDisplayDebugInformation()) {
+                    $recordInfo .= ' [sys_file:' . $fileOrFolderObject->getUid() . ']';
+                }
             }
 
             if ($this->getBackendUser()->jsConfirmation(JsConfirmation::DELETE)) {
@@ -1072,7 +1075,7 @@ class FileList
             }
 
             $deleteUrl = (string)$this->uriBuilder->buildUriFromRoute('tce_file');
-            $confirmationMessage = sprintf($this->getLanguageService()->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:mess.delete'), $fileOrFolderObject->getName()) . $referenceCountText;
+            $confirmationMessage = sprintf($this->getLanguageService()->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:mess.delete'), trim($recordInfo)) . $referenceCountText;
             $title = $this->getLanguageService()->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:cm.delete');
             $cells['delete'] = '<a href="#" class="btn btn-default t3js-filelist-delete" data-bs-content="' . htmlspecialchars($confirmationMessage)
                 . '" data-check="' . $confirmationCheck
@@ -1090,7 +1093,7 @@ class FileList
         $clipboardActions = $this->makeClip($fileOrFolderObject);
         if ($clipboardActions !== []) {
             // Add divider in case at least one clipboard action is displayed
-            $cells['divider'] = '<hr class="dropdown-divider me-0 ms-0 border-white">';
+            $cells['divider'] = '<hr class="dropdown-divider">';
         }
         // Merge the clipboard actions into the existing cells
         $cells = array_merge($cells, $clipboardActions);
@@ -1102,8 +1105,18 @@ class FileList
         // Compile items into a dropdown
         $cellOutput = '';
         $output = '';
+        $primaryActions = ['view', 'metadata', 'translations', 'delete'];
+        $userTsConfig = $this->getBackendUser()->getTSConfig();
+        if ($userTsConfig['options.']['file_list.']['primaryActions'] ?? false) {
+            $primaryActions = GeneralUtility::trimExplode(',', $userTsConfig['options.']['file_list.']['primaryActions']);
+
+            // Always add "translations" as this action has an own dropdown container and therefore cannot be a secondary action
+            if (!in_array('translations', $primaryActions, true)) {
+                $primaryActions[] = 'translations';
+            }
+        }
         foreach ($cells as $key => $action) {
-            if (in_array($key, ['view', 'metadata', 'translations', 'delete'])) {
+            if (in_array($key, $primaryActions, true)) {
                 $output .= $action;
                 continue;
             }
@@ -1111,13 +1124,13 @@ class FileList
                 continue;
             }
             // This is a backwards-compat layer for the existing hook items, which will be removed in TYPO3 v12.
-            $action = str_replace('btn btn-default', 'dropdown-item', $action);
+            $action = str_replace('btn btn-default', 'dropdown-item dropdown-item-spaced', $action);
             $title = [];
             preg_match('/title="([^"]*)"/', $action, $title);
             if (empty($title)) {
                 preg_match('/aria-label="([^"]*)"/', $action, $title);
             }
-            if (!empty($title[1] ?? '')) {
+            if (!empty($title[1])) {
                 $action = str_replace(
                     [
                         '</a>',
@@ -1130,11 +1143,11 @@ class FileList
                 );
                 // In case we added the title as tag content, we can remove the attribute,
                 // since this is duplicated and would trigger a tooltip with the same content.
-                if (!empty($title[0] ?? '')) {
+                if (!empty($title[0])) {
                     $action = str_replace($title[0], '', $action);
                 }
+                $cellOutput .= '<li>' . $action . '</li>';
             }
-            $cellOutput .= '<li>' . $action . '</li>';
         }
 
         if ($cellOutput !== '') {
@@ -1142,7 +1155,7 @@ class FileList
             $title = $this->getLanguageService()->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:cm.more');
             $output .= '<div class="btn-group dropdown position-static" data-bs-toggle="tooltip" title="' . htmlspecialchars($title) . '" >' .
                 '<a href="#actions_' . $fileOrFolderObject->getHashedIdentifier() . '" class="btn btn-default dropdown-toggle dropdown-toggle-no-chevron" data-bs-toggle="dropdown" data-bs-boundary="window" aria-expanded="false">' . $icon->render() . '</a>' .
-                '<ul id="actions_' . $fileOrFolderObject->getHashedIdentifier() . '" class="dropdown-menu dropdown-list">' . $cellOutput . '</ul>' .
+                '<ul id="actions_' . $fileOrFolderObject->getHashedIdentifier() . '" class="dropdown-menu">' . $cellOutput . '</ul>' .
                 '</div>';
         } else {
             $output .= $this->spaceIcon;
@@ -1259,12 +1272,13 @@ class FileList
                 // Set options for "create new" action of a new translation
                 $title = sprintf($this->getLanguageService()->getLL('createMetadataForLanguage'), $language['title']);
                 $actionType = 'new';
+                $metaDataRecordId = (int)($metaDataRecord['uid'] ?? 0);
                 $url = BackendUtility::getLinkToDataHandlerAction(
-                    '&cmd[sys_file_metadata][' . $metaDataRecord['uid'] . '][localize]=' . $languageId,
+                    '&cmd[sys_file_metadata][' . $metaDataRecordId . '][localize]=' . $languageId,
                     (string)$this->uriBuilder->buildUriFromRoute(
                         'record_edit',
                         [
-                            'justLocalized' => 'sys_file_metadata:' . $metaDataRecord['uid'] . ':' . $languageId,
+                            'justLocalized' => 'sys_file_metadata:' . $metaDataRecordId . ':' . $languageId,
                             'returnUrl' => $this->listURL(),
                         ]
                     )
@@ -1274,7 +1288,14 @@ class FileList
             $translations[] = '
                 <li>
                     <a href="' . htmlspecialchars($url) . '" class="dropdown-item" title="' . htmlspecialchars($title) . '">
-                        ' . $this->iconFactory->getIcon($language['flagIcon'], Icon::SIZE_SMALL, 'overlay-' . $actionType)->render() . ' ' . htmlspecialchars($title) . '
+                        <span class="dropdown-item-columns">
+                            <span class="dropdown-item-column dropdown-item-column-icon" aria-hidden="true">
+                                ' . $this->iconFactory->getIcon($language['flagIcon'], Icon::SIZE_SMALL, 'overlay-' . $actionType)->render() . '
+                            </span>
+                            <span class="dropdown-item-column dropdown-item-column-title">
+                                ' . htmlspecialchars($title) . '
+                            </span>
+                        </span>
                     </a>
                 </li>';
         }
@@ -1328,22 +1349,43 @@ class FileList
 
         $dropdownItems['checkAll'] = '
             <li>
-                <button type="button" class="btn btn-link dropdown-item disabled" data-multi-record-selection-check-action="check-all" title="' . htmlspecialchars($lang->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.checkAll')) . '">
-                    ' . $this->iconFactory->getIcon('actions-check-square', Icon::SIZE_SMALL)->render() . ' ' . htmlspecialchars($lang->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.checkAll')) . '
+                <button type="button" class="dropdown-item disabled" data-multi-record-selection-check-action="check-all" title="' . htmlspecialchars($lang->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.checkAll')) . '">
+                    <span class="dropdown-item-columns">
+                        <span class="dropdown-item-column dropdown-item-column-icon" aria-hidden="true">
+                            ' . $this->iconFactory->getIcon('actions-check-square', Icon::SIZE_SMALL)->render() . '
+                        </span>
+                        <span class="dropdown-item-column dropdown-item-column-title">
+                            ' . htmlspecialchars($lang->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.checkAll')) . '
+                        </span>
+                    </span>
                 </button>
             </li>';
 
         $dropdownItems['checkNone'] = '
             <li>
-                <button type="button" class="btn btn-link dropdown-item disabled" data-multi-record-selection-check-action="check-none" title="' . htmlspecialchars($lang->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.uncheckAll')) . '">
-                    ' . $this->iconFactory->getIcon('actions-square', Icon::SIZE_SMALL)->render() . ' ' . htmlspecialchars($lang->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.uncheckAll')) . '
+                <button type="button" class="dropdown-item disabled" data-multi-record-selection-check-action="check-none" title="' . htmlspecialchars($lang->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.uncheckAll')) . '">
+                    <span class="dropdown-item-columns">
+                        <span class="dropdown-item-column dropdown-item-column-icon" aria-hidden="true">
+                            ' . $this->iconFactory->getIcon('actions-square', Icon::SIZE_SMALL)->render() . '
+                        </span>
+                        <span class="dropdown-item-column dropdown-item-column-title">
+                            ' . htmlspecialchars($lang->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.uncheckAll')) . '
+                        </span>
+                    </span>
                 </button>
             </li>';
 
         $dropdownItems['toggleSelection'] = '
             <li>
-                <button type="button" class="btn btn-link dropdown-item" data-multi-record-selection-check-action="toggle" title="' . htmlspecialchars($lang->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.toggleSelection')) . '">
-                    ' . $this->iconFactory->getIcon('actions-document-select', Icon::SIZE_SMALL)->render() . ' ' . htmlspecialchars($lang->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.toggleSelection')) . '
+                <button type="button" class="dropdown-item" data-multi-record-selection-check-action="toggle" title="' . htmlspecialchars($lang->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.toggleSelection')) . '">
+                    <span class="dropdown-item-columns">
+                        <span class="dropdown-item-column dropdown-item-column-icon" aria-hidden="true">
+                        ' . $this->iconFactory->getIcon('actions-document-select', Icon::SIZE_SMALL)->render() . '
+                        </span>
+                        <span class="dropdown-item-column dropdown-item-column-title">
+                            ' . htmlspecialchars($lang->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.toggleSelection')) . '
+                        </span>
+                    </span>
                 </button>
             </li>';
 
@@ -1356,26 +1398,6 @@ class FileList
                     ' . implode(PHP_EOL, $dropdownItems) . '
                 </ul>
             </div>';
-    }
-
-    /**
-     * Helper method around fetching a "cruser_id" information for a record, with a cache, so the same information
-     * does not have to be processed for the same user over and over again.
-     */
-    protected function getBackendUserInformation(int $backendUserId): string
-    {
-        if (!isset($this->backendUserCache[$backendUserId])) {
-            $beUserRecord = BackendUtility::getRecord('be_users', $backendUserId);
-            if (is_array($beUserRecord)) {
-                $avatar = GeneralUtility::makeInstance(Avatar::class);
-                $label = htmlspecialchars(BackendUtility::getRecordTitle('be_users', $beUserRecord));
-                $content = $avatar->render($beUserRecord) . '<strong>' . $label . '</strong>';
-            } else {
-                $content = '<strong>&ndash;</strong>';
-            }
-            $this->backendUserCache[$backendUserId] = $content;
-        }
-        return $this->backendUserCache[$backendUserId];
     }
 
     /**
@@ -1511,7 +1533,7 @@ class FileList
                 ),
                 $queryBuilder->expr()->eq(
                     'ref_uid',
-                    $queryBuilder->createNamedParameter($file->getUid(), \PDO::PARAM_INT)
+                    $queryBuilder->createNamedParameter($file->getUid(), Connection::PARAM_INT)
                 ),
                 $queryBuilder->expr()->neq(
                     'tablename',

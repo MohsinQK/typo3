@@ -28,6 +28,7 @@ use TYPO3\CMS\Core\Context\Context;
 use TYPO3\CMS\Core\Crypto\PasswordHashing\PasswordHashFactory;
 use TYPO3\CMS\Core\Crypto\PasswordHashing\PasswordHashInterface;
 use TYPO3\CMS\Core\Crypto\Random;
+use TYPO3\CMS\Core\Database\Connection;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Database\Query\QueryBuilder;
 use TYPO3\CMS\Core\Database\Query\Restriction\DeletedRestriction;
@@ -37,7 +38,10 @@ use TYPO3\CMS\Core\Database\Query\Restriction\RootLevelRestriction;
 use TYPO3\CMS\Core\Database\Query\Restriction\StartTimeRestriction;
 use TYPO3\CMS\Core\Http\NormalizedParams;
 use TYPO3\CMS\Core\Mail\FluidEmail;
-use TYPO3\CMS\Core\Mail\Mailer;
+use TYPO3\CMS\Core\Mail\MailerInterface;
+use TYPO3\CMS\Core\PasswordPolicy\PasswordPolicyAction;
+use TYPO3\CMS\Core\PasswordPolicy\PasswordPolicyValidator;
+use TYPO3\CMS\Core\PasswordPolicy\Validator\Dto\ContextData;
 use TYPO3\CMS\Core\SysLog\Action\Login as SystemLogLoginAction;
 use TYPO3\CMS\Core\SysLog\Error as SystemLogErrorClassification;
 use TYPO3\CMS\Core\SysLog\Type as SystemLogType;
@@ -92,7 +96,7 @@ class PasswordReset implements LoggerAwareInterface
             ->select('uid')
             ->from('be_users')
             ->andWhere(
-                $queryBuilder->expr()->eq('uid', $queryBuilder->createNamedParameter($userId, \PDO::PARAM_INT))
+                $queryBuilder->expr()->eq('uid', $queryBuilder->createNamedParameter($userId, Connection::PARAM_INT))
             )
             ->setMaxResults(1)
             ->executeQuery();
@@ -158,7 +162,8 @@ class PasswordReset implements LoggerAwareInterface
             ->assign('email', $emailAddress)
             ->setTemplate('PasswordReset/AmbiguousResetRequested');
 
-        GeneralUtility::makeInstance(Mailer::class)->send($emailObject);
+        // TODO: DI should be used to inject the MailerInterface
+        GeneralUtility::makeInstance(MailerInterface::class)->send($emailObject);
         $this->logger->warning('Password reset sent to email address {email} but multiple accounts found', ['email' => $emailAddress]);
         $this->log(
             'Sent password reset email to email address %s but with multiple accounts attached.',
@@ -194,7 +199,8 @@ class PasswordReset implements LoggerAwareInterface
             ->assign('resetLink', $resetLink)
             ->setTemplate('PasswordReset/ResetRequested');
 
-        GeneralUtility::makeInstance(Mailer::class)->send($emailObject);
+        // TODO: DI should be used to inject the MailerInterface
+        GeneralUtility::makeInstance(MailerInterface::class)->send($emailObject);
         $this->logger->info('Sent password reset email to email address {email} for user {username}', [
             'email' => $emailAddress,
             'username' => $user['username'],
@@ -278,12 +284,17 @@ class PasswordReset implements LoggerAwareInterface
      */
     protected function findValidUserForToken(string $token, string $identity, int $expirationTimestamp): ?array
     {
+        // Early return if token expired
+        if ($expirationTimestamp < time()) {
+            return null;
+        }
+
         $user = null;
         // Find the token in the database
         $queryBuilder = $this->getPreparedQueryBuilder();
 
         $queryBuilder
-            ->select('uid', 'email', 'password_reset_token')
+            ->select('uid', 'email', 'password_reset_token', 'password')
             ->from('be_users');
         if ($queryBuilder->getConnection()->getDatabasePlatform() instanceof MySQLPlatform) {
             $queryBuilder->andWhere(
@@ -327,16 +338,23 @@ class PasswordReset implements LoggerAwareInterface
         $token = (string)($request->getQueryParams()['t'] ?? '');
         $newPassword = (string)($request->getParsedBody()['password'] ?? '');
         $newPasswordRepeat = (string)($request->getParsedBody()['passwordrepeat'] ?? '');
-        if (strlen($newPassword) < 8 || $newPassword !== $newPasswordRepeat) {
-            $this->logger->debug('Password reset not possible due to weak password');
-            return false;
-        }
+
         $user = $this->findValidUserForToken($token, $identityHash, $expirationTimestamp);
         if ($user === null) {
             $this->logger->warning('Password reset not possible. Valid user for token not found.');
             return false;
         }
         $userId = (int)$user['uid'];
+
+        if ($newPassword !== $newPasswordRepeat) {
+            $this->logger->debug('Password reset not possible because new password and new password repeat do not match');
+            return false;
+        }
+
+        if (!$this->isValidPassword($newPassword, $user)) {
+            $this->logger->debug('The new password does not match all requirements of the password policy.');
+            return false;
+        }
 
         GeneralUtility::makeInstance(ConnectionPool::class)
             ->getConnectionForTable('be_users')
@@ -387,7 +405,7 @@ class PasswordReset implements LoggerAwareInterface
         );
         if (!($GLOBALS['TYPO3_CONF_VARS']['BE']['passwordResetForAdmins'] ?? false)) {
             $queryBuilder->andWhere(
-                $queryBuilder->expr()->eq('admin', $queryBuilder->createNamedParameter(0, \PDO::PARAM_INT))
+                $queryBuilder->expr()->eq('admin', $queryBuilder->createNamedParameter(0, Connection::PARAM_INT))
             );
         }
         return $queryBuilder;
@@ -435,22 +453,22 @@ class PasswordReset implements LoggerAwareInterface
             'sys_log',
             $fields,
             [
-                \PDO::PARAM_INT,
-                \PDO::PARAM_INT,
-                \PDO::PARAM_STR,
-                \PDO::PARAM_STR,
-                \PDO::PARAM_INT,
-                \PDO::PARAM_INT,
-                \PDO::PARAM_INT,
-                \PDO::PARAM_STR,
-                \PDO::PARAM_STR,
-                \PDO::PARAM_STR,
-                \PDO::PARAM_INT,
-                \PDO::PARAM_STR,
-                \PDO::PARAM_INT,
-                \PDO::PARAM_INT,
-                \PDO::PARAM_STR,
-                \PDO::PARAM_STR,
+                Connection::PARAM_INT,
+                Connection::PARAM_INT,
+                Connection::PARAM_STR,
+                Connection::PARAM_STR,
+                Connection::PARAM_INT,
+                Connection::PARAM_INT,
+                Connection::PARAM_INT,
+                Connection::PARAM_STR,
+                Connection::PARAM_STR,
+                Connection::PARAM_STR,
+                Connection::PARAM_INT,
+                Connection::PARAM_STR,
+                Connection::PARAM_INT,
+                Connection::PARAM_INT,
+                Connection::PARAM_STR,
+                Connection::PARAM_STR,
             ]
         );
     }
@@ -487,9 +505,24 @@ class PasswordReset implements LoggerAwareInterface
                 $queryBuilder->expr()->eq('type', $queryBuilder->createNamedParameter(SystemLogType::LOGIN)),
                 $queryBuilder->expr()->eq('action', $queryBuilder->createNamedParameter(SystemLogLoginAction::PASSWORD_RESET_REQUEST)),
                 $queryBuilder->expr()->eq('log_data', $queryBuilder->createNamedParameter(json_encode(['email' => $email]))),
-                $queryBuilder->expr()->gte('tstamp', $queryBuilder->createNamedParameter($since->getTimestamp(), \PDO::PARAM_INT))
+                $queryBuilder->expr()->gte('tstamp', $queryBuilder->createNamedParameter($since->getTimestamp(), Connection::PARAM_INT))
             )
             ->executeQuery()
             ->fetchOne();
+    }
+
+    /**
+     * Returns, if the given password is compliant with the global password policy for backend users
+     */
+    protected function isValidPassword(string $password, array $user): bool
+    {
+        $passwordPolicy = $GLOBALS['TYPO3_CONF_VARS']['BE']['passwordPolicy'] ?? 'default';
+        $passwordPolicyValidator = GeneralUtility::makeInstance(
+            PasswordPolicyValidator::class,
+            PasswordPolicyAction::UPDATE_USER_PASSWORD,
+            is_string($passwordPolicy) ? $passwordPolicy : ''
+        );
+        $contextData = new ContextData(currentPasswordHash: $user['password']);
+        return $passwordPolicyValidator->isValidPassword($password, $contextData);
     }
 }

@@ -1979,4 +1979,217 @@ return [
             'Deprecation-97576-TYPO3CMSCoreUtilityResourceUtility.rst',
         ],
     ],
+    'TYPO3\CMS\Core\Mail\MailerAdapterInterface' => [
+        'restFiles' => [
+            'Breaking-97752-MailerAdapterInterfaceRemoved.rst',
+        ],
+    ],
+    'TYPO3\CMS\Core\Domain\Repository\PageRepositoryGetPageOverlayHookInterface' => [
+        'restFiles' => [
+            'Breaking-98303-RemovedHooksForLanguageOverlaysInPageRepository.rst',
+            'Deprecation-98303-InterfacesForPageRepositoryLanguageOverlayHooks.rst',
+            'Feature-98303-PSR-14EventsForModifyingLanguageOverlays.rst',
+        ],
+    ],
+    'TYPO3\CMS\Core\Domain\Repository\PageRepositoryGetRecordOverlayHookInterface' => [
+        'restFiles' => [
+            'Breaking-98303-RemovedHooksForLanguageOverlaysInPageRepository.rst',
+            'Deprecation-98303-InterfacesForPageRepositoryLanguageOverlayHooks.rst',
+            'Feature-98303-PSR-14EventsForModifyingLanguageOverlays.rst',
+        ],
+    ],
+    'TYPO3\CMS\Frontend\Plugin\AbstractPlugin' => [
+        'restFiles' => [
+            'Breaking-98281-MakeAbstractPluginInternal.rst',
+        ],
+    ],
+    'TYPO3\CMS\Backend\View\PageLayoutView' => [
+        'restFiles' => [
+            'Breaking-98375-RemovedHooksInPageModule.rst',
+            'Feature-98375-PSR-14EventsInPageModule.rst',
+        ],
+    ],
+    'TYPO3\CMS\Backend\View\PageLayoutViewDrawItemHookInterface' => [
+        'restFiles' => [
+            'Breaking-98375-RemovedHooksInPageModule.rst',
+            'Feature-98375-PSR-14EventsInPageModule.rst',
+        ],
+    ],
+    'TYPO3\CMS\Backend\View\PageLayoutViewDrawFooterHookInterface' => [
+        'restFiles' => [
+            'Breaking-98375-RemovedHooksInPageModule.rst',
+            'Feature-98375-PSR-14EventsInPageModule.rst',
+        ],
+    ],
+    'TYPO3\CMS\Backend\Form\Exception\AccessDeniedHookException' => [
+        'restFiles' => [
+            'Breaking-98304-RemovedHookForModifyingEditFormUserAccess.rst',
+            'Feature-98304-PSR-14EventForModifyingEditFormUserAccess.rst',
+        ],
+    ],
+    'TYPO3\CMS\Recordlist\Browser\AbstractElementBrowser' => [
+        'restFiles' => [
+            'Breaking-98443-ExtensionRecordlistMergedIntoBackend.rst',
+        ],
+    ],
+    'TYPO3\CMS\Recordlist\Browser\DatabaseBrowser' => [
+        'restFiles' => [
+            'Breaking-98443-ExtensionRecordlistMergedIntoBackend.rst',
+        ],
+    ],
+    'TYPO3\CMS\Recordlist\Browser\ElementBrowserInterface' => [
+        'restFiles' => [
+            'Breaking-98443-ExtensionRecordlistMergedIntoBackend.rst',
+        ],
+    ],
+    'TYPO3\CMS\Recordlist\Browser\ElementBrowserRegistry' => [
+        'restFiles' => [
+            'Breaking-98443-ExtensionRecordlistMergedIntoBackend.rst',
+        ],
+    ],
+    'TYPO3\CMS\Recordlist\Browser\FileBrowser' => [
+        'restFiles' => [
+            'Breaking-98443-ExtensionRecordlistMergedIntoBackend.rst',
+        ],
+    ],
+    'TYPO3\CMS\Recordlist\Browser\FolderBrowser' => [
+        'restFiles' => [
+            'Breaking-98443-ExtensionRecordlistMergedIntoBackend.rst',
+        ],
+    ],
+    'TYPO3\CMS\Recordlist\Controller\AbstractLinkBrowserController' => [
+        'restFiles' => [
+            'Breaking-98443-ExtensionRecordlistMergedIntoBackend.rst',
+        ],
+    ],
+    'TYPO3\CMS\Recordlist\Controller\AccessDeniedException' => [
+        'restFiles' => [
+            'Breaking-98443-ExtensionRecordlistMergedIntoBackend.rst',
+        ],
+    ],
+    'TYPO3\CMS\Recordlist\Controller\ClearPageCacheController' => [
+        'restFiles' => [
+            'Breaking-98443-ExtensionRecordlistMergedIntoBackend.rst',
+        ],
+    ],
+    'TYPO3\CMS\Recordlist\Controller\ElementBrowserController' => [
+        'restFiles' => [
+            'Breaking-98443-ExtensionRecordlistMergedIntoBackend.rst',
+        ],
+    ],
+    'TYPO3\CMS\Recordlist\Controller\RecordListController' => [
+        'restFiles' => [
+            'Breaking-98443-ExtensionRecordlistMergedIntoBackend.rst',
+        ],
+    ],
+    'TYPO3\CMS\Recordlist\Controller\RecordDownloadController' => [
+        'restFiles' => [
+            'Breaking-98443-ExtensionRecordlistMergedIntoBackend.rst',
+        ],
+    ],
+    'TYPO3\CMS\Recordlist\Event\RenderAdditionalContentToRecordListEvent' => [
+        'restFiles' => [
+            'Breaking-98443-ExtensionRecordlistMergedIntoBackend.rst',
+        ],
+    ],
+    'TYPO3\CMS\Recordlist\Event\ModifyRecordListHeaderColumnsEvent' => [
+        'restFiles' => [
+            'Breaking-98443-ExtensionRecordlistMergedIntoBackend.rst',
+        ],
+    ],
+    'TYPO3\CMS\Recordlist\Event\ModifyRecordListRecordActionsEvent' => [
+        'restFiles' => [
+            'Breaking-98443-ExtensionRecordlistMergedIntoBackend.rst',
+        ],
+    ],
+    'TYPO3\CMS\Recordlist\Event\ModifyRecordListTableActionsEvent' => [
+        'restFiles' => [
+            'Breaking-98443-ExtensionRecordlistMergedIntoBackend.rst',
+        ],
+    ],
+    'TYPO3\CMS\Recordlist\LinkHandler\AbstractLinkHandler' => [
+        'restFiles' => [
+            'Breaking-98443-ExtensionRecordlistMergedIntoBackend.rst',
+        ],
+    ],
+    'TYPO3\CMS\Recordlist\LinkHandler\FileLinkHandler' => [
+        'restFiles' => [
+            'Breaking-98443-ExtensionRecordlistMergedIntoBackend.rst',
+        ],
+    ],
+    'TYPO3\CMS\Recordlist\LinkHandler\FolderLinkHandler' => [
+        'restFiles' => [
+            'Breaking-98443-ExtensionRecordlistMergedIntoBackend.rst',
+        ],
+    ],
+    'TYPO3\CMS\Recordlist\LinkHandler\LinkHandlerInterface' => [
+        'restFiles' => [
+            'Breaking-98443-ExtensionRecordlistMergedIntoBackend.rst',
+        ],
+    ],
+    'TYPO3\CMS\Recordlist\LinkHandler\MailLinkHandler' => [
+        'restFiles' => [
+            'Breaking-98443-ExtensionRecordlistMergedIntoBackend.rst',
+        ],
+    ],
+    'TYPO3\CMS\Recordlist\LinkHandler\PageLinkHandler' => [
+        'restFiles' => [
+            'Breaking-98443-ExtensionRecordlistMergedIntoBackend.rst',
+        ],
+    ],
+    'TYPO3\CMS\Recordlist\LinkHandler\RecordLinkHandler' => [
+        'restFiles' => [
+            'Breaking-98443-ExtensionRecordlistMergedIntoBackend.rst',
+        ],
+    ],
+    'TYPO3\CMS\Recordlist\LinkHandler\TelephoneLinkHandler' => [
+        'restFiles' => [
+            'Breaking-98443-ExtensionRecordlistMergedIntoBackend.rst',
+        ],
+    ],
+    'TYPO3\CMS\Recordlist\LinkHandler\UrlLinkHandler' => [
+        'restFiles' => [
+            'Breaking-98443-ExtensionRecordlistMergedIntoBackend.rst',
+        ],
+    ],
+    'TYPO3\CMS\Recordlist\RecordList\DatabaseRecordList' => [
+        'restFiles' => [
+            'Breaking-98443-ExtensionRecordlistMergedIntoBackend.rst',
+        ],
+    ],
+    'TYPO3\CMS\Recordlist\RecordList\DownloadRecordList' => [
+        'restFiles' => [
+            'Breaking-98443-ExtensionRecordlistMergedIntoBackend.rst',
+        ],
+    ],
+    'TYPO3\CMS\Recordlist\Tree\View\LinkParameterProviderInterface' => [
+        'restFiles' => [
+            'Breaking-98443-ExtensionRecordlistMergedIntoBackend.rst',
+        ],
+    ],
+    'TYPO3\CMS\Recordlist\View\RecordSearchBoxComponent' => [
+        'restFiles' => [
+            'Breaking-98443-ExtensionRecordlistMergedIntoBackend.rst',
+        ],
+    ],
+    'TYPO3\CMS\Recordlist\View\FolderUtilityRenderer' => [
+        'restFiles' => [
+            'Breaking-98443-ExtensionRecordlistMergedIntoBackend.rst',
+        ],
+    ],
+    'TYPO3\CMS\Recordlist\RecordList\RecordListGetTableHookInterface' => [
+        'restFiles' => [
+            'Breaking-98490-VariousHooksAndMethodsChangedInDatabaseRecordList.rst',
+        ],
+    ],
+    'TYPO3\CMS\Core\Resource\Service\UserFileInlineLabelService' => [
+        'restFiles' => [
+            'Deprecation-98479-DeprecatedFileReferenceRelatedFunctionality.rst',
+        ],
+    ],
+    'TYPO3\CMS\Frontend\Typolink\LinkResultFactory' => [
+        'restFiles' => [
+            'Deprecation-97536-LinkResultFactory.rst',
+        ],
+    ],
 ];

@@ -20,9 +20,6 @@ namespace TYPO3\CMS\Core\Tests\Unit\Service;
 use TYPO3\CMS\Core\Service\DependencyOrderingService;
 use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
-/**
- * Test case
- */
 class DependencyOrderingServiceTest extends UnitTestCase
 {
     /**
@@ -167,7 +164,6 @@ class DependencyOrderingServiceTest extends UnitTestCase
      */
     public function prepareDependenciesBuildsFullIdentifierList(array $dependencies, array $expectedDependencies): void
     {
-        /** @var DependencyOrderingService|\PHPUnit\Framework\MockObject\MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface $dependencyOrderingService */
         $dependencyOrderingService = $this->getAccessibleMock(DependencyOrderingService::class, ['dummy']);
         $preparedDependencies = $dependencyOrderingService->_call('prepareDependencies', $dependencies);
         self::assertEquals($expectedDependencies, $preparedDependencies);
@@ -716,7 +712,6 @@ class DependencyOrderingServiceTest extends UnitTestCase
      */
     public function findPathInGraphReturnsCorrectPath(array $graph, string $from, string $to, array $expected): void
     {
-        /** @var DependencyOrderingService|\PHPUnit\Framework\MockObject\MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface $dependencyOrderingService */
         $dependencyOrderingService = $this->getAccessibleMock(DependencyOrderingService::class, ['dummy']);
         $path = $dependencyOrderingService->_call('findPathInGraph', $graph, $from, $to);
 

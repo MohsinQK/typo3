@@ -16,6 +16,8 @@
 namespace TYPO3\CMS\Lowlevel\Database;
 
 use Doctrine\DBAL\Exception as DBALException;
+use Doctrine\DBAL\Platforms\PostgreSQLPlatform;
+use Doctrine\DBAL\Types\Types;
 use TYPO3\CMS\Backend\Routing\UriBuilder;
 use TYPO3\CMS\Backend\Utility\BackendUtility;
 use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
@@ -30,6 +32,7 @@ use TYPO3\CMS\Core\Messaging\FlashMessage;
 use TYPO3\CMS\Core\Messaging\FlashMessageRendererResolver;
 use TYPO3\CMS\Core\Messaging\FlashMessageService;
 use TYPO3\CMS\Core\Type\Bitmask\Permission;
+use TYPO3\CMS\Core\Type\ContextualFeedbackSeverity;
 use TYPO3\CMS\Core\Utility\CsvUtility;
 use TYPO3\CMS\Core\Utility\DebugUtility;
 use TYPO3\CMS\Core\Utility\ExtensionManagementUtility;
@@ -294,8 +297,7 @@ class QueryGenerator
         $this->settings = $settings;
         $this->menuItems = $menuItems;
         $this->moduleName = $moduleName;
-        $this->showFieldAndTableNames = ($GLOBALS['TYPO3_CONF_VARS']['BE']['debug'] ?? false)
-            && $this->getBackendUserAuthentication()->isAdmin();
+        $this->showFieldAndTableNames = $this->getBackendUserAuthentication()->shallDisplayDebugInformation();
     }
 
     /**
@@ -410,9 +412,11 @@ class QueryGenerator
                 }
                 $connection = GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable($table);
                 $tableColumns = $connection->createSchemaManager()->listTableColumns($table);
+                $normalizedTableColumns = [];
                 $fieldsInDatabase = [];
                 foreach ($tableColumns as $column) {
                     $fieldsInDatabase[] = $column->getName();
+                    $normalizedTableColumns[trim($column->getName(), $connection->getDatabasePlatform()->getIdentifierQuoteCharacter())] = $column;
                 }
                 $fields = array_intersect(array_keys($conf['columns']), $fieldsInDatabase);
 
@@ -422,12 +426,27 @@ class QueryGenerator
                 $likes = [];
                 $escapedLikeString = '%' . $queryBuilder->escapeLikeWildcards($swords) . '%';
                 foreach ($fields as $field) {
-                    $likes[] = $queryBuilder->expr()->like(
-                        $field,
-                        $queryBuilder->createNamedParameter($escapedLikeString, \PDO::PARAM_STR)
+                    $field = trim($field, $connection->getDatabasePlatform()->getIdentifierQuoteCharacter());
+                    $quotedField = $queryBuilder->quoteIdentifier($field);
+                    $column = $normalizedTableColumns[$field] ?? $normalizedTableColumns[$quotedField] ?? null;
+                    if ($column !== null
+                        && $connection->getDatabasePlatform() instanceof PostgreSQLPlatform
+                        && !in_array($column->getType()->getName(), [Types::STRING, Types::ASCII_STRING, Types::JSON], true)
+                    ) {
+                        if ($column->getType()->getName() === Types::SMALLINT) {
+                            // we need to cast smallint to int first, otherwise text case below won't work
+                            $quotedField .= '::int';
+                        }
+                        $quotedField .= '::text';
+                    }
+                    $likes[] = $queryBuilder->expr()->comparison(
+                        $quotedField,
+                        'LIKE',
+                        $queryBuilder->createNamedParameter($escapedLikeString)
                     );
                 }
-                $count = $queryBuilder->orWhere(...$likes)->executeQuery()->fetchOne();
+                $queryBuilder->orWhere(...$likes);
+                $count = $queryBuilder->executeQuery()->fetchOne();
 
                 if ($count > 0) {
                     $queryBuilder = $connection->createQueryBuilder();
@@ -437,9 +456,23 @@ class QueryGenerator
                         ->setMaxResults(200);
                     $likes = [];
                     foreach ($fields as $field) {
-                        $likes[] = $queryBuilder->expr()->like(
-                            $field,
-                            $queryBuilder->createNamedParameter($escapedLikeString, \PDO::PARAM_STR)
+                        $field = trim($field, $connection->getDatabasePlatform()->getIdentifierQuoteCharacter());
+                        $quotedField = $queryBuilder->quoteIdentifier($field);
+                        $column = $normalizedTableColumns[$field] ?? $normalizedTableColumns[$quotedField] ?? null;
+                        if ($column !== null
+                            && $connection->getDatabasePlatform() instanceof PostgreSQLPlatform
+                            && !in_array($column->getType()->getName(), [Types::STRING, Types::ASCII_STRING, Types::JSON], true)
+                        ) {
+                            if ($column->getType()->getName() === Types::SMALLINT) {
+                                // we need to cast smallint to int first, otherwise text case below won't work
+                                $quotedField .= '::int';
+                            }
+                            $quotedField .= '::text';
+                        }
+                        $likes[] = $queryBuilder->expr()->comparison(
+                            $quotedField,
+                            'LIKE',
+                            $queryBuilder->createNamedParameter($escapedLikeString)
                         );
                     }
                     $statement = $queryBuilder->orWhere(...$likes)->executeQuery();
@@ -497,7 +530,7 @@ class QueryGenerator
             $queryBuilder->getRestrictions()->removeAll();
             $statement = $queryBuilder->select('uid', 'title')
                 ->from('sys_action')
-                ->where($queryBuilder->expr()->eq('type', $queryBuilder->createNamedParameter(2, \PDO::PARAM_INT)))
+                ->where($queryBuilder->expr()->eq('type', $queryBuilder->createNamedParameter(2, Connection::PARAM_INT)))
                 ->orderBy('title')
                 ->executeQuery();
             $opt[] = '<option value="0">__Save to Action:__</option>';
@@ -705,7 +738,7 @@ class QueryGenerator
                             FlashMessage::class,
                             $languageService->getLL('query_notsaved'),
                             '',
-                            FlashMessage::ERROR
+                            ContextualFeedbackSeverity::ERROR
                         );
                     }
                 } else {
@@ -1042,10 +1075,6 @@ class QueryGenerator
                         $fields['type'] = 'relation';
                         $fields['allowed'] = 'pages';
                         break;
-                    case 'cruser_id':
-                        $fields['type'] = 'relation';
-                        $fields['allowed'] = 'be_users';
-                        break;
                     case 'tstamp':
                     case 'crdate':
                         $fields['type'] = 'time';
@@ -1115,7 +1144,7 @@ class QueryGenerator
             $statement = $queryBuilder->select('uid')
                 ->from('pages')
                 ->where(
-                    $queryBuilder->expr()->eq('pid', $queryBuilder->createNamedParameter($id, \PDO::PARAM_INT)),
+                    $queryBuilder->expr()->eq('pid', $queryBuilder->createNamedParameter($id, Connection::PARAM_INT)),
                     $queryBuilder->expr()->eq('sys_language_uid', 0)
                 )
                 ->orderBy('uid');
@@ -1376,7 +1405,7 @@ class QueryGenerator
      */
     private function renderNoResultsFoundMessage()
     {
-        $flashMessage = GeneralUtility::makeInstance(FlashMessage::class, 'No rows selected!', '', FlashMessage::INFO);
+        $flashMessage = GeneralUtility::makeInstance(FlashMessage::class, 'No rows selected!', '', ContextualFeedbackSeverity::INFO);
         $flashMessageService = GeneralUtility::makeInstance(FlashMessageService::class);
         $defaultFlashMessageQueue = $flashMessageService->getMessageQueueByIdentifier();
         $defaultFlashMessageQueue->enqueue($flashMessage);
@@ -1400,9 +1429,6 @@ class QueryGenerator
             }
             if ($GLOBALS['TCA'][$this->table]['ctrl']['crdate'] ?? false) {
                 $fieldListArr[] = $GLOBALS['TCA'][$this->table]['ctrl']['crdate'];
-            }
-            if ($GLOBALS['TCA'][$this->table]['ctrl']['cruser_id'] ?? false) {
-                $fieldListArr[] = $GLOBALS['TCA'][$this->table]['ctrl']['cruser_id'];
             }
             if ($GLOBALS['TCA'][$this->table]['ctrl']['sortby'] ?? false) {
                 $fieldListArr[] = $GLOBALS['TCA'][$this->table]['ctrl']['sortby'];
@@ -1504,10 +1530,6 @@ class QueryGenerator
                         case 'pid':
                             $this->fields[$fieldName]['type'] = 'relation';
                             $this->fields[$fieldName]['allowed'] = 'pages';
-                            break;
-                        case 'cruser_id':
-                            $this->fields[$fieldName]['type'] = 'relation';
-                            $this->fields[$fieldName]['allowed'] = 'be_users';
                             break;
                         case 'tstamp':
                         case 'crdate':
@@ -1869,17 +1891,17 @@ class QueryGenerator
                 $lineHTML[] = '<div class="btn-group">';
                 $lineHTML[] = $this->updateIcon();
                 if ($loopCount) {
-                    $lineHTML[] = '<button class="btn btn-default" title="Remove condition" name="qG_del' . htmlspecialchars($subscript) . '"><i class="fa fa-trash fa-fw"></i></button>';
+                    $lineHTML[] = '<button class="btn btn-default" title="Remove condition" name="qG_del' . htmlspecialchars($subscript) . '">' . $this->iconFactory->getIcon('actions-delete', Icon::SIZE_SMALL)->render() . '</button>';
                 }
-                $lineHTML[] = '<button class="btn btn-default" title="Add condition" name="qG_ins' . htmlspecialchars($subscript) . '"><i class="fa fa-plus fa-fw"></i></button>';
+                $lineHTML[] = '<button class="btn btn-default" title="Add condition" name="qG_ins' . htmlspecialchars($subscript) . '">' . $this->iconFactory->getIcon('actions-plus', Icon::SIZE_SMALL)->render() . '</button>';
                 if ($c != 0) {
-                    $lineHTML[] = '<button class="btn btn-default" title="Move up" name="qG_up' . htmlspecialchars($subscript) . '"><i class="fa fa-chevron-up fa-fw"></i></button>';
+                    $lineHTML[] = '<button class="btn btn-default" title="Move up" name="qG_up' . htmlspecialchars($subscript) . '">' . $this->iconFactory->getIcon('actions-chevron-up', Icon::SIZE_SMALL)->render() . '</button>';
                 }
                 if ($c != 0 && $fieldType !== 'newlevel') {
-                    $lineHTML[] = '<button class="btn btn-default" title="New level" name="qG_nl' . htmlspecialchars($subscript) . '"><i class="fa fa-chevron-right fa-fw"></i></button>';
+                    $lineHTML[] = '<button class="btn btn-default" title="New level" name="qG_nl' . htmlspecialchars($subscript) . '">' . $this->iconFactory->getIcon('actions-chevron-right', Icon::SIZE_SMALL)->render() . '</button>';
                 }
                 if ($fieldType === 'newlevel') {
-                    $lineHTML[] = '<button class="btn btn-default" title="Collapse new level" name="qG_remnl' . htmlspecialchars($subscript) . '"><i class="fa fa-chevron-left fa-fw"></i></button>';
+                    $lineHTML[] = '<button class="btn btn-default" title="Collapse new level" name="qG_remnl' . htmlspecialchars($subscript) . '">' . $this->iconFactory->getIcon('actions-chevron-left', Icon::SIZE_SMALL)->render() . '</button>';
                 }
                 $lineHTML[] = '</div>';
                 $lineHTML[] = '</div>';
@@ -2481,7 +2503,7 @@ class QueryGenerator
             $inputVal = $conf['inputValue' . $suffix] ?? null;
         } elseif ($comparison === 39 || $comparison === 38) {
             // in list:
-            $inputVal = implode(',', GeneralUtility::intExplode(',', ($conf['inputValue' . $suffix] ?? '')));
+            $inputVal = implode(',', GeneralUtility::intExplode(',', (string)($conf['inputValue' . $suffix] ?? '')));
         } elseif ($comparison === 68 || $comparison === 69 || $comparison === 162 || $comparison === 163) {
             // in list:
             if (is_array($conf['inputValue' . $suffix] ?? false)) {
@@ -2510,7 +2532,7 @@ class QueryGenerator
      */
     protected function updateIcon()
     {
-        return '<button class="btn btn-default" title="Update" name="just_update"><i class="fa fa-refresh fa-fw"></i></button>';
+        return '<button class="btn btn-default" title="Update" name="just_update">' . $this->iconFactory->getIcon('actions-refresh', Icon::SIZE_SMALL)->render() . '</button>';
     }
 
     /**
@@ -2557,7 +2579,7 @@ class QueryGenerator
             if (!$this->extFieldLists['queryLimit']) {
                 $this->extFieldLists['queryLimit'] = 100;
             }
-            $parts = GeneralUtility::intExplode(',', $this->extFieldLists['queryLimit']);
+            $parts = GeneralUtility::intExplode(',', (string)$this->extFieldLists['queryLimit']);
             $limitBegin = 0;
             $limitLength = (int)($this->extFieldLists['queryLimit'] ?? 0);
             if ($parts[1] ?? null) {
@@ -2726,9 +2748,10 @@ class QueryGenerator
                 $queryBuilder->addOrderBy($fieldName, $order);
             }
         }
-        if ($this->extFieldLists['queryLimit']) {
+        $queryLimit = (string)($this->extFieldLists['queryLimit'] ?? '');
+        if ($queryLimit) {
             // Explode queryLimit to fetch the limit and a possible offset
-            $parts = GeneralUtility::intExplode(',', $this->extFieldLists['queryLimit']);
+            $parts = GeneralUtility::intExplode(',', $queryLimit);
             if ($parts[1] ?? null) {
                 // Offset and limit are given
                 $queryBuilder->setFirstResult($parts[0]);
@@ -2795,11 +2818,9 @@ class QueryGenerator
         $html[] = '  <div class="input-group" id="' . $id . '-wrapper">';
         $html[] = '	   <input data-formengine-input-name="' . htmlspecialchars($name) . '" value="' . $value . '" class="form-control t3js-datetimepicker t3js-clearable" data-date-type="' . htmlspecialchars($type) . '" type="text" id="' . $id . '">';
         $html[] = '	   <input name="' . htmlspecialchars($name) . '" value="' . htmlspecialchars($timestamp) . '" type="hidden">';
-        $html[] = '	   <span class="input-group-btn">';
-        $html[] = '	     <label class="btn btn-default" for="' . $id . '">';
-        $html[] = '		   <span class="fa fa-calendar"></span>';
-        $html[] = '		 </label>';
-        $html[] = '    </span>';
+        $html[] = '	   <button class="btn btn-default" type="button" data-global-event="click" data-action-focus="#' . $id . '">';
+        $html[] =          $this->iconFactory->getIcon('actions-calendar-alternative', Icon::SIZE_SMALL)->render();
+        $html[] = '    </button>';
         $html[] = '  </div>';
         $html[] = '</div>';
         return implode(LF, $html);

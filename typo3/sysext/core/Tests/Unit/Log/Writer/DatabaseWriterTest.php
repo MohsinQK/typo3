@@ -17,14 +17,10 @@ declare(strict_types=1);
 
 namespace TYPO3\CMS\Core\Tests\Unit\Log\Writer;
 
-use PHPUnit\Framework\MockObject\MockObject;
 use TYPO3\CMS\Core\Log\Writer\DatabaseWriter;
 use TYPO3\CMS\Core\Utility\StringUtility;
 use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
-/**
- * Test case
- */
 class DatabaseWriterTest extends UnitTestCase
 {
     /**
@@ -33,7 +29,6 @@ class DatabaseWriterTest extends UnitTestCase
     public function getTableReturnsPreviouslySetTable(): void
     {
         $logTable = StringUtility::getUniqueId('logtable_');
-        /** @var DatabaseWriter|MockObject $subject */
         $subject = $this->getMockBuilder(DatabaseWriter::class)
             ->addMethods(['dummy'])
             ->disableOriginalConstructor()

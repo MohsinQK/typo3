@@ -79,9 +79,6 @@ Have a nice day.</source>
 			<trans-unit id="login.error.capslockStatus" resname="login.error.capslockStatus">
 				<source>Caps lock enabled</source>
 			</trans-unit>
-			<trans-unit id="login.interface" resname="login.interface">
-				<source>Interface</source>
-			</trans-unit>
 			<trans-unit id="login.news.header" resname="login.news.header">
 				<source>System News</source>
 			</trans-unit>
@@ -138,6 +135,45 @@ Have a nice day.</source>
 			</trans-unit>
 			<trans-unit id="modulemenu.label" resname="modulemenu.label">
 				<source>Module Menu</source>
+			</trans-unit>
+			<trans-unit id="clearcache.title" resname="clearcache.title">
+				<source>Page cache</source>
+			</trans-unit>
+			<trans-unit id="clearcache.message.success" resname="clearcache.message.success">
+				<source>Successfully cleared page cache</source>
+			</trans-unit>
+			<trans-unit id="clearcache.message.error" resname="clearcache.message.error">
+				<source>Page cache could not be cleared</source>
+			</trans-unit>
+			<trans-unit id="error.linkHandlerTitleMissing" resname="error.linkHandlerTitleMissing">
+				<source>[title missing]</source>
+			</trans-unit>
+			<trans-unit id="create_folder.title" resname="create_folder.title">
+				<source>Create new folder</source>
+			</trans-unit>
+			<trans-unit id="create_folder.placeholder" resname="create_folder.placeholder">
+				<source>Your new folder name</source>
+			</trans-unit>
+			<trans-unit id="create_folder.submit" resname="create_folder.submit">
+				<source>Create folder</source>
+			</trans-unit>
+			<trans-unit id="row.deletePlaceholder.title" resname="row.deletePlaceholder.title">
+				<source>The live pendant of this record will be deleted when this workspace record is published.</source>
+			</trans-unit>
+			<trans-unit id="shortcut.title" resname="shortcut.title">
+				<source>%s%s on page "%s" [%d]</source>
+			</trans-unit>
+			<trans-unit id="liveSearch.databaseRecordProvider.filterLabel" resname="liveSearch.databaseRecordProvider.filterLabel">
+				<source>Database records</source>
+			</trans-unit>
+			<trans-unit id="liveSearch.databaseRecordProvider.typeLabel" resname="liveSearch.databaseRecordProvider.typeLabel">
+				<source>Database record</source>
+			</trans-unit>
+			<trans-unit id="liveSearch.pageRecordProvider.filterLabel" resname="liveSearch.pageRecordProvider.filterLabel">
+				<source>Pages</source>
+			</trans-unit>
+			<trans-unit id="liveSearch.pageRecordProvider.typeLabel" resname="liveSearch.pageRecordProvider.typeLabel">
+				<source>Page</source>
 			</trans-unit>
 		</body>
 	</file>

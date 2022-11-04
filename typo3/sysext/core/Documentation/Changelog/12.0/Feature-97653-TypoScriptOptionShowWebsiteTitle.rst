@@ -1,6 +1,6 @@
 .. include:: /Includes.rst.txt
 
-.. _feature-97653-1652873318
+.. _feature-97653-1652873318:
 
 ======================================================
 Feature: #97653 - TypoScript Option "showWebsiteTitle"
@@ -24,7 +24,7 @@ Impact
 ======
 
 It is now possible to influence the rendering of the website title in the
-websites' title tag by setting the :typoscript:`config.showWebsiteTitle`
-option, which is enabled by default, in TypoScript.
+website's title tag by setting the :typoscript:`config.showWebsiteTitle`
+option in TypoScript, which is enabled by default.
 
 .. index:: Frontend, TypoScript, ext:frontend

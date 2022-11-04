@@ -2,8 +2,6 @@
 
 declare(strict_types=1);
 
-namespace TYPO3\CMS\Install\Updates;
-
 /*
  * This file is part of the TYPO3 CMS project.
  *
@@ -16,6 +14,8 @@ namespace TYPO3\CMS\Install\Updates;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Install\Updates;
 
 use TYPO3\CMS\Backend\Module\ModuleProvider;
 use TYPO3\CMS\Backend\Routing\Router;
@@ -31,7 +31,7 @@ class ShortcutRecordsMigration implements UpgradeWizardInterface
     private const TABLE_NAME = 'sys_be_shortcuts';
 
     protected ?ModuleProvider $moduleProvider = null;
-    protected ?iterable $routes = null;
+    protected ?Router $router = null;
 
     public function getIdentifier(): string
     {
@@ -63,7 +63,7 @@ class ShortcutRecordsMigration implements UpgradeWizardInterface
     public function executeUpdate(): bool
     {
         $this->moduleProvider = GeneralUtility::makeInstance(ModuleProvider::class);
-        $this->routes = GeneralUtility::makeInstance(Router::class)->getRoutes();
+        $this->router = GeneralUtility::makeInstance(Router::class);
         $connection = $this->getConnectionPool()->getConnectionForTable(self::TABLE_NAME);
 
         foreach ($this->getRecordsToUpdate() as $record) {
@@ -165,6 +165,10 @@ class ShortcutRecordsMigration implements UpgradeWizardInterface
             return $moduleName;
         }
 
+        $alias = $this->router->getRouteCollection()->getAliases()[$moduleName] ?? null;
+        if ($alias) {
+            return $alias->getId();
+        }
         return '';
     }
 

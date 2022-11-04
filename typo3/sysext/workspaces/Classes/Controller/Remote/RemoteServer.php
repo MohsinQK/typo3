@@ -23,6 +23,7 @@ use TYPO3\CMS\Backend\Form\FormDataCompiler;
 use TYPO3\CMS\Backend\Form\FormDataGroup\TcaDatabaseRecord;
 use TYPO3\CMS\Backend\Utility\BackendUtility;
 use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
+use TYPO3\CMS\Core\Database\Connection;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Imaging\Icon;
 use TYPO3\CMS\Core\Imaging\IconFactory;
@@ -148,13 +149,14 @@ class RemoteServer
             // Gets the TCA configuration for the current field
             $configuration = $GLOBALS['TCA'][$parameter->table]['columns'][$fieldName]['config'];
             // check for exclude fields
-            if ($this->getBackendUser()->isAdmin() || $GLOBALS['TCA'][$parameter->table]['columns'][$fieldName]['exclude'] == 0 || GeneralUtility::inList($this->getBackendUser()->groupData['non_exclude_fields'], $parameter->table . ':' . $fieldName)) {
+            $isFieldExcluded = (bool)($GLOBALS['TCA'][$parameter->table]['columns'][$fieldName]['exclude'] ?? false);
+            if ($this->getBackendUser()->isAdmin() || !$isFieldExcluded || GeneralUtility::inList($this->getBackendUser()->groupData['non_exclude_fields'], $parameter->table . ':' . $fieldName)) {
                 // call diff class only if there is a difference
-                if ($configuration['type'] === 'inline' && $configuration['foreign_table'] === 'sys_file_reference') {
+                if ($configuration['type'] === 'file') {
                     $useThumbnails = false;
-                    if (!empty($configuration['overrideChildTca']['columns']['uid_local']['config']['appearance']['elementBrowserAllowed']) && !empty($GLOBALS['TYPO3_CONF_VARS']['GFX']['imagefile_ext'])) {
+                    if (!empty($configuration['allowed']) && !empty($GLOBALS['TYPO3_CONF_VARS']['GFX']['imagefile_ext'])) {
                         $fileExtensions = GeneralUtility::trimExplode(',', $GLOBALS['TYPO3_CONF_VARS']['GFX']['imagefile_ext'], true);
-                        $allowedExtensions = GeneralUtility::trimExplode(',', $configuration['overrideChildTca']['columns']['uid_local']['config']['appearance']['elementBrowserAllowed'], true);
+                        $allowedExtensions = GeneralUtility::trimExplode(',', $configuration['allowed'], true);
                         $differentExtensions = array_diff($allowedExtensions, $fileExtensions);
                         $useThumbnails = empty($differentExtensions);
                     }
@@ -246,7 +248,7 @@ class RemoteServer
                     $diffReturnArray[] = [
                         'field' => $fieldName,
                         'label' => $fieldTitle,
-                        'content' => $this->differenceHandler->makeDiffDisplay($liveRecord[$fieldName], $versionRecord[$fieldName]),
+                        'content' => $this->differenceHandler->makeDiffDisplay((string)$liveRecord[$fieldName], $versionRecord[$fieldName]),
                     ];
                     $liveReturnArray[] = [
                         'field' => $fieldName,
@@ -388,7 +390,6 @@ class RemoteServer
     protected function getCommentsForRecord(array $historyEntries, array $additionalChangesFromLog): array
     {
         $allStageChanges = [];
-        /** @var Avatar $avatar */
         $avatar = GeneralUtility::makeInstance(Avatar::class);
 
         foreach ($historyEntries as $entry) {
@@ -437,19 +438,19 @@ class RemoteServer
             ->where(
                 $queryBuilder->expr()->eq(
                     'action',
-                    $queryBuilder->createNamedParameter(DatabaseAction::UPDATE, \PDO::PARAM_INT)
+                    $queryBuilder->createNamedParameter(DatabaseAction::UPDATE, Connection::PARAM_INT)
                 ),
                 $queryBuilder->expr()->eq(
                     'details_nr',
-                    $queryBuilder->createNamedParameter(30, \PDO::PARAM_INT)
+                    $queryBuilder->createNamedParameter(30, Connection::PARAM_INT)
                 ),
                 $queryBuilder->expr()->eq(
                     'tablename',
-                    $queryBuilder->createNamedParameter($table, \PDO::PARAM_STR)
+                    $queryBuilder->createNamedParameter($table)
                 ),
                 $queryBuilder->expr()->eq(
                     'recuid',
-                    $queryBuilder->createNamedParameter($uid, \PDO::PARAM_INT)
+                    $queryBuilder->createNamedParameter($uid, Connection::PARAM_INT)
                 )
             )
             ->orderBy('tstamp', 'DESC')

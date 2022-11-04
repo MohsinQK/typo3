@@ -24,7 +24,6 @@ namespace TYPO3\CMS\Core\Utility;
  */
 class IpAnonymizationUtility
 {
-
     /**
      * IPv4 netmask used to anonymize IPv4 address.
      *
@@ -33,7 +32,7 @@ class IpAnonymizationUtility
      *
      * @var array<int, string>
      */
-    const MASKV4 = [
+    public const MASKV4 = [
         1 => '255.255.255.0',
         2 => '255.255.0.0',
     ];
@@ -46,7 +45,7 @@ class IpAnonymizationUtility
      *
      * @var array<int, string>
      */
-    const MASKV6 = [
+    public const MASKV6 = [
         1 => 'ffff:ffff:ffff:ffff:0000:0000:0000:0000',
         2 => 'ffff:ffff:ffff:0000:0000:0000:0000:0000',
     ];

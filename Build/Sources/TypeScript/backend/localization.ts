@@ -17,6 +17,7 @@ import {SeverityEnum} from './enum/severity';
 import AjaxRequest from '@typo3/core/ajax/ajax-request';
 import Icons from './icons';
 import Wizard from './wizard';
+import '@typo3/backend/element/icon-element';
 
 type LanguageRecord = {
   uid: number;
@@ -70,7 +71,7 @@ class Localization {
             actions.push(
               '<div class="row">'
               + '<div class="col-sm-3">'
-              + '<label class="btn btn-block btn-default t3js-localization-option" data-helptext=".t3js-helptext-translate">'
+              + '<label class="btn btn-default d-block t3js-localization-option" data-helptext=".t3js-helptext-translate">'
               + localizeIconMarkup
               + '<input type="radio" name="mode" id="mode_translate" value="localize" style="display: none">'
               + '<br>' + TYPO3.lang['localize.wizard.button.translate'] + '</label>'
@@ -87,7 +88,7 @@ class Localization {
             actions.push(
               '<div class="row">'
               + '<div class="col-sm-3">'
-              + '<label class="btn btn-block btn-default t3js-localization-option" data-helptext=".t3js-helptext-copy">'
+              + '<label class="btn btn-default d-block t3js-localization-option" data-helptext=".t3js-helptext-copy">'
               + copyIconMarkup
               + '<input type="radio" name="mode" id="mode_copy" value="copyFromLanguage" style="display: none">'
               + '<br>' + TYPO3.lang['localize.wizard.button.copy'] + '</label>'
@@ -107,7 +108,7 @@ class Localization {
               + '<div class="alert alert-warning">'
               + '<div class="media">'
               + '<div class="media-left">'
-              + '<span class="fa-stack fa-lg"><i class="fa fa-circle fa-stack-2x"></i><i class="fa fa-exclamation fa-stack-1x"></i></span>'
+              + '<span class="icon-emphasized"><typo3-backend-icon identifier="actions-exclamation" size="small"></typo3-backend-icon></span>'
               + '</div>'
               + '<div class="media-body">'
               + '<p class="alert-message">' + TYPO3.lang['localize.educate.noTranslate'] + '</p>'
@@ -176,7 +177,7 @@ class Localization {
                       style: 'display: none;',
                       class: 'btn-check'
                     });
-                    const $label: JQuery = $('<label />', {class: 'btn btn-default btn-block t3js-language-option option', 'for': id})
+                    const $label: JQuery = $('<label />', {class: 'btn btn-default d-block t3js-language-option option', 'for': id})
                       .text(' ' + languageObject.title)
                       .prepend(languageObject.flagIcon);
 

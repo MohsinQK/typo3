@@ -130,14 +130,14 @@ class MultiStepWizard {
     let $slides = this.generateSlides();
     let firstSlide = this.setup.slides[0];
 
-    Modal.confirm(
-      firstSlide.title,
-      $slides,
-      firstSlide.severity,
-      [{
+    const modal = Modal.advanced({
+      title: firstSlide.title,
+      content: $slides,
+      severity: firstSlide.severity,
+      buttons: [{
         text: top.TYPO3.lang['wizard.button.cancel'],
         active: true,
-        btnClass: 'btn-default pull-left',
+        btnClass: 'btn-default float-start',
         name: 'cancel',
         trigger: (): void => {
           this.getComponent().trigger('wizard-dismiss');
@@ -151,12 +151,13 @@ class MultiStepWizard {
         btnClass: 'btn-' + Severity.getCssClass(firstSlide.severity),
         name: 'next',
       }],
-      ['modal-multi-step-wizard'],
-    );
-
-    this.addButtonContainer();
-    this.addProgressBar();
-    this.initializeEvents();
+      additionalCssClasses: ['modal-multi-step-wizard'],
+      callback: (): void  => {
+        this.addButtonContainer();
+        this.addProgressBar();
+        this.initializeEvents();
+      }
+    });
 
     this.getComponent().on('wizard-visible', (): void => {
       this.runSlideCallback(firstSlide, this.setup.$carousel.find('.carousel-item').first());
@@ -285,9 +286,10 @@ class MultiStepWizard {
     let cmp = this.getComponent();
     cmp.on('wizard-dismiss', this.dismiss);
 
-    Modal.currentModal.on('hidden.bs.modal', (): void => {
+    Modal.currentModal.addEventListener('typo3-modal-hidden', (): void => {
       cmp.trigger('wizard-dismissed');
-    }).on('shown.bs.modal', (): void => {
+    });
+    Modal.currentModal.addEventListener('typo3-modal-shown', (): void => {
       cmp.trigger('wizard-visible');
     });
   }
@@ -517,7 +519,7 @@ class MultiStepWizard {
       return this.setup.$carousel;
     }
 
-    let slides = '<div class="carousel slide" data-bs-ride="carousel" data-bs-interval="false">'
+    let slides = '<div class="carousel slide" data-bs-ride="false">'
       + '<div class="carousel-inner" role="listbox">';
 
     for (let i = 0; i < this.setup.slides.length; ++i) {

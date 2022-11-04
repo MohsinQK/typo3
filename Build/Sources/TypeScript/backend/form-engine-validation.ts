@@ -380,6 +380,13 @@ export default (function() {
             }
           }
           break;
+        case 'min':
+          if (field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement) {
+            if (field.value.length > 0 && field.value.length < field.minLength) {
+              markParent = true;
+            }
+          }
+          break;
         case 'null':
           // unknown type null, we ignore it
           break;
@@ -389,7 +396,12 @@ export default (function() {
     });
 
     const isValid = !markParent;
-    field.closest(FormEngineValidation.markerSelector).classList.toggle(FormEngineValidation.errorClass, !isValid);
+    const validationMarker = field.closest(FormEngineValidation.markerSelector);
+    if (validationMarker !== null) {
+      // Validation marker may be unavailable (e.g. due to maximized ckeditor)
+      validationMarker.classList.toggle(FormEngineValidation.errorClass, !isValid);
+    }
+
     FormEngineValidation.markParentTab($(field), isValid);
 
     $(document).trigger('t3-formengine-postfieldvalidation');
@@ -540,7 +552,7 @@ export default (function() {
     $(sectionElement).find(FormEngineValidation.rulesSelector).each((index: number, field: HTMLElement) => {
       const $field = $(field);
 
-      if (!$field.closest('.t3js-flex-section-deleted, .t3js-inline-record-deleted').length) {
+      if (!$field.closest('.t3js-flex-section-deleted, .t3js-inline-record-deleted, .t3js-file-reference-deleted').length) {
         let modified = false;
         const currentValue = $field.val();
         const newValue = FormEngineValidation.validateField($field, currentValue);
@@ -579,7 +591,9 @@ export default (function() {
       return;
     }
     const paletteField = field.closest('.t3js-formengine-palette-field');
-    paletteField.classList.add('has-change');
+    if (paletteField !== null) {
+      paletteField.classList.add('has-change');
+    }
   };
 
   /**
@@ -966,7 +980,7 @@ export default (function() {
   FormEngineValidation.registerSubmitCallback = function () {
     DocumentSaveActions.getInstance().addPreSubmitCallback(function (e: Event) {
       if ($('.' + FormEngineValidation.errorClass).length > 0) {
-        Modal.confirm(
+        const modal = Modal.confirm(
           TYPO3.lang.alert || 'Alert',
           TYPO3.lang['FormEngine.fieldsMissing'],
           Severity.error,
@@ -978,9 +992,8 @@ export default (function() {
               name: 'ok',
             },
           ]
-        ).on('button.clicked', function () {
-          Modal.dismiss();
-        });
+        );
+        modal.addEventListener('button.clicked', () => modal.hideModal());
 
         e.stopImmediatePropagation();
       }

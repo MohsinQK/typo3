@@ -17,32 +17,21 @@ declare(strict_types=1);
 
 namespace TYPO3\CMS\Frontend\Tests\Unit\Typolink;
 
-use Prophecy\Argument;
-use Prophecy\PhpUnit\ProphecyTrait;
-use Psr\Http\Message\ServerRequestInterface;
+use TYPO3\CMS\Backend\LinkHandler\RecordLinkHandler;
 use TYPO3\CMS\Core\Context\Context;
 use TYPO3\CMS\Core\Domain\Repository\PageRepository;
-use TYPO3\CMS\Core\TypoScript\TemplateService;
+use TYPO3\CMS\Core\Http\ServerRequest;
+use TYPO3\CMS\Core\TypoScript\AST\Node\RootNode;
+use TYPO3\CMS\Core\TypoScript\FrontendTypoScript;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Frontend\ContentObject\ContentObjectRenderer;
 use TYPO3\CMS\Frontend\Controller\TypoScriptFrontendController;
 use TYPO3\CMS\Frontend\Typolink\DatabaseRecordLinkBuilder;
 use TYPO3\CMS\Frontend\Typolink\UnableToLinkException;
-use TYPO3\CMS\Recordlist\LinkHandler\RecordLinkHandler;
 use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
-/**
- * Tests for DatabaseRecordLinkBuilderTest
- */
 class DatabaseRecordLinkBuilderTest extends UnitTestCase
 {
-    use ProphecyTrait;
-
-    /**
-     * Dataprovider with different parameter configurations
-     *
-     * @return array
-     */
     public function attributesSetInRecordLinkOverwriteConfiguredAttributesDataProvider(): array
     {
         return [
@@ -91,22 +80,17 @@ class DatabaseRecordLinkBuilderTest extends UnitTestCase
                 't3://record?identifier=tx_news&uid=1',
                 '27',
             ],
-
         ];
     }
 
     /**
-     * @test
-     *
      * Tests showing that values set in the link record directly will overwrite those configured
      * in the default link handler configuration
      *
      * Note that the TypolinkCodecService is not mocked on purpose to get the full unit tested.
      *
+     * @test
      * @dataProvider attributesSetInRecordLinkOverwriteConfiguredAttributesDataProvider
-     * @param string $parameterFromTypoScript
-     * @param string $parameterFromDb
-     * @param string $expectedParameter
      */
     public function attributesSetInRecordLinkOverwriteConfiguredAttributes(string $parameterFromTypoScript, string $parameterFromDb, string $expectedParameter): void
     {
@@ -143,7 +127,6 @@ class DatabaseRecordLinkBuilderTest extends UnitTestCase
                 [
                     'linkHandler.' =>
                         [
-
                             'tx_news.' =>
                                 [
                                     'handler' => RecordLinkHandler::class,
@@ -168,38 +151,40 @@ class DatabaseRecordLinkBuilderTest extends UnitTestCase
         ];
 
         // Arrange
-        $frontendControllerProphecy = $this->prophesize(TypoScriptFrontendController::class);
+        $frontendControllerMock = $this->createMock(TypoScriptFrontendController::class);
         $context = new Context();
-        $templateService = $this->prophesize(TemplateService::class);
-        $pageRepository = $this->prophesize(PageRepository::class);
-        $cObj = $this->prophesize(ContentObjectRenderer::class);
-        $cObj->getRequest()->willReturn($this->prophesize(ServerRequestInterface::class)->reveal());
+        $pageRepositoryMock = $this->createMock(PageRepository::class);
+        $contentObjectRendererMock = $this->createMock(ContentObjectRenderer::class);
+        $frontendTypoScript = new FrontendTypoScript(new RootNode(), []);
+        $frontendTypoScript->setSetupArray($typoScriptConfig);
+        $request = (new ServerRequest())->withAttribute('frontend.typoscript', $frontendTypoScript);
+        $contentObjectRendererMock->method('getRequest')->willReturn($request);
 
-        $frontendControllerProphecy->getContext()->willReturn($context);
-        $frontendController = $frontendControllerProphecy->reveal();
-        $frontendController->tmpl = $templateService->reveal();
-        $frontendController->tmpl->setup = $typoScriptConfig;
-        $frontendController->sys_page = $pageRepository->reveal();
-        GeneralUtility::addInstance(ContentObjectRenderer::class, $cObj->reveal());
+        $frontendControllerMock->method('getContext')->willReturn($context);
+        $frontendControllerMock->sys_page = $pageRepositoryMock;
+        GeneralUtility::addInstance(ContentObjectRenderer::class, $contentObjectRendererMock);
 
-        $pageRepository->checkRecord('tx_news_domain_model_news', 1)->willReturn(
-            [
-                'uid' => '1',
-            ]
-        );
+        $pageRepositoryMock
+            ->method('checkRecord')
+            ->with('tx_news_domain_model_news', 1)
+            ->willReturn(
+                [
+                    'uid' => '1',
+                ]
+            );
 
-        $cObj->start(Argument::cetera())->shouldBeCalled();
-        $cObj->createLink(Argument::cetera())->shouldBeCalled();
+        $contentObjectRendererMock->expects(self::once())->method('start');
+        $contentObjectRendererMock->expects(self::once())->method('createLink');
 
-        $frontendControllerProphecy->getPagesTSconfig()->willReturn($pageTsConfig);
+        $frontendControllerMock->method('getPagesTSconfig')->willReturn($pageTsConfig);
 
         // Act
-        $databaseRecordLinkBuilder = new DatabaseRecordLinkBuilder($cObj->reveal(), $frontendController);
+        $databaseRecordLinkBuilder = new DatabaseRecordLinkBuilder($contentObjectRendererMock, $frontendControllerMock);
         try {
             $databaseRecordLinkBuilder->build($extractedLinkDetails, $linkText, $target, $confFromDb);
-        } catch (UnableToLinkException $exception) {
+        } catch (UnableToLinkException) {
             // Assert
-            $cObj->typoLink($linkText, $expectedConfiguration)->shouldHaveBeenCalled();
+            $contentObjectRendererMock->expects(self::once())->method('typoLink')->with($linkText, $expectedConfiguration);
         }
     }
 }

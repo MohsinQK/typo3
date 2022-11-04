@@ -17,12 +17,13 @@ declare(strict_types=1);
 
 namespace TYPO3\CMS\Redirects\Service;
 
-use Doctrine\DBAL\Connection;
 use Psr\Log\LoggerAwareInterface;
 use Psr\Log\LoggerAwareTrait;
 use TYPO3\CMS\Backend\Utility\BackendUtility;
+use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
 use TYPO3\CMS\Core\Context\Context;
 use TYPO3\CMS\Core\Context\DateTimeAspect;
+use TYPO3\CMS\Core\Database\Connection;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Database\Query\QueryBuilder;
 use TYPO3\CMS\Core\Database\Query\Restriction\DeletedRestriction;
@@ -188,7 +189,6 @@ class SlugService implements LoggerAwareInterface
             'pid' => $pid,
             'updatedon' => $date->get('timestamp'),
             'createdon' => $date->get('timestamp'),
-            'createdby' => $this->context->getPropertyFromAspect('backend.user', 'id'),
             'deleted' => 0,
             'disabled' => 0,
             'starttime' => 0,
@@ -203,6 +203,7 @@ class SlugService implements LoggerAwareInterface
             'hitcount' => 0,
             'lasthiton' => 0,
             'disable_hitcount' => 0,
+            'creation_type' => 0,
         ];
         //todo use dataHandler to create records
         $connection = GeneralUtility::makeInstance(ConnectionPool::class)
@@ -237,8 +238,8 @@ class SlugService implements LoggerAwareInterface
             ->select('*')
             ->from('pages')
             ->where(
-                $queryBuilder->expr()->eq('pid', $queryBuilder->createNamedParameter($id, \PDO::PARAM_INT)),
-                $queryBuilder->expr()->eq('sys_language_uid', $queryBuilder->createNamedParameter(0, \PDO::PARAM_INT))
+                $queryBuilder->expr()->eq('pid', $queryBuilder->createNamedParameter($id, Connection::PARAM_INT)),
+                $queryBuilder->expr()->eq('sys_language_uid', $queryBuilder->createNamedParameter(0, Connection::PARAM_INT))
             )
             ->orderBy('uid', 'ASC')
             ->executeQuery()
@@ -252,7 +253,7 @@ class SlugService implements LoggerAwareInterface
                 ->from('pages')
                 ->where(
                     $queryBuilder->expr()->in('l10n_parent', $queryBuilder->createNamedParameter(array_column($subPages, 'uid'), Connection::PARAM_INT_ARRAY)),
-                    $queryBuilder->expr()->eq('sys_language_uid', $queryBuilder->createNamedParameter($languageUid, \PDO::PARAM_INT))
+                    $queryBuilder->expr()->eq('sys_language_uid', $queryBuilder->createNamedParameter($languageUid, Connection::PARAM_INT))
                 )
                 ->orderBy('uid', 'ASC')
                 ->executeQuery()
@@ -327,14 +328,14 @@ class SlugService implements LoggerAwareInterface
 
     protected function getRecordHistoryStore(): RecordHistoryStore
     {
-        $backendUser = $GLOBALS['BE_USER'];
+        $backendUser = $this->getBackendUser();
         return GeneralUtility::makeInstance(
             RecordHistoryStore::class,
             RecordHistoryStore::USER_BACKEND,
             $backendUser->user['uid'],
             (int)$backendUser->getOriginalUserIdWhenInSwitchUserMode(),
             $this->context->getPropertyFromAspect('date', 'timestamp'),
-            $backendUser->workspace ?? 0
+            $backendUser->workspace
         );
     }
 
@@ -360,5 +361,10 @@ class SlugService implements LoggerAwareInterface
     protected function disableHook(): void
     {
         unset($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['t3lib/class.t3lib_tcemain.php']['processDatamapClass']['redirects']);
+    }
+
+    protected function getBackendUser(): BackendUserAuthentication
+    {
+        return $GLOBALS['BE_USER'];
     }
 }

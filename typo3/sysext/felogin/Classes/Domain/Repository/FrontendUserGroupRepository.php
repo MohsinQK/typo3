@@ -27,15 +27,8 @@ use TYPO3\CMS\FrontendLogin\Service\UserService;
  */
 class FrontendUserGroupRepository
 {
-    /**
-     * @var Connection
-     */
-    protected $connection;
-
-    /**
-     * @var string
-     */
-    protected $table;
+    protected Connection $connection;
+    protected string $table;
 
     public function __construct(UserService $userService)
     {
@@ -48,10 +41,6 @@ class FrontendUserGroupRepository
         return $this->table;
     }
 
-    /**
-     * @param int $groupId
-     * @return int|null
-     */
     public function findRedirectPageIdByGroupId(int $groupId): ?int
     {
         $queryBuilder = $this->connection->createQueryBuilder();

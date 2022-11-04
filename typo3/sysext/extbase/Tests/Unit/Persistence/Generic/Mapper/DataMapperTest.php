@@ -58,7 +58,6 @@ class DataMapperTest extends UnitTestCase
         $rows = [['uid' => '1234']];
         $object = new \stdClass();
 
-        /** @var DataMapper|AccessibleObjectInterface|MockObject $dataMapper */
         $dataMapper = $this->getMockBuilder(DataMapper::class)
             ->setConstructorArgs([
                 $this->createMock(ReflectionService::class),
@@ -125,6 +124,10 @@ class DataMapperTest extends UnitTestCase
             'secondProperty' => 1234,
             'thirdProperty' => 1.234,
             'fourthProperty' => false,
+            'uninitializedStringProperty' => 'foo',
+            'uninitializedDateTimeProperty' => 0,
+            'uninitializedMandatoryDateTimeProperty' => 0,
+            'initializedDateTimeProperty' => 0,
         ];
         $columnMaps = [
             'uid' => new ColumnMap('uid', 'uid'),
@@ -133,13 +136,16 @@ class DataMapperTest extends UnitTestCase
             'secondProperty' => new ColumnMap('secondProperty', 'secondProperty'),
             'thirdProperty' => new ColumnMap('thirdProperty', 'thirdProperty'),
             'fourthProperty' => new ColumnMap('fourthProperty', 'fourthProperty'),
+            'uninitializedStringProperty' => new ColumnMap('uninitializedStringProperty', 'uninitializedStringProperty'),
+            'uninitializedDateTimeProperty' => new ColumnMap('uninitializedDateTimeProperty', 'uninitializedDateTimeProperty'),
+            'uninitializedMandatoryDateTimeProperty' => new ColumnMap('uninitializedMandatoryDateTimeProperty', 'uninitializedMandatoryDateTimeProperty'),
+            'initializedDateTimeProperty' => new ColumnMap('initializedDateTimeProperty', 'initializedDateTimeProperty'),
         ];
         $dataMap = $this->getAccessibleMock(DataMap::class, ['dummy'], [$className, $className]);
         $dataMap->_set('columnMaps', $columnMaps);
         $dataMaps = [
             $className => $dataMap,
         ];
-        /** @var AccessibleObjectInterface|ClassSchema $classSchema */
         $classSchema = new ClassSchema($className);
         $mockReflectionService = $this->getMockBuilder(ReflectionService::class)
             ->setConstructorArgs([new NullFrontend('extbase'), 'ClassSchemata'])
@@ -166,6 +172,14 @@ class DataMapperTest extends UnitTestCase
         self::assertEquals(1234, $object->secondProperty);
         self::assertEquals(1.234, $object->thirdProperty);
         self::assertFalse($object->fourthProperty);
+        self::assertSame('foo', $object->uninitializedStringProperty);
+        self::assertNull($object->uninitializedDateTimeProperty);
+        self::assertFalse(isset($object->uninitializedMandatoryDateTimeProperty));
+
+        // Property is initialized with "null", so isset would return false.
+        // Test, if property was "really" initialized.
+        $reflectionProperty = new \ReflectionProperty($object, 'initializedDateTimeProperty');
+        self::assertTrue($reflectionProperty->isInitialized($object));
     }
 
     /**
@@ -371,10 +385,8 @@ class DataMapperTest extends UnitTestCase
      */
     public function mapDateTimeHandlesDifferentFieldEvaluations($value, $storageFormat, $expectedValue): void
     {
-        /** @var DataMapper|AccessibleObjectInterface|MockObject $accessibleDataMapFactory */
         $accessibleDataMapFactory = $this->getAccessibleMock(DataMapper::class, ['dummy'], [], '', false);
 
-        /** @var \DateTime|MockObject|AccessibleObjectInterface $dateTime */
         $dateTime = $accessibleDataMapFactory->_call('mapDateTime', $value, $storageFormat);
 
         if ($expectedValue === null) {
@@ -411,7 +423,6 @@ class DataMapperTest extends UnitTestCase
         $originalTimeZone = date_default_timezone_get();
         date_default_timezone_set('America/Chicago');
         $usedTimeZone = date_default_timezone_get();
-        /** @var DataMapper|AccessibleObjectInterface|MockObject $accessibleDataMapFactory */
         $accessibleDataMapFactory = $this->getAccessibleMock(DataMapper::class, ['dummy'], [], '', false);
 
         /** @var \DateTime|MockObject|AccessibleObjectInterface $dateTime */
@@ -431,7 +442,6 @@ class DataMapperTest extends UnitTestCase
      */
     public function mapDateTimeHandlesSubclassesOfDateTime(): void
     {
-        /** @var DataMapper|AccessibleObjectInterface|MockObject $accessibleDataMapFactory */
         $accessibleDataMapFactory = $this->getAccessibleMock(DataMapper::class, ['dummy'], [], '', false);
         $targetType = 'TYPO3\CMS\Extbase\Tests\Unit\Persistence\Fixture\Model\CustomDateTime';
         $date = '2013-01-01 01:02:03';
@@ -448,7 +458,6 @@ class DataMapperTest extends UnitTestCase
      */
     public function getPlainValueReturnsCorrectDateTimeFormat(): void
     {
-        /** @var DataMapper $subject */
         $subject = $this->createPartialMock(DataMapper::class, []);
 
         $columnMap = new ColumnMap('column_name', 'propertyName');
@@ -465,7 +474,6 @@ class DataMapperTest extends UnitTestCase
      */
     public function getPlainValueReturnsExpectedValues($expectedValue, $input): void
     {
-        /** @var DataMapper $dataMapper */
         $dataMapper = $this->createPartialMock(DataMapper::class, []);
 
         self::assertSame($expectedValue, $dataMapper->getPlainValue($input));
@@ -503,7 +511,6 @@ class DataMapperTest extends UnitTestCase
         $this->expectException(UnexpectedTypeException::class);
         $this->expectExceptionCode(1274799934);
 
-        /** @var DataMapper $dataMapper */
         $dataMapper = $this->createPartialMock(DataMapper::class, []);
         $input = $this->createMock(LazyLoadingProxy::class);
         $input->expects(self::once())->method('_loadRealInstance')->willReturn($dataMapper);
@@ -515,7 +522,6 @@ class DataMapperTest extends UnitTestCase
      */
     public function getPlainValueCallsGetUidOnDomainObjectInterfaceInput(): void
     {
-        /** @var DataMapper $dataMapper */
         $dataMapper = $this->createPartialMock(DataMapper::class, []);
         $input = $this->createMock(DomainObjectInterface::class);
 

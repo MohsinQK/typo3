@@ -16,7 +16,9 @@
 
 // Configuration
 @import "../../node_modules/bootstrap/scss/functions";
+@import "variables/main";
 @import "../../node_modules/bootstrap/scss/variables";
+@import "../../node_modules/bootstrap/scss/maps";
 @import "../../node_modules/bootstrap/scss/mixins";
 @import "../../node_modules/bootstrap/scss/utilities";
 
@@ -57,22 +59,13 @@
 @import "../../node_modules/bootstrap/scss/helpers";
 
 // extend bootstrap 5 utilities
-@import "utilities/utilities";
+@import "utilities/resets";
 
 // Utilities
 @import "../../node_modules/bootstrap/scss/utilities/api";
 
 // bootstrap v3 legacy
 @import "legacy";
-
-//
-// Fonts
-//
-$fa-font-path: "../Fonts/FontAwesome";
-$sourcesanspro-font-path: "../Fonts/SourceSansPro";
-
-@import "webfont/sourcesanspro";
-@import "../../node_modules/font-awesome/scss/font-awesome.scss";
 
 //
 // Scaffold
@@ -83,15 +76,19 @@ $sourcesanspro-font-path: "../Fonts/SourceSansPro";
 @import "scaffold/modulemenu";
 
 //
-// Custom Components
+// Components
 //
+@import "component/root";
 @import "component/alert";
 @import "component/autocomplete";
+@import "component/badges";
 @import "component/buttons";
+@import "component/code";
 @import "component/dropdown";
 @import "component/avatar";
 @import "component/callout";
 @import "component/icon";
+@import "component/statusreport";
 @import "component/diff";
 @import "component/module";
 @import "component/panel";

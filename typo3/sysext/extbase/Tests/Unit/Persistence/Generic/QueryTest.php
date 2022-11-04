@@ -18,7 +18,6 @@ declare(strict_types=1);
 namespace TYPO3\CMS\Extbase\Tests\Unit\Persistence\Generic;
 
 use PHPUnit\Framework\MockObject\MockObject;
-use Prophecy\PhpUnit\ProphecyTrait;
 use Psr\Container\ContainerInterface;
 use TYPO3\CMS\Extbase\Persistence\Generic\Mapper\DataMapFactory;
 use TYPO3\CMS\Extbase\Persistence\Generic\Qom\Comparison;
@@ -30,41 +29,18 @@ use TYPO3\CMS\Extbase\Persistence\Generic\Query;
 use TYPO3\CMS\Extbase\Persistence\Generic\QueryResult;
 use TYPO3\CMS\Extbase\Persistence\Generic\QuerySettingsInterface;
 use TYPO3\CMS\Extbase\Persistence\PersistenceManagerInterface;
+use TYPO3\CMS\Extbase\Persistence\QueryInterface;
 use TYPO3\CMS\Extbase\Persistence\QueryResultInterface;
 use TYPO3\TestingFramework\Core\AccessibleObjectInterface;
 use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
-/**
- * Test case
- */
 class QueryTest extends UnitTestCase
 {
-    use ProphecyTrait;
-
-    /**
-     * @var Query|MockObject|AccessibleObjectInterface
-     */
-    protected $query;
-
-    /**
-     * @var QuerySettingsInterface
-     */
-    protected $querySettings;
-
-    /**
-     * @var PersistenceManagerInterface
-     */
-    protected $persistenceManager;
-
-    /**
-     * @var DataMapFactory
-     */
-    protected $dataMapFactory;
-
-    /**
-     * @var ContainerInterface
-     */
-    protected $container;
+    protected Query&MockObject&AccessibleObjectInterface $query;
+    protected QuerySettingsInterface $querySettings;
+    protected PersistenceManagerInterface $persistenceManager;
+    protected DataMapFactory $dataMapFactory;
+    protected ContainerInterface $container;
 
     /**
      * Sets up this test case
@@ -169,7 +145,6 @@ class QueryTest extends UnitTestCase
      */
     public function equalsForCaseSensitiveFalseLowercasesOperand(string $propertyName, $operand, string $expectedOperand): void
     {
-        /** @var QueryObjectModelFactory|MockObject|AccessibleObjectInterface $qomFactory */
         $qomFactory = $this->getAccessibleMock(QueryObjectModelFactory::class, ['comparison']);
         $qomFactory->expects(self::once())->method('comparison')->with(self::anything(), self::anything(), $expectedOperand);
         $this->query->method('getSelectorName')->willReturn('someSelector');
@@ -183,15 +158,15 @@ class QueryTest extends UnitTestCase
     public function logicalAndSupportsMultipleConstraintsAsMethodArguments(): void
     {
         $subject = new Query(
-            $this->prophesize(DataMapFactory::class)->reveal(),
-            $this->prophesize(PersistenceManagerInterface::class)->reveal(),
+            $this->createMock(DataMapFactory::class),
+            $this->createMock(PersistenceManagerInterface::class),
             new QueryObjectModelFactory(),
-            $this->prophesize(ContainerInterface::class)->reveal()
+            $this->createMock(ContainerInterface::class)
         );
 
-        $constraint1 = new Comparison(new PropertyValue('propertyName1'), '=', 'value1');
-        $constraint2 = new Comparison(new PropertyValue('propertyName2'), '=', 'value2');
-        $constraint3 = new Comparison(new PropertyValue('propertyName3'), '=', 'value3');
+        $constraint1 = new Comparison(new PropertyValue('propertyName1'), QueryInterface::OPERATOR_EQUAL_TO, 'value1');
+        $constraint2 = new Comparison(new PropertyValue('propertyName2'), QueryInterface::OPERATOR_EQUAL_TO, 'value2');
+        $constraint3 = new Comparison(new PropertyValue('propertyName3'), QueryInterface::OPERATOR_EQUAL_TO, 'value3');
 
         $logicalAnd = $subject->logicalAnd($constraint1, $constraint2, $constraint3);
         self::assertEquals(
@@ -206,15 +181,15 @@ class QueryTest extends UnitTestCase
     public function logicalOrSupportsMultipleConstraintsAsMethodArguments(): void
     {
         $subject = new Query(
-            $this->prophesize(DataMapFactory::class)->reveal(),
-            $this->prophesize(PersistenceManagerInterface::class)->reveal(),
+            $this->createMock(DataMapFactory::class),
+            $this->createMock(PersistenceManagerInterface::class),
             new QueryObjectModelFactory(),
-            $this->prophesize(ContainerInterface::class)->reveal()
+            $this->createMock(ContainerInterface::class)
         );
 
-        $constraint1 = new Comparison(new PropertyValue('propertyName1'), '=', 'value1');
-        $constraint2 = new Comparison(new PropertyValue('propertyName2'), '=', 'value2');
-        $constraint3 = new Comparison(new PropertyValue('propertyName3'), '=', 'value3');
+        $constraint1 = new Comparison(new PropertyValue('propertyName1'), QueryInterface::OPERATOR_EQUAL_TO, 'value1');
+        $constraint2 = new Comparison(new PropertyValue('propertyName2'), QueryInterface::OPERATOR_EQUAL_TO, 'value2');
+        $constraint3 = new Comparison(new PropertyValue('propertyName3'), QueryInterface::OPERATOR_EQUAL_TO, 'value3');
 
         $logicalOr = $subject->logicalOr($constraint1, $constraint2, $constraint3);
         self::assertEquals(

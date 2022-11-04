@@ -27,9 +27,6 @@ use TYPO3\CMS\Extbase\Tests\Unit\Reflection\Fixture\ArrayAccessClass;
 use TYPO3\CMS\Extbase\Tests\Unit\Reflection\Fixture\DummyClassWithGettersAndSetters;
 use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
-/**
- * Test case
- */
 class ObjectAccessTest extends UnitTestCase
 {
     protected bool $resetSingletonInstances = true;
@@ -45,8 +42,6 @@ class ObjectAccessTest extends UnitTestCase
         $this->dummyObject = new DummyClassWithGettersAndSetters();
         $this->dummyObject->setProperty('string1');
         $this->dummyObject->setAnotherProperty(42);
-        // @phpstan-ignore-next-line That property does not exist in dummy class by intention.
-        $this->dummyObject->shouldNotBePickedUp = true;
     }
 
     /**
@@ -396,7 +391,6 @@ class ObjectAccessTest extends UnitTestCase
         self::assertTrue(ObjectAccess::isPropertySettable($this->dummyObject, 'publicProperty'));
         self::assertTrue(ObjectAccess::isPropertySettable($this->dummyObject, 'property'));
         self::assertFalse(ObjectAccess::isPropertySettable($this->dummyObject, 'privateProperty'));
-        self::assertFalse(ObjectAccess::isPropertySettable($this->dummyObject, 'shouldNotBePickedUp'));
     }
 
     /**
@@ -454,7 +448,7 @@ class ObjectAccessTest extends UnitTestCase
     public function isPropertyGettableWorksOnObjectsMixingRegularPropertiesAndArrayAccess(): void
     {
         /** @var \ArrayAccess $object */
-        $object = new class() extends \ArrayObject {
+        $object = new class () extends \ArrayObject {
             private $regularProperty = 'foo';
 
             public function getRegularProperty(): string

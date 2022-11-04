@@ -48,7 +48,7 @@ class LockBackendCommand extends Command
      * @param OutputInterface $output
      * @return int
      */
-    protected function execute(InputInterface $input, OutputInterface $output)
+    protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $io = new SymfonyStyle($input, $output);
         $io->title($this->getDescription());
@@ -67,7 +67,7 @@ class LockBackendCommand extends Command
         }
         GeneralUtility::writeFile($lockFile, $lockFileContent);
         $io->success($output);
-        return 0;
+        return Command::SUCCESS;
     }
 
     /**

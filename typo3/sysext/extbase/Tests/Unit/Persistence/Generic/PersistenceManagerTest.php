@@ -17,9 +17,6 @@ declare(strict_types=1);
 
 namespace TYPO3\CMS\Extbase\Tests\Unit\Persistence\Generic;
 
-use PHPUnit\Framework\MockObject\MockObject;
-use Prophecy\Argument;
-use Prophecy\PhpUnit\ProphecyTrait;
 use Psr\Container\ContainerInterface;
 use TYPO3\CMS\Core\Utility\StringUtility;
 use TYPO3\CMS\Extbase\DomainObject\AbstractEntity;
@@ -33,13 +30,8 @@ use TYPO3\CMS\Extbase\Persistence\RepositoryInterface;
 use TYPO3\CMS\Extbase\Tests\Unit\Persistence\Fixture\Model\Entity2;
 use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
-/**
- * Test case
- */
 class PersistenceManagerTest extends UnitTestCase
 {
-    use ProphecyTrait;
-
     /**
      * @test
      */
@@ -185,10 +177,10 @@ class PersistenceManagerTest extends UnitTestCase
     public function addActuallyAddsAnObjectToTheInternalObjectsArray(): void
     {
         $someObject = new \stdClass();
-        $backend = $this->prophesize(BackendInterface::class);
+        $backend = $this->createMock(BackendInterface::class);
         $persistenceManager = new PersistenceManager(
             $this->createMock(QueryFactoryInterface::class),
-            $backend->reveal(),
+            $backend,
             $this->createMock(Session::class)
         );
         $persistenceManager->add($someObject);
@@ -197,11 +189,11 @@ class PersistenceManagerTest extends UnitTestCase
         $expectedAddedObjects->attach($someObject);
 
         // this is the actual assertion
-        $backend->setAggregateRootObjects($expectedAddedObjects)->shouldBeCalled();
+        $backend->expects(self::atLeastOnce())->method('setAggregateRootObjects')->with($expectedAddedObjects);
 
-        $backend->setChangedEntities(Argument::any())->shouldBeCalled();
-        $backend->setDeletedEntities(Argument::any())->shouldBeCalled();
-        $backend->commit()->shouldBeCalled();
+        $backend->expects(self::atLeastOnce())->method('setChangedEntities')->with(self::anything());
+        $backend->expects(self::atLeastOnce())->method('setDeletedEntities')->with(self::anything());
+        $backend->expects(self::atLeastOnce())->method('commit');
         $persistenceManager->persistAll();
     }
 
@@ -214,10 +206,10 @@ class PersistenceManagerTest extends UnitTestCase
         $object2 = new \stdClass();
         $object3 = new \stdClass();
 
-        $backend = $this->prophesize(BackendInterface::class);
+        $backend = $this->createMock(BackendInterface::class);
         $persistenceManager = new PersistenceManager(
             $this->createMock(QueryFactoryInterface::class),
-            $backend->reveal(),
+            $backend,
             $this->createMock(Session::class)
         );
         $persistenceManager->add($object1);
@@ -233,11 +225,11 @@ class PersistenceManagerTest extends UnitTestCase
         $expectedAddedObjects->detach($object2);
 
         // this is the actual assertion
-        $backend->setAggregateRootObjects($expectedAddedObjects)->shouldBeCalled();
+        $backend->expects(self::atLeastOnce())->method('setAggregateRootObjects')->with($expectedAddedObjects);
 
-        $backend->setChangedEntities(Argument::any())->shouldBeCalled();
-        $backend->setDeletedEntities(Argument::any())->shouldBeCalled();
-        $backend->commit()->shouldBeCalled();
+        $backend->expects(self::atLeastOnce())->method('setChangedEntities')->with(self::anything());
+        $backend->expects(self::atLeastOnce())->method('setDeletedEntities')->with(self::anything());
+        $backend->expects(self::atLeastOnce())->method('commit');
 
         $persistenceManager->persistAll();
     }
@@ -251,10 +243,10 @@ class PersistenceManagerTest extends UnitTestCase
         $object2 = new \ArrayObject(['val' => '2']);
         $object3 = new \ArrayObject(['val' => '3']);
 
-        $backend = $this->prophesize(BackendInterface::class);
+        $backend = $this->createMock(BackendInterface::class);
         $persistenceManager = new PersistenceManager(
             $this->createMock(QueryFactoryInterface::class),
-            $backend->reveal(),
+            $backend,
             $this->createMock(Session::class)
         );
         $persistenceManager->add($object1);
@@ -274,11 +266,11 @@ class PersistenceManagerTest extends UnitTestCase
         $expectedAddedObjects->detach($object2);
 
         // this is the actual assertion
-        $backend->setAggregateRootObjects($expectedAddedObjects)->shouldBeCalled();
+        $backend->expects(self::atLeastOnce())->method('setAggregateRootObjects')->with($expectedAddedObjects);
 
-        $backend->setChangedEntities(Argument::any())->shouldBeCalled();
-        $backend->setDeletedEntities(Argument::any())->shouldBeCalled();
-        $backend->commit()->shouldBeCalled();
+        $backend->expects(self::atLeastOnce())->method('setChangedEntities')->with(self::anything());
+        $backend->expects(self::atLeastOnce())->method('setDeletedEntities')->with(self::anything());
+        $backend->expects(self::atLeastOnce())->method('commit');
         $persistenceManager->persistAll();
     }
 
@@ -291,23 +283,23 @@ class PersistenceManagerTest extends UnitTestCase
     public function removeRetainsObjectForObjectsNotInCurrentSession(): void
     {
         $object = new \ArrayObject(['val' => '1']);
-        $backend = $this->prophesize(BackendInterface::class);
+        $backend = $this->createMock(BackendInterface::class);
         $persistenceManager = new PersistenceManager(
             $this->createMock(QueryFactoryInterface::class),
-            $backend->reveal(),
+            $backend,
             $this->createMock(Session::class)
         );
         $persistenceManager->remove($object);
 
         $expectedDeletedObjects = new ObjectStorage();
         $expectedDeletedObjects->attach($object);
-        $backend->setAggregateRootObjects(Argument::any())->shouldBeCalled();
-        $backend->setChangedEntities(Argument::any())->shouldBeCalled();
+        $backend->expects(self::atLeastOnce())->method('setAggregateRootObjects');
+        $backend->expects(self::atLeastOnce())->method('setChangedEntities')->with(self::anything());
 
         // this is the actual assertion
-        $backend->setDeletedEntities($expectedDeletedObjects)->shouldBeCalled();
+        $backend->expects(self::atLeastOnce())->method('setDeletedEntities')->with($expectedDeletedObjects);
 
-        $backend->commit()->shouldBeCalled();
+        $backend->expects(self::atLeastOnce())->method('commit');
         $persistenceManager->persistAll();
     }
 
@@ -328,6 +320,7 @@ class PersistenceManagerTest extends UnitTestCase
 			class  ' . $className . 'Repository extends \\TYPO3\\CMS\\Extbase\\Persistence\\Repository {}
 		');
         $classNameWithNamespace = __NAMESPACE__ . '\\Domain\\Model\\' . $className;
+        /** @var class-string<RepositoryInterface> $repositoryClassNameWithNamespace */
         $repositoryClassNameWithNamespace = __NAMESPACE__ . '\\Domain\\Repository\\' . $className . 'Repository';
 
         $psrContainer = $this->getMockBuilder(ContainerInterface::class)
@@ -338,10 +331,10 @@ class PersistenceManagerTest extends UnitTestCase
         $session = new Session();
         $changedEntities = new ObjectStorage();
         $entity1 = new $classNameWithNamespace();
-        /** @var RepositoryInterface|\TYPO3\TestingFramework\Core\AccessibleObjectInterface $repository */
+
         $repository = $this->getAccessibleMock($repositoryClassNameWithNamespace, ['dummy']);
         $repository->_set('objectType', get_class($entity1));
-        /** @var \TYPO3\CMS\Extbase\Persistence\Generic\Backend|MockObject $mockBackend */
+
         $mockBackend = $this->getMockBuilder(Backend::class)
             ->onlyMethods(['commit', 'setChangedEntities'])
             ->disableOriginalConstructor()
@@ -368,7 +361,6 @@ class PersistenceManagerTest extends UnitTestCase
      */
     public function tearDownWithBackendSupportingTearDownDelegatesCallToBackend(): void
     {
-        /** @var \TYPO3\CMS\Extbase\Persistence\Generic\Backend|MockObject $mockBackend */
         $mockBackend = $this->getMockBuilder(BackendInterface::class)
             ->onlyMethods(get_class_methods(BackendInterface::class))
             ->addMethods(['tearDown'])
@@ -402,7 +394,7 @@ class PersistenceManagerTest extends UnitTestCase
         $classNameWithNamespace = __NAMESPACE__ . '\\Domain\\Model\\' . $className;
         $entity1 = new $classNameWithNamespace();
         $aggregateRootObjects->attach($entity1);
-        /** @var \TYPO3\CMS\Extbase\Persistence\Generic\Backend|MockObject $mockBackend */
+
         $mockBackend = $this->getMockBuilder(Backend::class)
             ->onlyMethods(['commit', 'setAggregateRootObjects', 'setDeletedEntities'])
             ->disableOriginalConstructor()

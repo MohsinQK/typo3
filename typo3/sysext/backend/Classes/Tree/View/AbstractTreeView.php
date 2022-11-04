@@ -20,12 +20,14 @@ use TYPO3\CMS\Backend\Routing\Route;
 use TYPO3\CMS\Backend\Routing\UriBuilder;
 use TYPO3\CMS\Backend\Utility\BackendUtility;
 use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
+use TYPO3\CMS\Core\Database\Connection;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Database\Query\QueryHelper;
 use TYPO3\CMS\Core\Database\Query\Restriction\DeletedRestriction;
 use TYPO3\CMS\Core\Database\Query\Restriction\WorkspaceRestriction;
 use TYPO3\CMS\Core\Imaging\Icon;
 use TYPO3\CMS\Core\Imaging\IconFactory;
+use TYPO3\CMS\Core\Imaging\IconProvider\AbstractSvgIconProvider;
 use TYPO3\CMS\Core\Localization\LanguageService;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 
@@ -120,7 +122,7 @@ abstract class AbstractTreeView
      * @see addField()
      * @var string
      */
-    public $defaultList = 'uid,pid,tstamp,sorting,deleted,perms_userid,perms_groupid,perms_user,perms_group,perms_everybody,crdate,cruser_id';
+    public $defaultList = 'uid,pid,tstamp,sorting,deleted,perms_userid,perms_groupid,perms_user,perms_group,perms_everybody,crdate';
 
     /**
      * If 1, HTML code is also accumulated in ->tree array during rendering of the tree
@@ -273,10 +275,19 @@ abstract class AbstractTreeView
      */
     public function PM_ATagWrap($bMark = '', $isOpen = false)
     {
+        $iconFactory = GeneralUtility::makeInstance(IconFactory::class);
+
         $anchor = $bMark ? '#' . $bMark : '';
         $name = $bMark ? ' name="' . $bMark . '"' : '';
         $aUrl = $this->getThisScript() . $anchor;
-        return '<a class="list-tree-control ' . ($isOpen ? 'list-tree-control-open' : 'list-tree-control-closed') . '" href="' . htmlspecialchars($aUrl) . '"' . $name . '><i class="fa"></i></a>';
+        if ($isOpen) {
+            $class = 'list-tree-control-open';
+            $icon = $iconFactory->getIcon('actions-chevron-down', Icon::SIZE_SMALL);
+        } else {
+            $class = 'list-tree-control-closed';
+            $icon = $iconFactory->getIcon('actions-chevron-right', Icon::SIZE_SMALL);
+        }
+        return '<a class="list-tree-control ' . $class . '" href="' . htmlspecialchars($aUrl) . '"' . $name . '>' . $icon->render(AbstractSvgIconProvider::MARKUP_IDENTIFIER_INLINE) . '</a>';
     }
 
     /**
@@ -352,7 +363,7 @@ abstract class AbstractTreeView
      */
     public function getTitleStr($row, $titleLen = 30)
     {
-        $title = htmlspecialchars(GeneralUtility::fixed_lgd_cs($row['title'], $titleLen));
+        $title = htmlspecialchars(GeneralUtility::fixed_lgd_cs($row['title'], (int)$titleLen));
         return trim($title) === '' ? '<em>[' . htmlspecialchars($this->getLanguageService()->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.no_title')) . ']</em>' : $title;
     }
 
@@ -471,14 +482,14 @@ abstract class AbstractTreeView
         $queryBuilder->getRestrictions()
                 ->removeAll()
                 ->add(GeneralUtility::makeInstance(DeletedRestriction::class))
-                ->add(GeneralUtility::makeInstance(WorkspaceRestriction::class, (int)$this->getBackendUser()->workspace));
+                ->add(GeneralUtility::makeInstance(WorkspaceRestriction::class, $this->getBackendUser()->workspace));
         $count = $queryBuilder
                 ->count('uid')
                 ->from($this->table)
                 ->where(
                     $queryBuilder->expr()->eq(
                         $this->parentField,
-                        $queryBuilder->createNamedParameter($uid, \PDO::PARAM_INT)
+                        $queryBuilder->createNamedParameter($uid, Connection::PARAM_INT)
                     ),
                     QueryHelper::stripLogicalOperatorPrefix($this->clause)
                 )
@@ -514,14 +525,14 @@ abstract class AbstractTreeView
         $queryBuilder->getRestrictions()
                 ->removeAll()
                 ->add(GeneralUtility::makeInstance(DeletedRestriction::class))
-                ->add(GeneralUtility::makeInstance(WorkspaceRestriction::class, (int)$this->getBackendUser()->workspace));
+                ->add(GeneralUtility::makeInstance(WorkspaceRestriction::class, $this->getBackendUser()->workspace));
         $queryBuilder
                 ->select(...$this->fieldArray)
                 ->from($this->table)
                 ->where(
                     $queryBuilder->expr()->eq(
                         $this->parentField,
-                        $queryBuilder->createNamedParameter($parentId, \PDO::PARAM_INT)
+                        $queryBuilder->createNamedParameter($parentId, Connection::PARAM_INT)
                     ),
                     QueryHelper::stripLogicalOperatorPrefix($this->clause)
                 );

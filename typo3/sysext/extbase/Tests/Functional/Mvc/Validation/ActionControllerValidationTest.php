@@ -19,12 +19,14 @@ namespace TYPO3\CMS\Extbase\Tests\Functional\Mvc\Validation;
 
 use ExtbaseTeam\BlogExample\Controller\BlogController;
 use TYPO3\CMS\Core\Http\Response;
+use TYPO3\CMS\Core\Http\ServerRequest;
 use TYPO3\CMS\Core\Localization\LanguageServiceFactory;
 use TYPO3\CMS\Extbase\Error\Error;
 use TYPO3\CMS\Extbase\Error\Result;
 use TYPO3\CMS\Extbase\Http\ForwardResponse;
 use TYPO3\CMS\Extbase\Mvc\Controller\MvcPropertyMappingConfigurationService;
 use TYPO3\CMS\Extbase\Mvc\Dispatcher;
+use TYPO3\CMS\Extbase\Mvc\ExtbaseRequestParameters;
 use TYPO3\CMS\Extbase\Mvc\Request;
 use TYPO3\CMS\Extbase\Security\Cryptography\HashService;
 use TYPO3\TestingFramework\Core\Functional\FunctionalTestCase;
@@ -69,20 +71,21 @@ class ActionControllerValidationTest extends FunctionalTestCase
         $GLOBALS['LANG'] = $this->get(LanguageServiceFactory::class)->create('default');
         $GLOBALS['TYPO3_CONF_VARS']['SYS']['encryptionKey'] = 'testkey';
 
-        $this->importDataSet('PACKAGE:typo3/testing-framework/Resources/Core/Functional/Fixtures/pages.xml');
+        $this->importCSVDataSet(__DIR__ . '/../../Fixtures/pages.csv');
         $this->importCSVDataSet(__DIR__ . '/../../Persistence/Fixtures/blogs.csv');
         $this->importCSVDataSet(__DIR__ . '/../../Persistence/Fixtures/posts.csv');
 
         $response = new Response();
-        $request = new Request();
+        $serverRequest = (new ServerRequest())->withAttribute('extbase', new ExtbaseRequestParameters());
+        $request = new Request($serverRequest);
 
-        $request->setControllerActionName('testForward');
-        $request->setArgument('blogPost', $blogPostArgument);
-        $request->setArgument('__trustedProperties', $this->generateTrustedPropertiesToken($trustedProperties));
+        $request = $request->withControllerActionName('testForward');
+        $request = $request->withArgument('blogPost', $blogPostArgument);
+        $request = $request->withArgument('__trustedProperties', $this->generateTrustedPropertiesToken($trustedProperties));
 
         $referrerRequest = [];
         $referrerRequest['@action'] = 'testForm';
-        $request->setArgument(
+        $request = $request->withArgument(
             '__referrer',
             ['@request' => $this->getHashService()->appendHmac(json_encode($referrerRequest))]
         );
@@ -120,20 +123,21 @@ class ActionControllerValidationTest extends FunctionalTestCase
         $GLOBALS['LANG'] = $this->get(LanguageServiceFactory::class)->create('default');
         $GLOBALS['TYPO3_CONF_VARS']['SYS']['encryptionKey'] = 'testkey';
 
-        $this->importDataSet('PACKAGE:typo3/testing-framework/Resources/Core/Functional/Fixtures/pages.xml');
+        $this->importCSVDataSet(__DIR__ . '/../../Fixtures/pages.csv');
         $this->importCSVDataSet(__DIR__ . '/../../Persistence/Fixtures/blogs.csv');
         $this->importCSVDataSet(__DIR__ . '/../../Persistence/Fixtures/posts.csv');
 
         $response = new Response();
-        $request = new Request();
+        $serverRequest = (new ServerRequest())->withAttribute('extbase', new ExtbaseRequestParameters());
+        $request = new Request($serverRequest);
 
-        $request->setControllerActionName('testRelatedObject');
-        $request->setArgument('blog', ['__identity' => 1, 'description' => str_repeat('test', 40)]);
-        $request->setArgument(
+        $request = $request->withControllerActionName('testRelatedObject');
+        $request = $request->withArgument('blog', ['__identity' => 1, 'description' => str_repeat('test', 40)]);
+        $request = $request->withArgument(
             'blogPost',
             ['__identity' => 1, 'title' => '77', 'blog' => ['__identity' => 1, 'title' => str_repeat('test', 21)]]
         );
-        $request->setArgument(
+        $request = $request->withArgument(
             '__trustedProperties',
             $this->generateTrustedPropertiesToken(
                 [
@@ -149,7 +153,7 @@ class ActionControllerValidationTest extends FunctionalTestCase
 
         $referrerRequest = [];
         $referrerRequest['@action'] = 'testForm';
-        $request->setArgument(
+        $request = $request->withArgument(
             '__referrer',
             ['@request' => $this->getHashService()->appendHmac(json_encode($referrerRequest))]
         );
@@ -159,7 +163,6 @@ class ActionControllerValidationTest extends FunctionalTestCase
             $blogController = $this->get(BlogController::class);
             $response = $blogController->processRequest($request);
             if ($response instanceof ForwardResponse) {
-
                 /** @var Result $validationResult */
                 $validationResult = $response->getArgumentsValidationResult();
 
@@ -186,20 +189,21 @@ class ActionControllerValidationTest extends FunctionalTestCase
         $GLOBALS['LANG'] = $this->get(LanguageServiceFactory::class)->create('default');
         $GLOBALS['TYPO3_CONF_VARS']['SYS']['encryptionKey'] = 'testkey';
 
-        $this->importDataSet('PACKAGE:typo3/testing-framework/Resources/Core/Functional/Fixtures/pages.xml');
+        $this->importCSVDataSet(__DIR__ . '/../../Fixtures/pages.csv');
         $this->importCSVDataSet(__DIR__ . '/../../Persistence/Fixtures/blogs.csv');
         $this->importCSVDataSet(__DIR__ . '/../../Persistence/Fixtures/posts.csv');
 
         $response = new Response();
-        $request = new Request();
+        $serverRequest = (new ServerRequest())->withAttribute('extbase', new ExtbaseRequestParameters());
+        $request = new Request($serverRequest);
 
-        $request->setControllerActionName('testRelatedObject');
-        $request->setArgument('blog', ['__identity' => 1, 'description' => str_repeat('test', 40)]);
-        $request->setArgument(
+        $request = $request->withControllerActionName('testRelatedObject');
+        $request = $request->withArgument('blog', ['__identity' => 1, 'description' => str_repeat('test', 40)]);
+        $request = $request->withArgument(
             'blogPost',
             ['__identity' => 1, 'title' => '77', 'blog' => ['__identity' => 1, 'title' => str_repeat('test', 21)]]
         );
-        $request->setArgument(
+        $request = $request->withArgument(
             '__trustedProperties',
             $this->generateTrustedPropertiesToken(
                 [
@@ -215,7 +219,7 @@ class ActionControllerValidationTest extends FunctionalTestCase
 
         $referrerRequest = [];
         $referrerRequest['@action'] = 'testForm';
-        $request->setArgument(
+        $request = $request->withArgument(
             '__referrer',
             ['@request' => $this->getHashService()->appendHmac(json_encode($referrerRequest))]
         );
@@ -227,7 +231,7 @@ class ActionControllerValidationTest extends FunctionalTestCase
             $response = $blogController->processRequest($request);
             if ($response instanceof ForwardResponse) {
                 $request = Dispatcher::buildRequestFromCurrentRequestAndForwardResponse($request, $response);
-                self::assertEquals($originalArguments, $request->getOriginalRequest()->getAttribute('extbase')->getArguments());
+                self::assertEquals($originalArguments, $request->getAttribute('extbase')->getOriginalRequest()->getAttribute('extbase')->getArguments());
             } else {
                 $isDispatched = true;
             }

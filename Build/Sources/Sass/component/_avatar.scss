@@ -15,7 +15,7 @@
 // Normal Usage
 // ------------
 //
-// <span class="avatar">
+// <span class="avatar avatar-size-small">
 //   <span class="avatar-image">
 //     <img src="">
 //   </span>
@@ -25,12 +25,12 @@
 // Avatar with RecordIcon
 // ------------
 //
-// <span class="avatar">
+// <span class="avatar avatar-size-medium">
 //   <span class="avatar-image">
-//     <img src="">
+//     <img src="...">
 //   </span>
 //   <span class="avatar-icon">
-//     <span class="t3-icon t3-icon-status t3-icon-status-user t3-icon-user-admin"></span>
+//     <span class="t3js-icon icon icon-size-small icon-state-default icon-status-user-admin" data-identifier="status-user-admin">...</span>
 //   </span>
 // </span>
 //
@@ -39,28 +39,35 @@
 //
 // Variables
 //
-$avatar-size: 32px;
-$avatar-border-radius: 50%;
-$avatar-dropdown-size: 28px;
-$avatar-dropdown-correction: (($avatar-dropdown-size - $line-height-computed) / 2);
+$avatar-size-small: 16px !default;
+$avatar-size-medium: 32px !default;
+$avatar-size-large: 48px !default;
+$avatar-size-mega: 64px !default;
+
+:root {
+    --avatar-size-small: #{$avatar-size-small};
+    --avatar-size-medium: #{$avatar-size-medium};
+    --avatar-size-large: #{$avatar-size-large};
+    --avatar-size-mega: #{$avatar-size-mega};
+}
 
 //
 // Component
 //
 .avatar {
     position: relative;
-    display: inline-block;
-    height: $avatar-size;
-    width: $avatar-size;
-    vertical-align: middle;
+    display: block;
+    height: var(--avatar-size, 1em);
+    width: var(--avatar-size, 1em);
+    line-height: var(--avatar-size, 1em);
 }
 
 .avatar-image {
     display: block;
-    height: $avatar-size;
-    width: $avatar-size;
+    height: 100%;
+    width: 100%;
     overflow: hidden;
-    border-radius: $avatar-border-radius;
+    border-radius: 50%;
 
     &:after {
         display: block;
@@ -70,8 +77,8 @@ $avatar-dropdown-correction: (($avatar-dropdown-size - $line-height-computed) / 
         left: 0;
         height: 100%;
         width: 100%;
-        border-radius: $avatar-border-radius;
-        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 50%;
+        border: 1px solid rgba(255, 255, 255, .1);
     }
 
     > img {
@@ -81,10 +88,31 @@ $avatar-dropdown-correction: (($avatar-dropdown-size - $line-height-computed) / 
     }
 }
 
+.avatar-size-small {
+    --avatar-size: var(--avatar-size-small);
+}
+
+.avatar-size-medium {
+    --avatar-size: var(--avatar-size-medium);
+}
+
+.avatar-size-large {
+    --avatar-size: var(--avatar-size-large);
+}
+
+.avatar-size-mega {
+    --avatar-size: var(--avatar-size-mega);
+}
+
 .avatar-icon {
     position: absolute;
     bottom: 0;
     right: 0;
-    height: $avatar-size / 2;
-    width: $avatar-size / 2;
+    height: calc(var(--avatar-size, 1em) * .5);
+    width: calc(var(--avatar-size, 1em) * .5);
+
+    .icon {
+        --icon-size: calc(var(--avatar-size, 1em) * .5);
+        display: block;
+    }
 }

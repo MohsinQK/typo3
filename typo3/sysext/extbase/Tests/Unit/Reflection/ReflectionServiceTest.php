@@ -17,7 +17,6 @@ declare(strict_types=1);
 
 namespace TYPO3\CMS\Extbase\Tests\Unit\Reflection;
 
-use Prophecy\PhpUnit\ProphecyTrait;
 use TYPO3\CMS\Core\Cache\Frontend\NullFrontend;
 use TYPO3\CMS\Extbase\Reflection\ClassSchema;
 use TYPO3\CMS\Extbase\Reflection\Exception\UnknownClassException;
@@ -26,15 +25,12 @@ use TYPO3\CMS\Extbase\Tests\Unit\Reflection\Fixture\DummyClassWithInvalidTypeHin
 use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
- * Test case
  * @see test for reflection
  * @link second test for reflection
  * @link second test for reflection with second value
  */
 class ReflectionServiceTest extends UnitTestCase
 {
-    use ProphecyTrait;
-
     /**
      * @test
      */
@@ -64,7 +60,7 @@ class ReflectionServiceTest extends UnitTestCase
      */
     public function reflectionServiceCanBeSerializedAndUnserialized(): void
     {
-        $class = new class() {
+        $class = new class () {
         };
 
         $reflectionService = new ReflectionService(new NullFrontend('extbase'), 'ClassSchemata');
@@ -82,7 +78,7 @@ class ReflectionServiceTest extends UnitTestCase
      */
     public function reflectionServiceCanBeSerializedAndUnserializedWithCacheManager(): void
     {
-        $class = new class() {
+        $class = new class () {
         };
 
         $reflectionService = new ReflectionService(new NullFrontend('extbase'), 'ClassSchemata');
@@ -93,20 +89,5 @@ class ReflectionServiceTest extends UnitTestCase
 
         self::assertInstanceOf(ReflectionService::class, $reflectionService);
         self::assertInstanceOf(ClassSchema::class, $reflectionService->getClassSchema($class));
-    }
-
-    /**
-     * @test
-     */
-    public function reflectionServiceIsResetDuringWakeUp(): void
-    {
-        $insecureString = file_get_contents(__DIR__ . '/Fixture/InsecureSerializedReflectionService.txt');
-        $reflectionService = unserialize($insecureString);
-
-        $reflectionClass = new \ReflectionClass($reflectionService);
-        $classSchemaProperty = $reflectionClass->getProperty('classSchemata');
-        $classSchemaProperty->setAccessible(true);
-
-        self::assertSame([], $classSchemaProperty->getValue($reflectionService));
     }
 }

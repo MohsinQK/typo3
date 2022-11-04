@@ -22,11 +22,11 @@ use Psr\Http\Message\StreamFactoryInterface;
 use TYPO3\CMS\Core\Http\PropagateResponseException;
 use TYPO3\CMS\Core\Http\RedirectResponse;
 use TYPO3\CMS\Core\Http\Response;
-use TYPO3\CMS\Core\Messaging\AbstractMessage;
 use TYPO3\CMS\Core\Messaging\FlashMessage;
 use TYPO3\CMS\Core\Messaging\FlashMessageQueue;
 use TYPO3\CMS\Core\Messaging\FlashMessageService;
 use TYPO3\CMS\Core\Page\PageRenderer;
+use TYPO3\CMS\Core\Type\ContextualFeedbackSeverity;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Core\Utility\MathUtility;
 use TYPO3\CMS\Extbase\Configuration\ConfigurationManagerInterface;
@@ -36,6 +36,7 @@ use TYPO3\CMS\Extbase\Mvc\Controller\Exception\RequiredArgumentMissingException;
 use TYPO3\CMS\Extbase\Mvc\Exception\InvalidArgumentNameException;
 use TYPO3\CMS\Extbase\Mvc\Exception\InvalidArgumentTypeException;
 use TYPO3\CMS\Extbase\Mvc\Exception\NoSuchActionException;
+use TYPO3\CMS\Extbase\Mvc\ExtbaseRequestParameters;
 use TYPO3\CMS\Extbase\Mvc\Request;
 use TYPO3\CMS\Extbase\Mvc\RequestInterface;
 use TYPO3\CMS\Extbase\Mvc\View\GenericViewResolver;
@@ -130,11 +131,8 @@ abstract class ActionController implements ControllerInterface
 
     /**
      * The current request.
-     *
-     * @var Request
-     * @todo v12: Change @var to RequestInterface, when RequestInterface extends ServerRequestInterface
      */
-    protected $request;
+    protected RequestInterface $request;
 
     /**
      * @var \TYPO3\CMS\Extbase\Mvc\Web\Routing\UriBuilder
@@ -645,7 +643,7 @@ abstract class ActionController implements ControllerInterface
     {
         $errorFlashMessage = $this->getErrorFlashMessage();
         if ($errorFlashMessage !== false) {
-            $this->addFlashMessage($errorFlashMessage, '', FlashMessage::ERROR);
+            $this->addFlashMessage($errorFlashMessage, '', ContextualFeedbackSeverity::ERROR);
         }
     }
 
@@ -674,7 +672,9 @@ abstract class ActionController implements ControllerInterface
      */
     protected function forwardToReferringRequest(): ?ResponseInterface
     {
-        $referringRequestArguments = $this->request->getInternalArguments()['__referrer'] ?? null;
+        /** @var ExtbaseRequestParameters $extbaseRequestParameters */
+        $extbaseRequestParameters = $this->request->getAttribute('extbase');
+        $referringRequestArguments = $extbaseRequestParameters->getInternalArgument('__referrer') ?? null;
         if (is_string($referringRequestArguments['@request'] ?? null)) {
             $referrerArray = json_decode(
                 $this->hashService->validateAndStripHmac($referringRequestArguments['@request']),
@@ -730,15 +730,21 @@ abstract class ActionController implements ControllerInterface
      *
      * @param string $messageBody The message
      * @param string $messageTitle Optional message title
-     * @param int $severity Optional severity, must be one of \TYPO3\CMS\Core\Messaging\FlashMessage constants
+     * @param int|ContextualFeedbackSeverity $severity Optional severity, must be one of \TYPO3\CMS\Core\Type\ContextualFeedbackSeverity cases. Accepts int values as well, which is deprecated.
      * @param bool $storeInSession Optional, defines whether the message should be stored in the session (default) or not
      * @throws \InvalidArgumentException if the message body is no string
      * @see \TYPO3\CMS\Core\Messaging\FlashMessage
+     *
+     * @todo: Change $severity to allow ContextualFeedbackSeverity only in v13
      */
-    public function addFlashMessage($messageBody, $messageTitle = '', $severity = AbstractMessage::OK, $storeInSession = true)
+    public function addFlashMessage($messageBody, $messageTitle = '', $severity = ContextualFeedbackSeverity::OK, $storeInSession = true)
     {
         if (!is_string($messageBody)) {
             throw new \InvalidArgumentException('The message body must be of type string, "' . gettype($messageBody) . '" given.', 1243258395);
+        }
+        if (is_int($severity)) {
+            // @deprecated int type for $severity deprecated in v12, will change to Severity only in v13.
+            $severity = ContextualFeedbackSeverity::transform($severity);
         }
         /* @var \TYPO3\CMS\Core\Messaging\FlashMessage $flashMessage */
         $flashMessage = GeneralUtility::makeInstance(
@@ -910,7 +916,7 @@ abstract class ActionController implements ControllerInterface
     {
         return $this->responseFactory->createResponse()
             ->withHeader('Content-Type', 'text/html; charset=utf-8')
-            ->withBody($this->streamFactory->createStream($html ?? $this->view->render()));
+            ->withBody($this->streamFactory->createStream((string)($html ?? $this->view->render())));
     }
 
     /**
@@ -924,6 +930,6 @@ abstract class ActionController implements ControllerInterface
     {
         return $this->responseFactory->createResponse()
             ->withHeader('Content-Type', 'application/json; charset=utf-8')
-            ->withBody($this->streamFactory->createStream($json ?? $this->view->render()));
+            ->withBody($this->streamFactory->createStream((string)($json ?? $this->view->render())));
     }
 }

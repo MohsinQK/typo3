@@ -17,6 +17,7 @@ namespace TYPO3\CMS\Extbase\Persistence\Generic\Mapper;
 
 use Psr\EventDispatcher\EventDispatcherInterface;
 use TYPO3\CMS\Core\Context\Context;
+use TYPO3\CMS\Core\Context\LanguageAspect;
 use TYPO3\CMS\Core\Database\Query\QueryHelper;
 use TYPO3\CMS\Core\Database\RelationHandler;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
@@ -39,7 +40,6 @@ use TYPO3\CMS\Extbase\Persistence\Generic\Session;
 use TYPO3\CMS\Extbase\Persistence\ObjectStorage;
 use TYPO3\CMS\Extbase\Persistence\QueryInterface;
 use TYPO3\CMS\Extbase\Persistence\QueryResultInterface;
-use TYPO3\CMS\Extbase\Reflection\ClassSchema;
 use TYPO3\CMS\Extbase\Reflection\ClassSchema\Exception\NoSuchPropertyException;
 use TYPO3\CMS\Extbase\Reflection\ReflectionService;
 use TYPO3\CMS\Extbase\Utility\TypeHandlingUtility;
@@ -134,11 +134,14 @@ class DataMapper
      */
     protected function mapSingleRow($className, array $row)
     {
-        if ($this->persistenceSession->hasIdentifier($row['uid'], $className)) {
-            $object = $this->persistenceSession->getObjectByIdentifier($row['uid'], $className);
+        // @todo: this also needs to contain the query's languageAspect with its configuration
+        // which should be changed along with https://review.typo3.org/c/Packages/TYPO3.CMS/+/75093
+        $identifier = $row['uid'] . (isset($row['_LOCALIZED_UID']) ? '_' . $row['_LOCALIZED_UID'] : '');
+        if ($this->persistenceSession->hasIdentifier($identifier, $className)) {
+            $object = $this->persistenceSession->getObjectByIdentifier($identifier, $className);
         } else {
             $object = $this->createEmptyObject($className);
-            $this->persistenceSession->registerObject($object, $row['uid']);
+            $this->persistenceSession->registerObject($object, $identifier);
             $this->thawProperties($object, $row);
             $event = new AfterObjectThawedEvent($object, $row);
             $this->eventDispatcher->dispatch($event);
@@ -192,83 +195,74 @@ class DataMapper
         if (!empty($row['_ORIG_uid']) && !empty($GLOBALS['TCA'][$dataMap->getTableName()]['ctrl']['versioningWS'])) {
             $object->_setProperty(AbstractDomainObject::PROPERTY_VERSIONED_UID, (int)$row['_ORIG_uid']);
         }
-        $properties = $object->_getProperties();
-        foreach ($properties as $propertyName => $propertyValue) {
+        foreach ($classSchema->getDomainObjectProperties() as $property) {
+            $propertyName = $property->getName();
             if (!$dataMap->isPersistableProperty($propertyName)) {
                 continue;
             }
             $columnMap = $dataMap->getColumnMap($propertyName);
             $columnName = $columnMap->getColumnName();
 
-            try {
-                $property = $classSchema->getProperty($propertyName);
-            } catch (NoSuchPropertyException $e) {
-                throw new NonExistentPropertyException(
-                    'The type of property ' . $className . '::' . $propertyName . ' could not be identified, ' .
-                    'as property ' . $propertyName . ' is unknown to the ' . ClassSchema::class . ' instance of class ' .
-                    $className . '. Please make sure said property exists and that you cleared all caches to trigger ' .
-                    'a new build of said ' . ClassSchema::class . ' instance.',
-                    1580056272
-                );
+            if (!isset($row[$columnName])) {
+                continue;
             }
 
             $propertyType = $property->getType();
             if ($propertyType === null) {
                 throw new UnknownPropertyTypeException(
                     'The type of property ' . $className . '::' . $propertyName . ' could not be identified, therefore the desired value (' .
-                    var_export($propertyValue, true) . ') cannot be mapped onto it. The type of a class property is usually defined via php doc blocks. ' .
-                    'Make sure the property has a valid @var tag set which defines the type.',
+                    var_export($row[$columnName], true) . ') cannot be mapped onto it. The type of a class property is usually defined via property types or php doc blocks. ' .
+                    'Make sure the property has a property type or valid @var tag set which defines the type.',
                     1579965021
                 );
             }
+
             $propertyValue = null;
-            if (isset($row[$columnName])) {
-                switch ($propertyType) {
-                    case 'int':
-                    case 'integer':
-                        $propertyValue = (int)$row[$columnName];
-                        break;
-                    case 'float':
-                        $propertyValue = (double)$row[$columnName];
-                        break;
-                    case 'bool':
-                    case 'boolean':
-                        $propertyValue = (bool)$row[$columnName];
-                        break;
-                    case 'string':
-                        $propertyValue = (string)$row[$columnName];
-                        break;
-                    case 'array':
-                        // $propertyValue = $this->mapArray($row[$columnName]); // Not supported, yet!
-                        break;
-                    case \SplObjectStorage::class:
-                    case ObjectStorage::class:
-                        $propertyValue = $this->mapResultToPropertyValue(
+            switch ($propertyType) {
+                case 'int':
+                case 'integer':
+                    $propertyValue = (int)$row[$columnName];
+                    break;
+                case 'float':
+                    $propertyValue = (float)$row[$columnName];
+                    break;
+                case 'bool':
+                case 'boolean':
+                    $propertyValue = (bool)$row[$columnName];
+                    break;
+                case 'string':
+                    $propertyValue = (string)$row[$columnName];
+                    break;
+                case 'array':
+                    // $propertyValue = $this->mapArray($row[$columnName]); // Not supported, yet!
+                    break;
+                case \SplObjectStorage::class:
+                case ObjectStorage::class:
+                    $propertyValue = $this->mapResultToPropertyValue(
+                        $object,
+                        $propertyName,
+                        $this->fetchRelated($object, $propertyName, $row[$columnName])
+                    );
+                    break;
+                default:
+                    if (is_subclass_of($propertyType, \DateTimeInterface::class)) {
+                        $propertyValue = $this->mapDateTime(
+                            $row[$columnName],
+                            $columnMap->getDateTimeStorageFormat(),
+                            $propertyType
+                        );
+                    } elseif (TypeHandlingUtility::isCoreType($propertyType)) {
+                        $propertyValue = $this->mapCoreType($propertyType, $row[$columnName]);
+                    } else {
+                        $propertyValue = $this->mapObjectToClassProperty(
                             $object,
                             $propertyName,
-                            $this->fetchRelated($object, $propertyName, $row[$columnName])
+                            $row[$columnName]
                         );
-                        break;
-                    default:
-                        if (is_subclass_of($propertyType, \DateTimeInterface::class)) {
-                            $propertyValue = $this->mapDateTime(
-                                $row[$columnName],
-                                $columnMap->getDateTimeStorageFormat(),
-                                $propertyType
-                            );
-                        } elseif (TypeHandlingUtility::isCoreType($propertyType)) {
-                            $propertyValue = $this->mapCoreType($propertyType, $row[$columnName]);
-                        } else {
-                            $propertyValue = $this->mapObjectToClassProperty(
-                                $object,
-                                $propertyName,
-                                $row[$columnName]
-                            );
-                        }
-
-                }
+                    }
             }
-            if ($propertyValue !== null) {
+
+            if ($propertyValue !== null || $property->isNullable()) {
                 $object->_setProperty($propertyName, $propertyValue);
             }
         }
@@ -398,19 +392,26 @@ class DataMapper
         $query->getQuerySettings()->setRespectStoragePage(false);
         $query->getQuerySettings()->setRespectSysLanguage(false);
 
-        // we always want to overlay relations as most of the time they are stored in db using default lang uids
-        $query->getQuerySettings()->setLanguageOverlayMode(true);
+        $languageAspect = $query->getQuerySettings()->getLanguageAspect();
+        $languageUid = $languageAspect->getContentId();
         if ($this->query) {
-            $query->getQuerySettings()->setLanguageUid($this->query->getQuerySettings()->getLanguageUid());
-
+            $languageAspect = $this->query->getQuerySettings()->getLanguageAspect();
+            $languageUid = $languageAspect->getContentId();
             if ($dataMap->getLanguageIdColumnName() !== null && !$this->query->getQuerySettings()->getRespectSysLanguage()) {
                 //pass language of parent record to child objects, so they can be overlaid correctly in case
                 //e.g. findByUid is used.
                 //the languageUid is used for getRecordOverlay later on, despite RespectSysLanguage being false
                 $languageUid = (int)$parentObject->_getProperty(AbstractDomainObject::PROPERTY_LANGUAGE_UID);
-                $query->getQuerySettings()->setLanguageUid($languageUid);
             }
         }
+
+        // we always want to overlay relations as most of the time they are stored in db using default language uids
+        $languageAspect = new LanguageAspect(
+            $languageUid,
+            $languageUid,
+            $languageAspect->getOverlayType() === LanguageAspect::OVERLAYS_OFF ? LanguageAspect::OVERLAYS_MIXED : $languageAspect->getOverlayType()
+        );
+        $query->getQuerySettings()->setLanguageAspect($languageAspect);
 
         if ($columnMap->getTypeOfRelation() === ColumnMap::RELATION_HAS_MANY) {
             if ($columnMap->getChildSortByFieldName() !== null) {
@@ -484,7 +485,8 @@ class DataMapper
                 );
             }
         } else {
-            $constraint = $query->in('uid', GeneralUtility::intExplode(',', $fieldValue));
+            // Note: $fieldValue is annotated as a string, but this cannot be trusted as the callers do not ensure this.
+            $constraint = $query->in('uid', GeneralUtility::intExplode(',', (string)$fieldValue));
         }
         if (!empty($relationTableMatchFields)) {
             foreach ($relationTableMatchFields as $relationTableMatchFieldName => $relationTableMatchFieldValue) {

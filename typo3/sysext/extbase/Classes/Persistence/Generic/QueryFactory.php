@@ -50,7 +50,6 @@ class QueryFactory implements QueryFactoryInterface, SingletonInterface
      */
     public function create($className): QueryInterface
     {
-        /** @var QueryInterface $query */
         $query = $this->container->get(QueryInterface::class);
         $query->setType($className);
 
@@ -62,7 +61,7 @@ class QueryFactory implements QueryFactoryInterface, SingletonInterface
         }
 
         $frameworkConfiguration = $this->configurationManager->getConfiguration(ConfigurationManagerInterface::CONFIGURATION_TYPE_FRAMEWORK);
-        $querySettings->setStoragePageIds(GeneralUtility::intExplode(',', $frameworkConfiguration['persistence']['storagePid'] ?? ''));
+        $querySettings->setStoragePageIds(GeneralUtility::intExplode(',', (string)($frameworkConfiguration['persistence']['storagePid'] ?? '')));
         $query->setQuerySettings($querySettings);
         return $query;
     }

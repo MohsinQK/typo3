@@ -27,7 +27,7 @@ use TYPO3\TestingFramework\Core\Functional\Framework\Frontend\ResponseContent;
  */
 class EnableFieldsTest extends AbstractDataHandlerActionTestCase
 {
-    const TABLE_Blog = 'tx_blogexample_domain_model_blog';
+    public const TABLE_Blog = 'tx_blogexample_domain_model_blog';
 
     protected array $testExtensionsToLoad = ['typo3/sysext/extbase/Tests/Functional/Fixtures/Extensions/blog_example'];
 
@@ -38,7 +38,7 @@ class EnableFieldsTest extends AbstractDataHandlerActionTestCase
     {
         parent::setUp();
 
-        $this->importDataSet('PACKAGE:typo3/testing-framework/Resources/Core/Functional/Fixtures/pages.xml');
+        $this->importCSVDataSet(__DIR__ . '/../Fixtures/pages.csv');
         $this->importCSVDataSet(__DIR__ . '/../Persistence/Fixtures/fe_groups.csv');
         $this->importCSVDataSet(__DIR__ . '/../Persistence/Fixtures/fe_users.csv');
         $this->importCSVDataSet(__DIR__ . '/../Persistence/Fixtures/blogs-with-fe_groups.csv');

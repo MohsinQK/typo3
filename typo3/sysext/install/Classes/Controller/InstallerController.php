@@ -42,7 +42,6 @@ use TYPO3\CMS\Core\Database\Schema\Exception\StatementException;
 use TYPO3\CMS\Core\Database\Schema\SchemaMigrator;
 use TYPO3\CMS\Core\Database\Schema\SqlReader;
 use TYPO3\CMS\Core\FormProtection\FormProtectionFactory;
-use TYPO3\CMS\Core\FormProtection\InstallToolFormProtection;
 use TYPO3\CMS\Core\Http\HtmlResponse;
 use TYPO3\CMS\Core\Http\JsonResponse;
 use TYPO3\CMS\Core\Http\NormalizedParams;
@@ -53,6 +52,7 @@ use TYPO3\CMS\Core\Middleware\VerifyHostHeader;
 use TYPO3\CMS\Core\Package\FailsafePackageManager;
 use TYPO3\CMS\Core\Page\ImportMap;
 use TYPO3\CMS\Core\Registry;
+use TYPO3\CMS\Core\Type\ContextualFeedbackSeverity;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Core\View\FluidViewAdapter;
 use TYPO3\CMS\Core\View\ViewInterface;
@@ -77,74 +77,23 @@ use TYPO3Fluid\Fluid\View\TemplateView as FluidTemplateView;
 /**
  * Install step controller, dispatcher class of step actions.
  * @internal This class is a specific controller implementation and is not considered part of the Public TYPO3 API.
+ *
+ * @phpstan-import-type Params from DriverManager
  */
-class InstallerController
+final class InstallerController
 {
-    /**
-     * @var LateBootService
-     */
-    private $lateBootService;
-
-    /**
-     * @var SilentConfigurationUpgradeService
-     */
-    private $silentConfigurationUpgradeService;
-
-    /**
-     * @var SilentTemplateFileUpgradeService
-     */
-    private $silentTemplateFileUpgradeService;
-
-    /**
-     * @var ConfigurationManager
-     */
-    private $configurationManager;
-
-    /**
-     * @var SiteConfiguration
-     */
-    private $siteConfiguration;
-
-    /**
-     * @var Registry
-     */
-    private $registry;
-
-    /**
-     * @var FailsafePackageManager
-     */
-    private $packageManager;
-
-    /**
-     * @var VerifyHostHeader
-     */
-    private $verifyHostHeader;
-
-    /**
-     * @var PermissionsCheck
-     */
-    private $databasePermissionsCheck;
-
     public function __construct(
-        LateBootService $lateBootService,
-        SilentConfigurationUpgradeService $silentConfigurationUpgradeService,
-        SilentTemplateFileUpgradeService $silentTemplateFileUpgradeService,
-        ConfigurationManager $configurationManager,
-        SiteConfiguration $siteConfiguration,
-        Registry $registry,
-        FailsafePackageManager $packageManager,
-        VerifyHostHeader $verifyHostHeader,
-        PermissionsCheck $databasePermissionsCheck
+        private readonly LateBootService $lateBootService,
+        private readonly SilentConfigurationUpgradeService $silentConfigurationUpgradeService,
+        private readonly SilentTemplateFileUpgradeService $silentTemplateFileUpgradeService,
+        private readonly ConfigurationManager $configurationManager,
+        private readonly SiteConfiguration $siteConfiguration,
+        private readonly Registry $registry,
+        private readonly FailsafePackageManager $packageManager,
+        private readonly VerifyHostHeader $verifyHostHeader,
+        private readonly PermissionsCheck $databasePermissionsCheck,
+        private readonly FormProtectionFactory $formProtectionFactory
     ) {
-        $this->lateBootService = $lateBootService;
-        $this->silentConfigurationUpgradeService = $silentConfigurationUpgradeService;
-        $this->silentTemplateFileUpgradeService = $silentTemplateFileUpgradeService;
-        $this->configurationManager = $configurationManager;
-        $this->siteConfiguration = $siteConfiguration;
-        $this->registry = $registry;
-        $this->packageManager = $packageManager;
-        $this->verifyHostHeader = $verifyHostHeader;
-        $this->databasePermissionsCheck = $databasePermissionsCheck;
     }
 
     /**
@@ -193,8 +142,6 @@ class InstallerController
 
     /**
      * Render "FIRST_INSTALL file need to exist" view
-     *
-     * @return ResponseInterface
      */
     public function showInstallerNotAvailableAction(): ResponseInterface
     {
@@ -207,20 +154,16 @@ class InstallerController
 
     /**
      * Check if "environment and folders" should be shown
-     *
-     * @return ResponseInterface
      */
     public function checkEnvironmentAndFoldersAction(): ResponseInterface
     {
         return new JsonResponse([
-            'success' => @is_file($this->configurationManager->getLocalConfigurationFileLocation()),
+            'success' => @is_file($this->configurationManager->getSystemConfigurationFileLocation()),
         ]);
     }
 
     /**
      * Render "environment and folders"
-     *
-     * @return ResponseInterface
      */
     public function showEnvironmentAndFoldersAction(): ResponseInterface
     {
@@ -240,23 +183,21 @@ class InstallerController
         return new JsonResponse([
             'success' => true,
             'html' => $view->render('Installer/ShowEnvironmentAndFolders'),
-            'environmentStatusErrors' => $systemCheckMessageQueue->getAllMessages(FlashMessage::ERROR),
-            'environmentStatusWarnings' => $systemCheckMessageQueue->getAllMessages(FlashMessage::WARNING),
-            'structureErrors' => $structureMessageQueue->getAllMessages(FlashMessage::ERROR),
+            'environmentStatusErrors' => $systemCheckMessageQueue->getAllMessages(ContextualFeedbackSeverity::ERROR),
+            'environmentStatusWarnings' => $systemCheckMessageQueue->getAllMessages(ContextualFeedbackSeverity::WARNING),
+            'structureErrors' => $structureMessageQueue->getAllMessages(ContextualFeedbackSeverity::ERROR),
         ]);
     }
 
     /**
      * Create main folder layout, LocalConfiguration, PackageStates
-     *
-     * @return ResponseInterface
      */
     public function executeEnvironmentAndFoldersAction(): ResponseInterface
     {
         $folderStructureFactory = GeneralUtility::makeInstance(DefaultFactory::class);
         $structureFacade = $folderStructureFactory->getStructure();
         $structureFixMessageQueue = $structureFacade->fix();
-        $errorsFromStructure = $structureFixMessageQueue->getAllMessages(FlashMessage::ERROR);
+        $errorsFromStructure = $structureFixMessageQueue->getAllMessages(ContextualFeedbackSeverity::ERROR);
 
         if (@is_dir(Environment::getLegacyConfigPath())) {
             $this->configurationManager->createLocalConfigurationFromFactoryConfiguration();
@@ -277,9 +218,6 @@ class InstallerController
 
     /**
      * Check if trusted hosts pattern needs to be adjusted
-     *
-     * @param ServerRequestInterface $request
-     * @return ResponseInterface
      */
     public function checkTrustedHostsPatternAction(ServerRequestInterface $request): ResponseInterface
     {
@@ -293,9 +231,6 @@ class InstallerController
 
     /**
      * Adjust trusted hosts pattern to '.*' if it does not match yet
-     *
-     * @param ServerRequestInterface $request
-     * @return ResponseInterface
      */
     public function executeAdjustTrustedHostsPatternAction(ServerRequestInterface $request): ResponseInterface
     {
@@ -348,8 +283,6 @@ class InstallerController
 
     /**
      * Check if database connect step needs to be shown
-     *
-     * @return ResponseInterface
      */
     public function checkDatabaseConnectAction(): ResponseInterface
     {
@@ -360,13 +293,11 @@ class InstallerController
 
     /**
      * Show database connect step
-     *
-     * @return ResponseInterface
      */
-    public function showDatabaseConnectAction(): ResponseInterface
+    public function showDatabaseConnectAction(ServerRequestInterface $request): ResponseInterface
     {
         $view = $this->initializeView();
-        $formProtection = FormProtectionFactory::get(InstallToolFormProtection::class);
+        $formProtection = $this->formProtectionFactory->createFromRequest($request);
         $hasAtLeastOneOption = false;
         $activeAvailableOption = '';
 
@@ -485,9 +416,6 @@ class InstallerController
 
     /**
      * Test database connect data
-     *
-     * @param ServerRequestInterface $request
-     * @return ResponseInterface
      */
     public function executeDatabaseConnectAction(ServerRequestInterface $request): ResponseInterface
     {
@@ -511,7 +439,7 @@ class InstallerController
                     $messages[] = new FlashMessage(
                         'Given driver must be one of ' . implode(', ', $validDrivers),
                         'Database driver unknown',
-                        FlashMessage::ERROR
+                        ContextualFeedbackSeverity::ERROR
                     );
                 }
             }
@@ -523,7 +451,7 @@ class InstallerController
                     $messages[] = new FlashMessage(
                         'Given username must be shorter than fifty characters.',
                         'Database username not valid',
-                        FlashMessage::ERROR
+                        ContextualFeedbackSeverity::ERROR
                     );
                 }
             }
@@ -538,7 +466,7 @@ class InstallerController
                     $messages[] = new FlashMessage(
                         'Given host is not alphanumeric (a-z, A-Z, 0-9 or _-.:) or longer than 255 characters.',
                         'Database host not valid',
-                        FlashMessage::ERROR
+                        ContextualFeedbackSeverity::ERROR
                     );
                 }
             }
@@ -550,7 +478,7 @@ class InstallerController
                     $messages[] = new FlashMessage(
                         'Given port is not numeric or within range 1 to 65535.',
                         'Database port not valid',
-                        FlashMessage::ERROR
+                        ContextualFeedbackSeverity::ERROR
                     );
                 }
             }
@@ -561,7 +489,7 @@ class InstallerController
                     $messages[] = new FlashMessage(
                         'Given socket location does not exist on server.',
                         'Socket does not exist',
-                        FlashMessage::ERROR
+                        ContextualFeedbackSeverity::ERROR
                     );
                 }
             }
@@ -573,7 +501,7 @@ class InstallerController
                     $messages[] = new FlashMessage(
                         'Given database name must be shorter than fifty characters.',
                         'Database name not valid',
-                        FlashMessage::ERROR
+                        ContextualFeedbackSeverity::ERROR
                     );
                 }
             }
@@ -618,7 +546,7 @@ class InstallerController
                 $messages[] = new FlashMessage(
                     'Connecting to the database with given settings failed: ' . $e->getMessage(),
                     'Database connect not successful',
-                    FlashMessage::ERROR
+                    ContextualFeedbackSeverity::ERROR
                 );
             }
             $localConfigurationPathValuePairs = [];
@@ -639,8 +567,6 @@ class InstallerController
 
     /**
      * Check if a database needs to be selected
-     *
-     * @return ResponseInterface
      */
     public function checkDatabaseSelectAction(): ResponseInterface
     {
@@ -665,13 +591,11 @@ class InstallerController
 
     /**
      * Render "select a database"
-     *
-     * @return ResponseInterface
      */
-    public function showDatabaseSelectAction(): ResponseInterface
+    public function showDatabaseSelectAction(ServerRequestInterface $request): ResponseInterface
     {
         $view = $this->initializeView();
-        $formProtection = FormProtectionFactory::get(InstallToolFormProtection::class);
+        $formProtection = $this->formProtectionFactory->createFromRequest($request);
         $errors = [];
         try {
             $view->assign('databaseList', $this->getDatabaseList());
@@ -691,8 +615,6 @@ class InstallerController
 
     /**
      * Pre-check whether all requirements for the installed database driver and platform are fulfilled
-     *
-     * @return ResponseInterface
      */
     public function checkDatabaseRequirementsAction(ServerRequestInterface $request): ResponseInterface
     {
@@ -708,7 +630,7 @@ class InstallerController
                     new FlashMessage(
                         'You must select a database.',
                         'No Database selected',
-                        FlashMessage::ERROR
+                        ContextualFeedbackSeverity::ERROR
                     ),
                 ],
             ]);
@@ -717,7 +639,7 @@ class InstallerController
         $GLOBALS['TYPO3_CONF_VARS']['DB']['Connections'][ConnectionPool::DEFAULT_CONNECTION_NAME]['dbname'] = $databaseName;
 
         foreach ($this->checkDatabaseRequirementsForDriver($databaseDriverName) as $message) {
-            if ($message->getSeverity() === FlashMessage::ERROR) {
+            if ($message->getSeverity() === ContextualFeedbackSeverity::ERROR) {
                 $success = false;
                 $messages[] = $message;
             }
@@ -729,7 +651,7 @@ class InstallerController
             $statusMessages[] = new FlashMessage(
                 $checkRequiredPermission,
                 'Missing required permissions',
-                FlashMessage::ERROR
+                ContextualFeedbackSeverity::ERROR
             );
         }
         if ($statusMessages !== []) {
@@ -759,7 +681,7 @@ class InstallerController
                     $databaseName
                 ),
                 '',
-                FlashMessage::INFO
+                ContextualFeedbackSeverity::INFO
             );
             array_unshift($messages, $message);
         }
@@ -806,7 +728,7 @@ class InstallerController
                 new FlashMessage(
                     '',
                     $exception->getMessage(),
-                    FlashMessage::INFO
+                    ContextualFeedbackSeverity::INFO
                 )
             );
             return $flashMessageQueue;
@@ -828,9 +750,6 @@ class InstallerController
 
     /**
      * Select / create and test a database
-     *
-     * @param ServerRequestInterface $request
-     * @return ResponseInterface
      */
     public function executeDatabaseSelectAction(ServerRequestInterface $request): ResponseInterface
     {
@@ -842,7 +761,7 @@ class InstallerController
                     new FlashMessage(
                         'You must select a database.',
                         'No Database selected',
-                        FlashMessage::ERROR
+                        ContextualFeedbackSeverity::ERROR
                     ),
                 ],
             ]);
@@ -851,7 +770,7 @@ class InstallerController
         $postValues = $request->getParsedBody()['install']['values'];
         if ($postValues['type'] === 'new') {
             $status = $this->createNewDatabase($databaseName);
-            if ($status->getSeverity() === FlashMessage::ERROR) {
+            if ($status->getSeverity() === ContextualFeedbackSeverity::ERROR) {
                 return new JsonResponse([
                     'success' => false,
                     'status' => [$status],
@@ -859,7 +778,7 @@ class InstallerController
             }
         } elseif ($postValues['type'] === 'existing') {
             $status = $this->checkExistingDatabase($databaseName);
-            if ($status->getSeverity() === FlashMessage::ERROR) {
+            if ($status->getSeverity() === ContextualFeedbackSeverity::ERROR) {
                 return new JsonResponse([
                     'success' => false,
                     'status' => [$status],
@@ -873,8 +792,6 @@ class InstallerController
 
     /**
      * Check if initial data needs to be imported
-     *
-     * @return ResponseInterface
      */
     public function checkDatabaseDataAction(): ResponseInterface
     {
@@ -889,13 +806,11 @@ class InstallerController
 
     /**
      * Render "import initial data"
-     *
-     * @return ResponseInterface
      */
-    public function showDatabaseDataAction(): ResponseInterface
+    public function showDatabaseDataAction(ServerRequestInterface $request): ResponseInterface
     {
         $view = $this->initializeView();
-        $formProtection = FormProtectionFactory::get(InstallToolFormProtection::class);
+        $formProtection = $this->formProtectionFactory->createFromRequest($request);
         $view->assignMultiple([
             'siteName' => $GLOBALS['TYPO3_CONF_VARS']['SYS']['sitename'],
             'executeDatabaseDataToken' => $formProtection->generateToken('installTool', 'executeDatabaseData'),
@@ -908,9 +823,6 @@ class InstallerController
 
     /**
      * Create main db layout
-     *
-     * @param ServerRequestInterface $request
-     * @return ResponseInterface
      */
     public function executeDatabaseDataAction(ServerRequestInterface $request): ResponseInterface
     {
@@ -925,7 +837,7 @@ class InstallerController
                 'You are setting an important password here! It gives an attacker full control over your instance if cracked.'
                 . ' It should be strong (include lower and upper case characters, special characters and numbers) and must be at least eight characters long.',
                 'Administrator password not secure enough!',
-                FlashMessage::ERROR
+                ContextualFeedbackSeverity::ERROR
             );
             return new JsonResponse([
                 'success' => false,
@@ -948,7 +860,7 @@ class InstallerController
             $messages[] = new FlashMessage(
                 'Error detected in SQL statement:' . LF . $exception->getMessage(),
                 'Import of database data could not be performed',
-                FlashMessage::ERROR
+                ContextualFeedbackSeverity::ERROR
             );
             return new JsonResponse([
                 'success' => false,
@@ -973,7 +885,7 @@ class InstallerController
                 'The administrator account could not be created. The following error occurred:' . LF
                 . $exception->getPrevious()->getMessage(),
                 'Administrator account not created!',
-                FlashMessage::ERROR
+                ContextualFeedbackSeverity::ERROR
             );
             return new JsonResponse([
                 'success' => false,
@@ -993,13 +905,11 @@ class InstallerController
 
     /**
      * Show last "create empty site / install distribution"
-     *
-     * @return ResponseInterface
      */
-    public function showDefaultConfigurationAction(): ResponseInterface
+    public function showDefaultConfigurationAction(ServerRequestInterface $request): ResponseInterface
     {
         $view = $this->initializeView();
-        $formProtection = FormProtectionFactory::get(InstallToolFormProtection::class);
+        $formProtection = $this->formProtectionFactory->createFromRequest($request);
         $view->assignMultiple([
             'composerMode' => Environment::isComposerMode(),
             'executeDefaultConfigurationToken' => $formProtection->generateToken('installTool', 'executeDefaultConfiguration'),
@@ -1012,9 +922,6 @@ class InstallerController
 
     /**
      * Last step execution: clean up, remove FIRST_INSTALL file, ...
-     *
-     * @param ServerRequestInterface $request
-     * @return ResponseInterface
      */
     public function executeDefaultConfigurationAction(ServerRequestInterface $request): ResponseInterface
     {
@@ -1043,7 +950,7 @@ class InstallerController
                 );
                 break;
 
-            // Create a page with UID 1 and PID1 and fluid_styled_content for page TS config, respect ownership
+                // Create a page with UID 1 and PID1 and fluid_styled_content for page TS config, respect ownership
             case 'createsite':
                 $databaseConnectionForPages = $connectionPool->getConnectionForTable('pages');
                 $databaseConnectionForPages->insert(
@@ -1051,7 +958,6 @@ class InstallerController
                     [
                         'pid' => 0,
                         'crdate' => time(),
-                        'cruser_id' => 1,
                         'tstamp' => time(),
                         'title' => 'Home',
                         'slug' => '/',
@@ -1072,11 +978,10 @@ class InstallerController
                     [
                         'pid' => $pageUid,
                         'crdate' => time(),
-                        'cruser_id' => 1,
                         'tstamp' => time(),
                         'title' => 'Main TypoScript Rendering',
                         'root' => 1,
-                        'clear' => 1,
+                        'clear' => 3,
                         'include_static_file' => 'EXT:fluid_styled_content/Configuration/TypoScript/,EXT:fluid_styled_content/Configuration/TypoScript/Styling/',
                         'constants' => '',
                         'config' => 'page = PAGE
@@ -1120,7 +1025,7 @@ For each website you need a TypoScript template on the main page of your website
 
         $this->configurationManager->setLocalConfigurationValuesByPathValuePairs($configurationValues);
 
-        $formProtection = FormProtectionFactory::get(InstallToolFormProtection::class);
+        $formProtection = $this->formProtectionFactory->createFromRequest($request);
         $formProtection->clean();
 
         EnableFileService::removeFirstInstallFile();
@@ -1162,13 +1067,13 @@ For each website you need a TypoScript template on the main page of your website
     }
 
     /**
-     * Check LocalConfiguration.php for required database settings:
+     * Check system/settings.php for required database settings:
      * - 'username' and 'password' are mandatory, but may be empty
      * - if 'driver' is pdo_sqlite and 'path' is set, its ok, too
      *
      * @return bool TRUE if required settings are present
      */
-    protected function isDatabaseConfigurationComplete()
+    protected function isDatabaseConfigurationComplete(): bool
     {
         $configurationComplete = true;
         if (!isset($GLOBALS['TYPO3_CONF_VARS']['DB']['Connections'][ConnectionPool::DEFAULT_CONNECTION_NAME]['user'])) {
@@ -1188,8 +1093,6 @@ For each website you need a TypoScript template on the main page of your website
 
     /**
      * Returns configured socket, if set.
-     *
-     * @return string
      */
     protected function getDatabaseConfiguredMysqliSocket(): string
     {
@@ -1198,8 +1101,6 @@ For each website you need a TypoScript template on the main page of your website
 
     /**
      * Returns configured socket, if set.
-     *
-     * @return string
      */
     protected function getDatabaseConfiguredPdoMysqlSocket(): string
     {
@@ -1208,8 +1109,6 @@ For each website you need a TypoScript template on the main page of your website
 
     /**
      * Returns configured socket, if set.
-     *
-     * @return string
      */
     private function getDefaultSocketFor(string $phpIniSetting): string
     {
@@ -1231,6 +1130,7 @@ For each website you need a TypoScript template on the main page of your website
      */
     protected function getDatabaseConfigurationFromEnvironment(): array
     {
+        /** @var Params $envCredentials */
         $envCredentials = [];
         foreach (['driver', 'host', 'user', 'password', 'port', 'dbname', 'unix_socket'] as $value) {
             $envVar = 'TYPO3_INSTALL_DB_' . strtoupper($value);
@@ -1239,6 +1139,7 @@ For each website you need a TypoScript template on the main page of your website
             }
         }
         if (!empty($envCredentials)) {
+            /** @var Params $connectionParams */
             $connectionParams = $envCredentials;
             $connectionParams['wrapperClass'] = Connection::class;
             $connectionParams['charset'] = 'utf-8';
@@ -1260,7 +1161,7 @@ For each website you need a TypoScript template on the main page of your website
      *
      * @return array List of available databases
      */
-    protected function getDatabaseList()
+    protected function getDatabaseList(): array
     {
         $connectionParams = $GLOBALS['TYPO3_CONF_VARS']['DB']['Connections'][ConnectionPool::DEFAULT_CONNECTION_NAME];
         unset($connectionParams['dbname']);
@@ -1313,9 +1214,8 @@ For each website you need a TypoScript template on the main page of your website
      * Creates a new database on the default connection
      *
      * @param string $dbName name of database
-     * @return FlashMessage
      */
-    protected function createNewDatabase($dbName)
+    protected function createNewDatabase(string $dbName): FlashMessage
     {
         try {
             $platform = GeneralUtility::makeInstance(ConnectionPool::class)
@@ -1338,7 +1238,7 @@ For each website you need a TypoScript template on the main page of your website
                 . ' user does not have sufficient permissions to create it or the database already exists.'
                 . ' Please choose an existing (empty) database, choose another name or contact administration.',
                 'Unable to create database',
-                FlashMessage::ERROR
+                ContextualFeedbackSeverity::ERROR
             );
         }
         return new FlashMessage(
@@ -1353,9 +1253,8 @@ For each website you need a TypoScript template on the main page of your website
      * persisted to the local configuration if the database is empty.
      *
      * @param string $dbName name of the database
-     * @return FlashMessage
      */
-    protected function checkExistingDatabase($dbName)
+    protected function checkExistingDatabase(string $dbName): FlashMessage
     {
         $result = new FlashMessage('');
         $localConfigurationPathValuePairs = [];
@@ -1370,7 +1269,7 @@ For each website you need a TypoScript template on the main page of your website
                     sprintf('Cannot use database "%s"', $dbName)
                         . ', because it already contains tables. Please select a different database or choose to create one!',
                     'Selected database is not empty!',
-                    FlashMessage::ERROR
+                    ContextualFeedbackSeverity::ERROR
                 );
             }
         } catch (\Exception $e) {
@@ -1378,15 +1277,13 @@ For each website you need a TypoScript template on the main page of your website
                 sprintf('Could not connect to database "%s"', $dbName)
                     . '! Make sure it really exists and your database user has the permissions to select it!',
                 'Could not connect to selected database!',
-                FlashMessage::ERROR
+                ContextualFeedbackSeverity::ERROR
             );
         }
 
-        if ($result->getSeverity() === FlashMessage::OK) {
+        if ($result->getSeverity() === ContextualFeedbackSeverity::OK) {
             $localConfigurationPathValuePairs['DB/Connections/Default/dbname'] = $dbName;
-        }
 
-        if ($result->getSeverity() === FlashMessage::OK && !empty($localConfigurationPathValuePairs)) {
             $this->configurationManager->setLocalConfigurationValuesByPathValuePairs($localConfigurationPathValuePairs);
         }
 
@@ -1405,7 +1302,7 @@ For each website you need a TypoScript template on the main page of your website
      * @return string Hashed password
      * @throws \LogicException If no hash method has been found, should never happen PhpassPasswordHash is always available
      */
-    protected function getHashedPassword($password)
+    protected function getHashedPassword(string $password): string
     {
         $okHashMethods = [
             Argon2iPasswordHash::class,
@@ -1429,7 +1326,7 @@ For each website you need a TypoScript template on the main page of your website
      *
      * @return FlashMessage[]
      */
-    protected function importDatabaseData()
+    protected function importDatabaseData(): array
     {
         // Will load ext_localconf and ext_tables. This is pretty safe here since we are
         // in first install (database empty), so it is very likely that no extension is loaded
@@ -1456,7 +1353,7 @@ For each website you need a TypoScript template on the main page of your website
             $message = new FlashMessage(
                 'Query:' . LF . ' ' . $statement . LF . 'Error:' . LF . ' ' . $message,
                 'Database query failed!',
-                FlashMessage::ERROR
+                ContextualFeedbackSeverity::ERROR
             );
         }
         return array_values($results);
@@ -1464,15 +1361,10 @@ For each website you need a TypoScript template on the main page of your website
 
     /**
      * Creates a site configuration with one language "English" which is the de-facto default language for TYPO3 in general.
-     *
-     * @param string $identifier
-     * @param int $rootPageId
-     * @param ServerRequestInterface $request
-     * @throws \TYPO3\CMS\Core\Cache\Exception\NoSuchCacheException
      */
     protected function createSiteConfiguration(string $identifier, int $rootPageId, ServerRequestInterface $request)
     {
-        $normalizedParams = $request->getAttribute('normalizedParams', null);
+        $normalizedParams = $request->getAttribute('normalizedParams');
         if (!($normalizedParams instanceof NormalizedParams)) {
             $normalizedParams = NormalizedParams::createFromRequest($request);
         }

@@ -27,9 +27,11 @@ use TYPO3\CMS\Core\DataHandling\ReferenceIndexUpdater;
 use TYPO3\CMS\Core\Exception\SiteNotFoundException;
 use TYPO3\CMS\Core\Localization\LanguageService;
 use TYPO3\CMS\Core\Site\SiteFinder;
+use TYPO3\CMS\Core\Utility\ArrayUtility;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Core\Utility\MathUtility;
 use TYPO3\CMS\Core\Utility\StringUtility;
+use TYPO3\CMS\Core\Versioning\VersionState;
 
 /**
  * This processor analyzes the provided data-map before actually being process
@@ -446,12 +448,12 @@ class DataMapProcessor
                 $item->getId(),
                 [$fieldName => $fromValue]
             );
-        } elseif (!$this->isInlineRelationField($item->getTableName(), $fieldName)) {
+        } elseif (!$this->isReferenceField($item->getTableName(), $fieldName)) {
             // direct relational values
             $this->synchronizeDirectRelations($item, $fieldName, $fromRecord);
         } else {
-            // inline relational values
-            $this->synchronizeInlineRelations($item, $fieldName, $fromRecord, $forRecord);
+            // reference values
+            $this->synchronizeReferences($item, $fieldName, $fromRecord, $forRecord);
         }
     }
 
@@ -516,10 +518,11 @@ class DataMapProcessor
     }
 
     /**
-     * Handle synchronization of inline relations.
-     * Inline Relational Record Editing ("IRRE") always is modelled as 1:n composite relation - which means that
-     * direct(!) children cannot exist without their parent. Removing a relative parent results in cascaded removal
-     * of all direct(!) children as well.
+     * Handle synchronization of references (inline or file).
+     * References are always modelled as 1:n composite relation - which
+     * means that direct(!) children cannot exist without their parent.
+     * Removing a relative parent results in cascaded removal of all direct(!)
+     * children as well.
      *
      * @param DataMapItem $item
      * @param string $fieldName
@@ -527,7 +530,7 @@ class DataMapProcessor
      * @param array $forRecord
      * @throws \RuntimeException
      */
-    protected function synchronizeInlineRelations(DataMapItem $item, string $fieldName, array $fromRecord, array $forRecord)
+    protected function synchronizeReferences(DataMapItem $item, string $fieldName, array $fromRecord, array $forRecord)
     {
         $configuration = $GLOBALS['TCA'][$item->getTableName()]['columns'][$fieldName];
         $isLocalizationModeExclude = ($configuration['l10n_mode'] ?? null) === 'exclude';
@@ -870,25 +873,47 @@ class DataMapProcessor
             return [];
         }
 
-        $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)
-            ->getQueryBuilderForTable($tableName);
-        $queryBuilder->getRestrictions()
-            ->removeAll()
-            ->add(GeneralUtility::makeInstance(DeletedRestriction::class))
-            ->add(GeneralUtility::makeInstance(WorkspaceRestriction::class, $this->backendUser->workspace));
-        $statement = $queryBuilder
+        $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable($tableName);
+        $queryBuilder->getRestrictions()->removeAll()
+            // NOT using WorkspaceRestriction here since it's wrong in this case. See ws OR restriction below.
+            ->add(GeneralUtility::makeInstance(DeletedRestriction::class));
+
+        $expressions = [];
+        if (BackendUtility::isTableWorkspaceEnabled($tableName)) {
+            $expressions[] = $queryBuilder->expr()->eq('t3ver_wsid', 0);
+        }
+        if ($this->backendUser->workspace > 0 && BackendUtility::isTableWorkspaceEnabled($tableName)) {
+            // If this is a workspace record (t3ver_wsid = be-user-workspace), then fetch this one
+            // if it is NOT a deleted placeholder (t3ver_state=2), but ok with casual overlay (t3ver_state=0),
+            // new ws-record (t3ver_state=1), or moved record (t3ver_state=4).
+            // It *might* be possible to simplify this since it may be the case that ws-deleted records are
+            // impossible to be incoming here at all? But this query is a safe thing, so we go with it for now.
+            $expressions[] = $queryBuilder->expr()->and(
+                $queryBuilder->expr()->eq('t3ver_wsid', $queryBuilder->createNamedParameter($this->backendUser->workspace, Connection::PARAM_INT)),
+                $queryBuilder->expr()->in(
+                    't3ver_state',
+                    $queryBuilder->createNamedParameter(
+                        [VersionState::DEFAULT_STATE, VersionState::NEW_PLACEHOLDER, VersionState::MOVE_POINTER],
+                        Connection::PARAM_INT_ARRAY
+                    )
+                ),
+            );
+        }
+        $queryBuilder
             ->select(...array_values($fieldNames))
             ->from($tableName)
             ->where(
                 $queryBuilder->expr()->in(
                     'uid',
                     $queryBuilder->createNamedParameter($ids, Connection::PARAM_INT_ARRAY)
-                )
-            )
-            ->executeQuery();
+                ),
+                $queryBuilder->expr()->or(...$expressions)
+            );
+
+        $result = $queryBuilder->executeQuery();
 
         $translationValues = [];
-        while ($record = $statement->fetchAssociative()) {
+        while ($record = $result->fetchAssociative()) {
             $translationValues[$record['uid']] = $record;
         }
         return $translationValues;
@@ -1086,7 +1111,7 @@ class DataMapProcessor
             ->add(GeneralUtility::makeInstance(DeletedRestriction::class))
             ->add(GeneralUtility::makeInstance(WorkspaceRestriction::class, $this->backendUser->workspace));
 
-        $zeroParameter = $queryBuilder->createNamedParameter(0, \PDO::PARAM_INT);
+        $zeroParameter = $queryBuilder->createNamedParameter(0, Connection::PARAM_INT);
         $ids = $this->filterNumericIds($ids);
         $idsParameter = $queryBuilder->createNamedParameter($ids, Connection::PARAM_INT_ARRAY);
 
@@ -1316,7 +1341,6 @@ class DataMapProcessor
      */
     protected function prefixLanguageTitle(string $tableName, $fromId, int $language, array $data): array
     {
-        $prefix = '';
         $prefixFieldNames = array_intersect(
             array_keys($data),
             $this->getPrefixLanguageTitleFieldNames($tableName)
@@ -1325,8 +1349,23 @@ class DataMapProcessor
             return $data;
         }
 
-        $languageService = $this->getLanguageService();
         [$pageId] = BackendUtility::getTSCpid($tableName, (int)$fromId, $data['pid'] ?? null);
+        $tsConfig = BackendUtility::getPagesTSconfig($pageId)['TCEMAIN.'] ?? [];
+        if (($translateToMessage = (string)($tsConfig['translateToMessage'] ?? '')) === '') {
+            // Return in case translateToMessage had been unset
+            return $data;
+        }
+
+        $tableRelatedConfig = $tsConfig['default.'] ?? [];
+        ArrayUtility::mergeRecursiveWithOverrule(
+            $tableRelatedConfig,
+            $tsConfig['table.'][$tableName . '.'] ?? []
+        );
+        if ($tableRelatedConfig['disablePrependAtCopy'] ?? false) {
+            // Return in case "disablePrependAtCopy" is set for this table
+            return $data;
+        }
+
         try {
             $site = GeneralUtility::makeInstance(SiteFinder::class)->getSiteByPageId($pageId);
             $siteLanguage = $site->getLanguageById($language);
@@ -1335,25 +1374,21 @@ class DataMapProcessor
             $languageTitle = '';
         }
 
-        $tsConfigTranslateToMessage = BackendUtility::getPagesTSconfig($pageId)['TCEMAIN.']['translateToMessage'] ?? '';
-        if (!empty($tsConfigTranslateToMessage)) {
-            $prefix = $tsConfigTranslateToMessage;
-            if ($languageService !== null) {
-                $prefix = $languageService->sL($prefix);
-            }
-            $prefix = sprintf($prefix, $languageTitle);
+        $languageService = $this->getLanguageService();
+        if ($languageService !== null) {
+            $translateToMessage = $languageService->sL($translateToMessage);
         }
-        if (empty($prefix)) {
-            if ($languageTitle) {
-                $prefix = 'Translate to ' . $languageTitle . ':';
-            } else {
-                $prefix = 'Translate:';
-            }
+        $translateToMessage = sprintf($translateToMessage, $languageTitle);
+
+        if ($translateToMessage === '') {
+            // Return for edge cases when the translateToMessage got empty, e.g. because the referenced LLL
+            // label is empty or only contained a placeholder which is replaced by an empty language title.
+            return $data;
         }
 
         foreach ($prefixFieldNames as $prefixFieldName) {
             // @todo The hook in DataHandler is not applied here
-            $data[$prefixFieldName] = '[' . $prefix . '] ' . $data[$prefixFieldName];
+            $data[$prefixFieldName] = '[' . $translateToMessage . '] ' . $data[$prefixFieldName];
         }
 
         return $data;
@@ -1475,18 +1510,18 @@ class DataMapProcessor
                 && !empty($configuration['foreign_table'])
                 && !empty($GLOBALS['TCA'][$configuration['foreign_table']])
             )
-            || $this->isInlineRelationField($tableName, $fieldName)
+            || $this->isReferenceField($tableName, $fieldName)
         ;
     }
 
     /**
-     * True if we're dealing with an inline field
+     * True if we're dealing with a reference field (either "inline" or "file")
      *
      * @param string $tableName
      * @param string $fieldName
      * @return bool TRUE if field is of type inline with foreign_table set
      */
-    protected function isInlineRelationField(string $tableName, string $fieldName): bool
+    protected function isReferenceField(string $tableName, string $fieldName): bool
     {
         if (empty($GLOBALS['TCA'][$tableName]['columns'][$fieldName]['config']['type'])) {
             return false;
@@ -1495,7 +1530,7 @@ class DataMapProcessor
         $configuration = $GLOBALS['TCA'][$tableName]['columns'][$fieldName]['config'];
 
         return
-            $configuration['type'] === 'inline'
+            ($configuration['type'] === 'inline' || $configuration['type'] === 'file')
             && !empty($configuration['foreign_table'])
             && !empty($GLOBALS['TCA'][$configuration['foreign_table']])
         ;

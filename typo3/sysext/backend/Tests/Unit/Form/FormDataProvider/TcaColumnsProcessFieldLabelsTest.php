@@ -17,18 +17,12 @@ declare(strict_types=1);
 
 namespace TYPO3\CMS\Backend\Tests\Unit\Form\FormDataProvider;
 
-use Prophecy\PhpUnit\ProphecyTrait;
 use TYPO3\CMS\Backend\Form\FormDataProvider\TcaColumnsProcessFieldLabels;
 use TYPO3\CMS\Core\Localization\LanguageService;
 use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
-/**
- * Test case
- */
 class TcaColumnsProcessFieldLabelsTest extends UnitTestCase
 {
-    use ProphecyTrait;
-
     /**
      * @test
      */
@@ -45,9 +39,9 @@ class TcaColumnsProcessFieldLabelsTest extends UnitTestCase
             ],
             'recordTypeValue' => 'aType',
         ];
-        $languageServiceProphecy = $this->prophesize(LanguageService::class);
-        $languageServiceProphecy->sL('foo')->shouldBeCalled()->willReturnArgument(0);
-        $GLOBALS['LANG'] = $languageServiceProphecy->reveal();
+        $languageServiceMock = $this->createMock(LanguageService::class);
+        $languageServiceMock->expects(self::atLeastOnce())->method('sL')->with('foo')->willReturnArgument(0);
+        $GLOBALS['LANG'] = $languageServiceMock;
 
         $expected = $input;
         self::assertSame($expected, (new TcaColumnsProcessFieldLabels())->addData($input));
@@ -74,9 +68,9 @@ class TcaColumnsProcessFieldLabelsTest extends UnitTestCase
             ],
             'recordTypeValue' => 'aType',
         ];
-        $languageServiceProphecy = $this->prophesize(LanguageService::class);
-        $languageServiceProphecy->sL('aLabelOverride')->shouldBeCalled()->willReturnArgument(0);
-        $GLOBALS['LANG'] = $languageServiceProphecy->reveal();
+        $languageServiceMock = $this->createMock(LanguageService::class);
+        $languageServiceMock->expects(self::atLeastOnce())->method('sL')->with('aLabelOverride')->willReturnArgument(0);
+        $GLOBALS['LANG'] = $languageServiceMock;
 
         $expected = $input;
         $expected['processedTca']['columns']['aField']['label'] = 'aLabelOverride';
@@ -109,9 +103,9 @@ class TcaColumnsProcessFieldLabelsTest extends UnitTestCase
             ],
             'recordTypeValue' => 'aType',
         ];
-        $languageServiceProphecy = $this->prophesize(LanguageService::class);
-        $languageServiceProphecy->sL('aLabelOverride')->shouldBeCalled()->willReturnArgument(0);
-        $GLOBALS['LANG'] = $languageServiceProphecy->reveal();
+        $languageServiceMock = $this->createMock(LanguageService::class);
+        $languageServiceMock->expects(self::atLeastOnce())->method('sL')->with('aLabelOverride')->willReturnArgument(0);
+        $GLOBALS['LANG'] = $languageServiceMock;
 
         $expected = $input;
         $expected['processedTca']['columns']['aField']['label'] = 'aLabelOverride';
@@ -143,9 +137,9 @@ class TcaColumnsProcessFieldLabelsTest extends UnitTestCase
             ],
             'recordTypeValue' => 'aType',
         ];
-        $languageServiceProphecy = $this->prophesize(LanguageService::class);
-        $languageServiceProphecy->sL('aLabelOverride')->shouldBeCalled()->willReturnArgument(0);
-        $GLOBALS['LANG'] = $languageServiceProphecy->reveal();
+        $languageServiceMock = $this->createMock(LanguageService::class);
+        $languageServiceMock->expects(self::atLeastOnce())->method('sL')->with('aLabelOverride')->willReturnArgument(0);
+        $GLOBALS['LANG'] = $languageServiceMock;
 
         $expected = $input;
         $expected['processedTca']['columns']['aField']['label'] = 'aLabelOverride';
@@ -179,9 +173,9 @@ class TcaColumnsProcessFieldLabelsTest extends UnitTestCase
             ],
             'recordTypeValue' => 'aType',
         ];
-        $languageServiceProphecy = $this->prophesize(LanguageService::class);
-        $languageServiceProphecy->sL('aLabelOverride')->shouldBeCalled()->willReturnArgument(0);
-        $languageService = $languageServiceProphecy->reveal();
+        $languageServiceMock = $this->createMock(LanguageService::class);
+        $languageServiceMock->expects(self::atLeastOnce())->method('sL')->with('aLabelOverride')->willReturnArgument(0);
+        $languageService = $languageServiceMock;
         $languageService->lang = 'fr';
         $GLOBALS['LANG'] = $languageService;
 

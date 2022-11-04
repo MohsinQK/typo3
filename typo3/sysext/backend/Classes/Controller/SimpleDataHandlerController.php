@@ -26,8 +26,8 @@ use TYPO3\CMS\Core\DataHandling\DataHandler;
 use TYPO3\CMS\Core\Http\HtmlResponse;
 use TYPO3\CMS\Core\Http\JsonResponse;
 use TYPO3\CMS\Core\Http\RedirectResponse;
-use TYPO3\CMS\Core\Messaging\AbstractMessage;
 use TYPO3\CMS\Core\Messaging\FlashMessageService;
+use TYPO3\CMS\Core\Type\ContextualFeedbackSeverity;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Core\Utility\MathUtility;
 
@@ -134,7 +134,6 @@ class SimpleDataHandlerController
         $this->initializeClipboard($request);
         $this->processRequest();
 
-        /** @var \TYPO3\CMS\Core\Messaging\FlashMessageService $flashMessageService */
         $flashMessageService = GeneralUtility::makeInstance(FlashMessageService::class);
 
         $content = [
@@ -154,7 +153,7 @@ class SimpleDataHandlerController
                     'message'  => $message->getMessage(),
                     'severity' => $message->getSeverity(),
                 ];
-                if ($message->getSeverity() === AbstractMessage::ERROR) {
+                if ($message->getSeverity() === ContextualFeedbackSeverity::ERROR) {
                     $content['hasErrors'] = true;
                 }
             }

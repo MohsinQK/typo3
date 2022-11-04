@@ -49,13 +49,13 @@ class ProcessedFile extends AbstractFile
      * Basic processing context to get a processed image with smaller
      * width/height to render a preview
      */
-    const CONTEXT_IMAGEPREVIEW = 'Image.Preview';
+    public const CONTEXT_IMAGEPREVIEW = 'Image.Preview';
     /**
      * Standard processing context for the frontend, that was previously
      * in \TYPO3\CMS\Frontend\ContentObject\ContentObjectRenderer::getImgResource which only takes cropping, masking and scaling
      * into account
      */
-    const CONTEXT_IMAGECROPSCALEMASK = 'Image.CropScaleMask';
+    public const CONTEXT_IMAGECROPSCALEMASK = 'Image.CropScaleMask';
 
     /**
      * Processing context, i.e. the type of processing done
@@ -488,7 +488,7 @@ class ProcessedFile extends AbstractFile
         if ($this->isUnchanged() && $key !== 'uid') {
             return $this->originalFile->getProperty($key);
         }
-        return $this->properties[$key];
+        return $this->properties[$key] ?? null;
     }
 
     /**

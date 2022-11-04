@@ -17,31 +17,25 @@ declare(strict_types=1);
 
 namespace TYPO3\CMS\Backend\Tests\Unit\Form;
 
-use PHPUnit\Framework\MockObject\MockObject;
-use Prophecy\Argument;
-use Prophecy\PhpUnit\ProphecyTrait;
 use TYPO3\CMS\Backend\Form\InlineStackProcessor;
 use TYPO3\CMS\Core\Cache\CacheManager;
 use TYPO3\CMS\Core\Cache\Frontend\FrontendInterface;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
-use TYPO3\TestingFramework\Core\AccessibleObjectInterface;
 use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 class InlineStackProcessorTest extends UnitTestCase
 {
-    use ProphecyTrait;
-
     protected bool $resetSingletonInstances = true;
 
     public function setUp(): void
     {
         parent::setUp();
-        $cacheManagerProphecy = $this->prophesize(CacheManager::class);
-        $cacheProphecy = $this->prophesize(FrontendInterface::class);
-        $cacheManagerProphecy->getCache('runtime')->willReturn($cacheProphecy->reveal());
-        $cacheProphecy->get(Argument::cetera())->willReturn(false);
-        $cacheProphecy->set(Argument::cetera())->willReturn(false);
-        GeneralUtility::setSingletonInstance(CacheManager::class, $cacheManagerProphecy->reveal());
+        $cacheManagerMock = $this->createMock(CacheManager::class);
+        $cacheMock = $this->createMock(FrontendInterface::class);
+        $cacheManagerMock->method('getCache')->with('runtime')->willReturn($cacheMock);
+        $cacheMock->method('get')->withAnyParameters()->willReturn(false);
+        $cacheMock->method('set')->withAnyParameters()->willReturn(false);
+        GeneralUtility::setSingletonInstance(CacheManager::class, $cacheManagerMock);
     }
 
     public function structureStringIsParsedDataProvider(): array
@@ -269,7 +263,6 @@ class InlineStackProcessorTest extends UnitTestCase
      */
     public function initializeByParsingDomObjectIdStringParsesStructureString(string $string, array $expectedInlineStructure, array $_): void
     {
-        /** @var InlineStackProcessor|MockObject|AccessibleObjectInterface $subject */
         $subject = $this->getAccessibleMock(InlineStackProcessor::class, ['dummy']);
         $subject->initializeByParsingDomObjectIdString($string);
         $structure = $subject->_get('inlineStructure');
@@ -282,7 +275,6 @@ class InlineStackProcessorTest extends UnitTestCase
      */
     public function getCurrentStructureFormPrefixReturnsExpectedStringAfterInitializationByStructureString(string $string, array $_, array $expectedFormName): void
     {
-        /** @var InlineStackProcessor|MockObject|AccessibleObjectInterface $subject */
         $subject = new InlineStackProcessor();
         $subject->initializeByParsingDomObjectIdString($string);
         self::assertEquals($expectedFormName['form'], $subject->getCurrentStructureFormPrefix());
@@ -294,7 +286,6 @@ class InlineStackProcessorTest extends UnitTestCase
      */
     public function getCurrentStructureDomObjectIdPrefixReturnsExpectedStringAfterInitializationByStructureString(string $string, array $_, array $expectedFormName): void
     {
-        /** @var InlineStackProcessor|MockObject|AccessibleObjectInterface $subject */
         $subject = new InlineStackProcessor();
         $subject->initializeByParsingDomObjectIdString($string);
         self::assertEquals($expectedFormName['object'], $subject->getCurrentStructureDomObjectIdPrefix('pageId'));

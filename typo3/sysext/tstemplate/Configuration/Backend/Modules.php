@@ -38,11 +38,11 @@ return [
             ],
         ],
         'moduleData' => [
-            'templatesOnPage' => 0,
-            'constant_editor_cat' => '',
+            'selectedTemplatePerPage' => [],
+            'selectedCategory' => '',
         ],
     ],
-    'web_typoscript_overview' => [
+    'web_typoscript_infomodify' => [
         'parent' => 'web_ts',
         'access' => 'admin',
         'path' => '/module/web/typoscript/overview',
@@ -73,12 +73,15 @@ return [
             ],
         ],
         'moduleData' => [
-            'templatesOnPage' => 0,
-            'ts_browser_type' => 'const',
-            'ts_browser_const' => '0',
-            'ts_browser_alphaSort' => false,
-            'ts_browser_regexsearch' => false,
-            'ts_browser_showComments' => true,
+            'sortAlphabetically' => true,
+            'displayConstantSubstitutions' => true,
+            'displayComments' => true,
+            'searchValue' => '',
+            'selectedTemplatePerPage' => [],
+            'constantConditions' => [],
+            'setupConditions' => [],
+            'constantExpandState' => [],
+            'setupExpandState' => [],
         ],
     ],
     'web_typoscript_analyzer' => [
@@ -95,7 +98,10 @@ return [
             ],
         ],
         'moduleData' => [
-            'templatesOnPage' => 0,
+            'restrictIncludesToMatchingConditions' => false,
+            'selectedTemplatePerPage' => [],
+            'constantConditions' => [],
+            'setupConditions' => [],
         ],
     ],
     'web_typoscript_recordsoverview' => [

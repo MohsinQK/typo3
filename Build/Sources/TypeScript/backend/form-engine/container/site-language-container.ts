@@ -18,7 +18,7 @@ import {InlineResponseInterface} from './../inline-relation/inline-response-inte
 import NProgress from 'nprogress';
 import FormEngine from '@typo3/backend/form-engine';
 import FormEngineValidation from '@typo3/backend/form-engine-validation';
-import Modal from '../../modal';
+import {default as Modal, ModalElement} from '@typo3/backend/modal';
 import Notification from '../../notification';
 import RegularEvent from '@typo3/core/event/regular-event';
 import Severity from '../../severity';
@@ -219,24 +219,22 @@ class SiteLanguageContainer extends HTMLElement {
       e.stopImmediatePropagation();
 
       const title = TYPO3.lang['label.confirm.delete_record.title'] || 'Delete this record?';
-      const content = TYPO3.lang['label.confirm.delete_record.content'] || 'Are you sure you want to delete this record?';
+      const content = (TYPO3.lang['label.confirm.delete_record.content'] || 'Are you sure you want to delete the record \'%s\'?').replace('%s', this.dataset.recordInfo);
       Modal.confirm(title, content, Severity.warning, [
         {
           text: TYPO3.lang['buttons.confirm.delete_record.no'] || 'Cancel',
           active: true,
           btnClass: 'btn-default',
           name: 'no',
-          trigger: (): void => {
-            Modal.currentModal.trigger('modal-dismiss');
-          }
+          trigger: (e: Event, modal: ModalElement) => modal.hideModal(),
         },
         {
           text: TYPO3.lang['buttons.confirm.delete_record.yes'] || 'Yes, delete this record',
           btnClass: 'btn-warning',
           name: 'yes',
-          trigger: (): void => {
+          trigger: (e: Event, modal: ModalElement): void => {
             me.deleteRecord((<HTMLDivElement>this.closest('[data-object-id]')).dataset.objectId);
-            Modal.currentModal.trigger('modal-dismiss');
+            modal.hideModal();
           }
         },
       ]);

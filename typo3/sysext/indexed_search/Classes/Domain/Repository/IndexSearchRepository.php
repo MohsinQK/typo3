@@ -28,6 +28,7 @@ use TYPO3\CMS\Core\TimeTracker\TimeTracker;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Core\Utility\MathUtility;
 use TYPO3\CMS\Frontend\Controller\TypoScriptFrontendController;
+use TYPO3\CMS\IndexedSearch\FileContentParser;
 use TYPO3\CMS\IndexedSearch\Indexer;
 use TYPO3\CMS\IndexedSearch\Utility\IndexedSearchUtility;
 use TYPO3\CMS\IndexedSearch\Utility\LikeWildcard;
@@ -309,7 +310,6 @@ class IndexSearchRepository
         // Perform SQL Search / collection of result rows array:
         $resource = false;
         if ($searchData) {
-            /** @var TimeTracker $timeTracker */
             $timeTracker = GeneralUtility::makeInstance(TimeTracker::class);
             // Do the search:
             $timeTracker->push('execFinalQuery');
@@ -560,29 +560,27 @@ class IndexSearchRepository
                     $res = $this->searchDistinct($sWord);
             }
             // If there was a query to do, then select all phash-integers which resulted from this.
-            if ($res) {
-                // Get phash list by searching for it:
-                $phashList = [];
-                while ($row = $res->fetchAssociative()) {
-                    $phashList[] = $row['phash'];
+            // Get phash list by searching for it:
+            $phashList = [];
+            while ($row = $res->fetchAssociative()) {
+                $phashList[] = $row['phash'];
+            }
+            // Here the phash list are merged with the existing result based on whether we are dealing with OR, NOT or AND operations.
+            if ($c) {
+                switch ($v['oper']) {
+                    case 'OR':
+                        $totalHashList = array_unique(array_merge($phashList, $totalHashList));
+                        break;
+                    case 'AND NOT':
+                        $totalHashList = array_diff($totalHashList, $phashList);
+                        break;
+                    default:
+                        // AND...
+                        $totalHashList = array_intersect($totalHashList, $phashList);
                 }
-                // Here the phash list are merged with the existing result based on whether we are dealing with OR, NOT or AND operations.
-                if ($c) {
-                    switch ($v['oper']) {
-                        case 'OR':
-                            $totalHashList = array_unique(array_merge($phashList, $totalHashList));
-                            break;
-                        case 'AND NOT':
-                            $totalHashList = array_diff($totalHashList, $phashList);
-                            break;
-                        default:
-                            // AND...
-                            $totalHashList = array_intersect($totalHashList, $phashList);
-                    }
-                } else {
-                    // First search
-                    $totalHashList = $phashList;
-                }
+            } else {
+                // First search
+                $totalHashList = $phashList;
             }
             $this->getTimeTracker()->pull();
             $c++;
@@ -826,10 +824,10 @@ class IndexSearchRepository
         $indexCfgRec = $queryBuilder->select('indexcfgs')
             ->from('index_config')
             ->where(
-                $queryBuilder->expr()->eq('type', $queryBuilder->createNamedParameter(5, \PDO::PARAM_INT)),
+                $queryBuilder->expr()->eq('type', $queryBuilder->createNamedParameter(5, Connection::PARAM_INT)),
                 $queryBuilder->expr()->eq(
                     'uid',
-                    $queryBuilder->createNamedParameter($freeIndexUid, \PDO::PARAM_INT)
+                    $queryBuilder->createNamedParameter($freeIndexUid, Connection::PARAM_INT)
                 )
             )
             ->executeQuery()
@@ -852,7 +850,7 @@ class IndexSearchRepository
                             ->where(
                                 $queryBuilder->expr()->eq(
                                     'uid',
-                                    $queryBuilder->createNamedParameter($uid, \PDO::PARAM_INT)
+                                    $queryBuilder->createNamedParameter($uid, Connection::PARAM_INT)
                                 )
                             )
                             ->executeQuery()
@@ -866,7 +864,7 @@ class IndexSearchRepository
                             ->where(
                                 $queryBuilder->expr()->eq(
                                     'pid',
-                                    $queryBuilder->createNamedParameter($uid, \PDO::PARAM_INT)
+                                    $queryBuilder->createNamedParameter($uid, Connection::PARAM_INT)
                                 )
                             )
                             ->executeQuery();
@@ -1127,7 +1125,7 @@ class IndexSearchRepository
      */
     protected function multiplePagesType(string $itemType): bool
     {
-        /** @var \TYPO3\CMS\IndexedSearch\FileContentParser $fileContentParser */
+        /** @var FileContentParser|null $fileContentParser */
         $fileContentParser = $this->externalParsers[$itemType] ?? null;
         return is_object($fileContentParser) && $fileContentParser->isMultiplePageExtension($itemType);
     }

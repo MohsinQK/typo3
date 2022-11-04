@@ -210,7 +210,7 @@ class DataMapFactory implements SingletonInterface
      */
     protected function getColumnsDefinition(string $tableName): array
     {
-        return is_array($GLOBALS['TCA'][$tableName]['columns']) ? $GLOBALS['TCA'][$tableName]['columns'] : [];
+        return is_array($GLOBALS['TCA'][$tableName]['columns'] ?? null) ? $GLOBALS['TCA'][$tableName]['columns'] : [];
     }
 
     /**
@@ -220,16 +220,16 @@ class DataMapFactory implements SingletonInterface
      */
     protected function addMetaDataColumnNames(DataMap $dataMap, string $tableName): DataMap
     {
-        $controlSection = $GLOBALS['TCA'][$tableName]['ctrl'];
+        $controlSection = $GLOBALS['TCA'][$tableName]['ctrl'] ?? null;
+        if ($controlSection === null) {
+            return $dataMap;
+        }
         $dataMap->setPageIdColumnName('pid');
         if (isset($controlSection['tstamp'])) {
             $dataMap->setModificationDateColumnName($controlSection['tstamp']);
         }
         if (isset($controlSection['crdate'])) {
             $dataMap->setCreationDateColumnName($controlSection['crdate']);
-        }
-        if (isset($controlSection['cruser_id'])) {
-            $dataMap->setCreatorColumnName($controlSection['cruser_id']);
         }
         if (isset($controlSection['delete'])) {
             $dataMap->setDeletedFlagColumnName($controlSection['delete']);

@@ -19,8 +19,10 @@ namespace TYPO3\CMS\Fluid\ViewHelpers\Form;
 
 use TYPO3\CMS\Extbase\Configuration\ConfigurationManagerInterface;
 use TYPO3\CMS\Extbase\Error\Result;
+use TYPO3\CMS\Extbase\Mvc\ExtbaseRequestParameters;
 use TYPO3\CMS\Extbase\Mvc\RequestInterface;
 use TYPO3\CMS\Extbase\Reflection\ObjectAccess;
+use TYPO3\CMS\Fluid\Core\Rendering\RenderingContext;
 use TYPO3\CMS\Fluid\ViewHelpers\FormViewHelper;
 
 /**
@@ -87,7 +89,16 @@ abstract class AbstractFormFieldViewHelper extends AbstractFormViewHelper
      */
     protected function getRequest(): RequestInterface
     {
-        return $this->renderingContext->getRequest();
+        /** @var RenderingContext $renderingContext */
+        $renderingContext = $this->renderingContext;
+        $request = $renderingContext->getRequest();
+        if (!$request instanceof RequestInterface) {
+            throw new \RuntimeException(
+                'Form ViewHelpers are Extbase specific and need an Extbase Request to work',
+                1663617170
+            );
+        }
+        return $request;
     }
 
     /**
@@ -115,7 +126,7 @@ abstract class AbstractFormFieldViewHelper extends AbstractFormViewHelper
         }
         if ($this->hasArgument('value') && is_object($this->arguments['value'])) {
             // @todo Use  $this->persistenceManager->isNewObject() once it is implemented
-            if (null !== $this->persistenceManager->getIdentifierByObject($this->arguments['value'])) {
+            if ($this->persistenceManager->getIdentifierByObject($this->arguments['value']) !== null) {
                 $name .= '[__identity]';
             }
         }
@@ -200,7 +211,9 @@ abstract class AbstractFormFieldViewHelper extends AbstractFormViewHelper
      */
     protected function hasMappingErrorOccurred(): bool
     {
-        return $this->getRequest()->getOriginalRequest() !== null;
+        /** @var ExtbaseRequestParameters $extbaseRequestParameters */
+        $extbaseRequestParameters = $this->getRequest()->getAttribute('extbase');
+        return $extbaseRequestParameters->getOriginalRequest() !== null;
     }
 
     /**
@@ -212,8 +225,10 @@ abstract class AbstractFormFieldViewHelper extends AbstractFormViewHelper
     protected function getLastSubmittedFormData()
     {
         $propertyPath = rtrim(preg_replace('/(\\]\\[|\\[|\\])/', '.', $this->getNameWithoutPrefix()) ?? '', '.');
+        /** @var ExtbaseRequestParameters $extbaseRequestParameters */
+        $extbaseRequestParameters = $this->getRequest()->getAttribute('extbase');
         $value = ObjectAccess::getPropertyPath(
-            $this->getRequest()->getOriginalRequest()->getArguments(),
+            $extbaseRequestParameters->getOriginalRequest()->getArguments(),
             $propertyPath
         );
         return $value;
@@ -254,6 +269,9 @@ abstract class AbstractFormFieldViewHelper extends AbstractFormViewHelper
         $propertySegmentsCount = count($propertySegments);
         for ($i = 1; $i < $propertySegmentsCount; $i++) {
             $object = ObjectAccess::getPropertyPath($formObject, implode('.', array_slice($propertySegments, 0, $i)));
+            if (!is_object($object)) {
+                $object = null;
+            }
             $objectName .= '[' . $propertySegments[$i - 1] . ']';
             $hiddenIdentityField = $this->renderHiddenIdentityField($object, $objectName);
             // Add the hidden identity field to the ViewHelperVariableContainer
@@ -337,7 +355,9 @@ abstract class AbstractFormFieldViewHelper extends AbstractFormViewHelper
         if (!$this->isObjectAccessorMode()) {
             return new Result();
         }
-        $originalRequestMappingResults = $this->getRequest()->getOriginalRequestMappingResults();
+        /** @var ExtbaseRequestParameters $extbaseRequestParameters */
+        $extbaseRequestParameters = $this->getRequest()->getAttribute('extbase');
+        $originalRequestMappingResults = $extbaseRequestParameters->getOriginalRequestMappingResults();
         $formObjectName = $this->renderingContext->getViewHelperVariableContainer()->get(
             FormViewHelper::class,
             'formObjectName'

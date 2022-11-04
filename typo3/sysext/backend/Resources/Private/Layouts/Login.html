@@ -1,4 +1,5 @@
 <html
+    xmlns:core="http://typo3.org/ns/TYPO3/CMS/Core/ViewHelpers"
     xmlns:f="http://typo3.org/ns/TYPO3/CMS/Fluid/ViewHelpers"
     data-namespace-typo3-fluid="true"
 >
@@ -16,7 +17,7 @@
             <div class="typo3-login-wrap">
                 <div class="card card-login">
                     <header class="card-heading">
-                        <h1 class="sr-only"><f:translate key="LLL:EXT:backend/Resources/Private/Language/locallang.xlf:login.header" /></h1>
+                        <h1 class="visually-hidden"><f:translate key="LLL:EXT:backend/Resources/Private/Language/locallang.xlf:login.header" /></h1>
                         <div class="typo3-login-logo">
                             <img src="{logo}" class="typo3-login-image" alt="{logoAlt}" />
                         </div>
@@ -42,23 +43,22 @@
                                     <f:be.infobox message="{f:translate(key: 'LLL:EXT:backend/Resources/Private/Language/locallang.xlf:login.error.referrer')}" state="2" />
                                 </div>
                                 <div class="typo3-login-form t3js-login-formfields">
-                                    <form action="{formActionUrl}" method="post" name="loginform" id="typo3-login-form">
+                                    <form action="{formActionUrl}" method="post" name="loginform" id="typo3-login-form" spellcheck="false">
                                         <input type="hidden" name="login_status" value="login" />
                                         <input type="hidden" name="userident" id="t3-field-userident" class="t3js-login-userident-field" value="" />
                                         <input type="hidden" name="redirect_url" value="{redirectUrl}" />
                                         <input type="hidden" name="loginRefresh" value="{loginRefresh}" />
+                                        <input type="hidden" name="{requestTokenName}" value="{requestTokenValue}" />
 
                                         <f:render section="loginFormFields" />
 
-                                        <f:render partial="Login/InterfaceSelector" arguments="{_all}" />
-
-                                        <div class="form-group mb-2" id="t3-login-submit-section">
+                                        <div class="form-group d-grid mb-2" id="t3-login-submit-section">
                                             <button
-                                                class="btn btn-block btn-login t3js-login-submit"
+                                                class="btn btn-login d-block t3js-login-submit"
                                                 id="t3-login-submit"
                                                 type="submit"
                                                 name="commandLI"
-                                                data-loading-text="<i class='fa fa-circle-o-notch fa-spin'></i> {f:translate(key: 'LLL:EXT:backend/Resources/Private/Language/locallang.xlf:login.process')}"
+                                                data-loading-text="{core:icon(identifier: 'spinner-circle', size: 'small')->f:format.htmlspecialchars()} {f:translate(key: 'LLL:EXT:backend/Resources/Private/Language/locallang.xlf:login.process')}"
                                                 autocomplete="off"
                                             >
                                                 <f:translate key="LLL:EXT:backend/Resources/Private/Language/locallang.xlf:login.submit" />
@@ -66,6 +66,9 @@
                                         </div>
                                     </form>
                                 </div>
+                                <f:if condition="{enablePasswordReset}">
+                                    <f:render section="ResetPassword" arguments="{_all}" optional="true" />
+                                </f:if>
                                 <f:if condition="{loginProviders->f:count()} > 1">
                                     <nav aria-label="{f:translate(key: 'LLL:EXT:backend/Resources/Private/Language/locallang.xlf:login.navigation.loginProvider')}">
                                         <f:comment>role is for VoiceOver</f:comment>
@@ -75,7 +78,8 @@
                                                     <f:if condition="{loginProviderIdentifier} != {providerKey}">
                                                         <li class="t3js-loginprovider-switch" data-providerkey="{providerKey}">
                                                             <a href="?loginProvider={providerKey}">
-                                                                <i class="fa fa-fw {provider.icon-class}"></i> <span><f:translate key="{provider.label}" default="{provider.label}" /></span>
+                                                                <core:icon identifier="{provider.iconIdentifier}" size="small" />
+                                                                <span><f:translate key="{provider.label}" default="{provider.label}" /></span>
                                                             </a>
                                                         </li>
                                                     </f:if>
@@ -83,9 +87,6 @@
                                             </f:for>
                                         </ul>
                                     </nav>
-                                </f:if>
-                                <f:if condition="{enablePasswordReset}">
-                                    <f:render section="ResetPassword" arguments="{_all}" optional="true" />
                                 </f:if>
                             </f:then>
                             <f:else if="{enablePasswordReset}">
@@ -104,35 +105,16 @@
                                                     {backendUser.username}
                                                 </div>
                                             </div>
-                                            <f:if condition="{showInterfaceSelector}">
-                                                <f:then>
-                                                    <div class="t3-login-interface">
-                                                        <div class="t3-login-label t3-interface-selector">
-                                                            <f:translate key="LLL:EXT:backend/Resources/Private/Language/locallang.xlf:login.interface" />
-                                                        </div>
-                                                        <select
-                                                            name="users"
-                                                        >
-                                                            <f:for each="{interfaces}" as="option">
-                                                                <option value="{option.jumpScript}">{option.label}</option>
-                                                            </f:for>
-                                                        </select>
-                                                    </div>
-                                                </f:then>
-                                                <f:else>
-                                                    <f:if condition="{interface}">
-                                                        <input type="hidden" name="interface" value="{interface}" />
-                                                    </f:if>
-                                                </f:else>
-                                            </f:if>
                                             <input type="hidden" name="p_field" value="" />
-                                            <input
-                                                class="btn btn-block btn-lg"
-                                                type="submit"
-                                                name="commandLO"
-                                                value="{f:translate(key: 'LLL:EXT:backend/Resources/Private/Language/locallang.xlf:login.submit')}"
-                                                id="t3-login-submit"
-                                            />
+                                            <div class="d-grid">
+                                                <input
+                                                    class="btn d-block btn-lg"
+                                                    type="submit"
+                                                    name="commandLO"
+                                                    value="{f:translate(key: 'LLL:EXT:backend/Resources/Private/Language/locallang.xlf:login.submit')}"
+                                                    id="t3-login-submit"
+                                                />
+                                            </div>
                                         </div>
                                     </div>
                                 </form>
@@ -155,10 +137,10 @@
                                     <nav aria-label="{f:translate(key: 'LLL:EXT:backend/Resources/Private/Language/locallang.xlf:login.navigation.typo3')}">
                                         <f:comment>role is for VoiceOver</f:comment>
                                         <ul class="list-unstyled" role="list">
-                                            <li><a href="https://typo3.org" target="_blank" rel="noreferrer" class="t3-login-link-typo3"><i class="fa fa-external-link"></i> TYPO3.org</a></li>
+                                            <li><a href="https://typo3.org" target="_blank" rel="noreferrer" class="t3-login-link-typo3"><core:icon identifier="actions-window-open" size="small" /> TYPO3.org</a></li>
                                             <li>
                                                 <a href="https://typo3.org/donate/online-donation/" target="_blank" rel="noreferrer" class="t3-login-link-donate">
-                                                    <i class="fa fa-external-link"></i> <f:translate key="LLL:EXT:backend/Resources/Private/Language/locallang.xlf:login.donate" />
+                                                    <core:icon identifier="actions-window-open" size="small" /> <f:translate key="LLL:EXT:backend/Resources/Private/Language/locallang.xlf:login.donate" />
                                                 </a>
                                             </li>
                                         </ul>

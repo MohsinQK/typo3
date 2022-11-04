@@ -18,9 +18,11 @@ namespace TYPO3\CMS\Core\Category\Collection;
 use TYPO3\CMS\Core\Collection\AbstractRecordCollection;
 use TYPO3\CMS\Core\Collection\CollectionInterface;
 use TYPO3\CMS\Core\Collection\EditableCollectionInterface;
+use TYPO3\CMS\Core\Database\Connection;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Database\Query\QueryBuilder;
 use TYPO3\CMS\Core\Database\Query\Restriction\DeletedRestriction;
+use TYPO3\CMS\Core\Resource\File;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 
 /**
@@ -72,7 +74,6 @@ class CategoryCollection extends AbstractRecordCollection implements EditableCol
      */
     public static function create(array $collectionRecord, $fillItems = false)
     {
-        /** @var CategoryCollection $collection */
         $collection = GeneralUtility::makeInstance(
             self::class,
             $collectionRecord['table_name'],
@@ -109,7 +110,7 @@ class CategoryCollection extends AbstractRecordCollection implements EditableCol
         $collectionRecord = $queryBuilder->select('*')
             ->from(static::$storageTableName)
             ->where(
-                $queryBuilder->expr()->eq('uid', $queryBuilder->createNamedParameter($id, \PDO::PARAM_INT))
+                $queryBuilder->expr()->eq('uid', $queryBuilder->createNamedParameter($id, Connection::PARAM_INT))
             )
             ->setMaxResults(1)
             ->executeQuery()
@@ -157,15 +158,15 @@ class CategoryCollection extends AbstractRecordCollection implements EditableCol
             ->where(
                 $queryBuilder->expr()->eq(
                     static::$storageTableName . '.uid',
-                    $queryBuilder->createNamedParameter($this->getIdentifier(), \PDO::PARAM_INT)
+                    $queryBuilder->createNamedParameter($this->getIdentifier(), Connection::PARAM_INT)
                 ),
                 $queryBuilder->expr()->eq(
                     'sys_category_record_mm.tablenames',
-                    $queryBuilder->createNamedParameter($this->getItemTableName(), \PDO::PARAM_STR)
+                    $queryBuilder->createNamedParameter($this->getItemTableName())
                 ),
                 $queryBuilder->expr()->eq(
                     'sys_category_record_mm.fieldname',
-                    $queryBuilder->createNamedParameter($this->getRelationFieldName(), \PDO::PARAM_STR)
+                    $queryBuilder->createNamedParameter($this->getRelationFieldName())
                 )
             )
             // Add required sorting field.
@@ -287,7 +288,7 @@ class CategoryCollection extends AbstractRecordCollection implements EditableCol
     public function getItems()
     {
         $itemArray = [];
-        /** @var \TYPO3\CMS\Core\Resource\File $item */
+        /** @var File $item */
         foreach ($this->storage as $item) {
             $itemArray[] = $item;
         }

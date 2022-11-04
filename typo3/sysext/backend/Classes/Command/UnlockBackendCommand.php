@@ -33,7 +33,7 @@ class UnlockBackendCommand extends Command
      * @param OutputInterface $output
      * @return int
      */
-    protected function execute(InputInterface $input, OutputInterface $output)
+    protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $io = new SymfonyStyle($input, $output);
         $io->title($this->getDescription());
@@ -42,13 +42,13 @@ class UnlockBackendCommand extends Command
             unlink($lockFile);
             if (@is_file($lockFile)) {
                 $io->caution('Could not remove lock file "' . $lockFile . '"!');
-                return 1;
+                return Command::FAILURE;
             }
             $io->success('Removed lock file "' . $lockFile . '".');
         } else {
             $io->note('No lock file "' . $lockFile . '" was found.' . LF . 'Hence no lock can be removed.');
         }
-        return 0;
+        return Command::SUCCESS;
     }
 
     /**

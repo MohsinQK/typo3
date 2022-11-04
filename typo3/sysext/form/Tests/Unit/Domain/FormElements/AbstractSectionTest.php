@@ -28,9 +28,6 @@ use TYPO3\CMS\Form\Domain\Model\FormElements\Section;
 use TYPO3\CMS\Form\Domain\Model\FormElements\UnknownFormElement;
 use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
-/**
- * Test case
- */
 class AbstractSectionTest extends UnitTestCase
 {
     protected bool $resetSingletonInstances = true;
@@ -61,7 +58,6 @@ class AbstractSectionTest extends UnitTestCase
      */
     public function createElementThrowsExceptionIfTypeDefinitionNotFoundAndSkipUnknownElementsIsFalse(): void
     {
-        /** @var \PHPUnit\Framework\MockObject\MockObject|FormDefinition $rootForm */
         $rootForm = $this->getMockBuilder(FormDefinition::class)
             ->onlyMethods(['getRenderingOptions', 'getTypeDefinitions'])
             ->disableOriginalConstructor()
@@ -101,7 +97,6 @@ class AbstractSectionTest extends UnitTestCase
      */
     public function createElementReturnsUnknownElementsIfTypeDefinitionIsNotFoundAndSkipUnknownElementsIsTrue(): void
     {
-        /** @var \PHPUnit\Framework\MockObject\MockObject|FormDefinition $rootForm */
         $rootForm = $this->getMockBuilder(FormDefinition::class)
             ->onlyMethods(['getRenderingOptions', 'getTypeDefinitions'])
             ->disableOriginalConstructor()
@@ -113,7 +108,6 @@ class AbstractSectionTest extends UnitTestCase
             ->method('getTypeDefinitions')
             ->willReturn([]);
 
-        /** @var \PHPUnit\Framework\MockObject\MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface|AbstractSection $mockAbstractSection */
         $mockAbstractSection = $this->getMockForAbstractClass(
             AbstractSection::class,
             [],
@@ -126,7 +120,6 @@ class AbstractSectionTest extends UnitTestCase
             ]
         );
 
-        /** @var \PHPUnit\Framework\MockObject\MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface|AbstractSection $mockAbstractSection */
         $mockAbstractSection
             ->method('getRootForm')
             ->willReturn($rootForm);
@@ -144,7 +137,6 @@ class AbstractSectionTest extends UnitTestCase
      */
     public function createElementThrowsExceptionIfTypeDefinitionIsNotSet(): void
     {
-        /** @var \PHPUnit\Framework\MockObject\MockObject|FormDefinition $rootForm */
         $rootForm = $this->getMockBuilder(FormDefinition::class)
             ->onlyMethods(['getRenderingOptions', 'getTypeDefinitions'])
             ->disableOriginalConstructor()
@@ -156,7 +148,6 @@ class AbstractSectionTest extends UnitTestCase
             ->method('getTypeDefinitions')
             ->willReturn(['foobar' => []]);
 
-        /** @var \PHPUnit\Framework\MockObject\MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface|AbstractSection $mockAbstractSection */
         $mockAbstractSection = $this->getMockForAbstractClass(
             AbstractSection::class,
             [],
@@ -185,7 +176,6 @@ class AbstractSectionTest extends UnitTestCase
     public function createElementThrowsExceptionIfTypeDefinitionNotInstanceOfFormElementInterface(): void
     {
         $this->resetSingletonInstances = true;
-        /** @var \PHPUnit\Framework\MockObject\MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface|AbstractSection $mockAbstractSection */
         $mockAbstractSection = $this->getMockForAbstractClass(
             AbstractSection::class,
             [],
@@ -198,7 +188,6 @@ class AbstractSectionTest extends UnitTestCase
             ]
         );
 
-        /** @var \PHPUnit\Framework\MockObject\MockObject|FormDefinition $rootForm */
         $rootForm = $this->getMockBuilder(FormDefinition::class)
             ->onlyMethods(['getRenderingOptions', 'getTypeDefinitions'])
             ->disableOriginalConstructor()
@@ -260,7 +249,6 @@ class AbstractSectionTest extends UnitTestCase
             ->method('setOptions')
             ->with($typeDefinitionWithoutImplementationClassName);
 
-        /** @var \PHPUnit\Framework\MockObject\MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface|AbstractSection $mockAbstractSection */
         $mockAbstractSection = $this->getMockForAbstractClass(
             AbstractSection::class,
             [],
@@ -273,7 +261,6 @@ class AbstractSectionTest extends UnitTestCase
             ]
         );
 
-        /** @var \PHPUnit\Framework\MockObject\MockObject|FormDefinition $rootForm */
         $rootForm = $this->getMockBuilder(FormDefinition::class)
             ->onlyMethods(['getRenderingOptions', 'getTypeDefinitions'])
             ->disableOriginalConstructor()

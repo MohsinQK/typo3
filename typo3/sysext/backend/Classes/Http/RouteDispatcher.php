@@ -17,6 +17,7 @@ declare(strict_types=1);
 
 namespace TYPO3\CMS\Backend\Http;
 
+use Psr\Container\ContainerInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use TYPO3\CMS\Backend\Routing\Exception\InvalidRequestTokenException;
@@ -24,7 +25,6 @@ use TYPO3\CMS\Backend\Routing\Exception\MissingRequestTokenException;
 use TYPO3\CMS\Backend\Routing\Route;
 use TYPO3\CMS\Backend\Routing\UriBuilder;
 use TYPO3\CMS\Core\Configuration\Features;
-use TYPO3\CMS\Core\FormProtection\AbstractFormProtection;
 use TYPO3\CMS\Core\FormProtection\FormProtectionFactory;
 use TYPO3\CMS\Core\Http\Dispatcher;
 use TYPO3\CMS\Core\Http\Security\ReferrerEnforcer;
@@ -35,6 +35,13 @@ use TYPO3\CMS\Core\Utility\GeneralUtility;
  */
 class RouteDispatcher extends Dispatcher
 {
+    public function __construct(
+        protected readonly FormProtectionFactory $formProtectionFactory,
+        ContainerInterface $container,
+    ) {
+        parent::__construct($container);
+    }
+
     /**
      * Main method checks the target of the route, and tries to call it.
      *
@@ -63,16 +70,6 @@ class RouteDispatcher extends Dispatcher
     }
 
     /**
-     * Wrapper method for static form protection utility
-     *
-     * @return AbstractFormProtection
-     */
-    protected function getFormProtection(): AbstractFormProtection
-    {
-        return FormProtectionFactory::get();
-    }
-
-    /**
      * Evaluates HTTP `Referer` header (which is denied by client to be a custom
      * value) - attempts to ensure the value is given using a HTML client refresh.
      * see: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Referer
@@ -83,7 +80,6 @@ class RouteDispatcher extends Dispatcher
      */
     protected function enforceReferrer(ServerRequestInterface $request, Route $route): ?ResponseInterface
     {
-        /** @var Features $features */
         $features = GeneralUtility::makeInstance(Features::class);
         if (!$features->isFeatureEnabled('security.backend.enforceReferrer')) {
             return null;
@@ -92,7 +88,6 @@ class RouteDispatcher extends Dispatcher
         if (!in_array('required', $referrerFlags, true)) {
             return null;
         }
-        /** @var ReferrerEnforcer $referrerEnforcer */
         $referrerEnforcer = GeneralUtility::makeInstance(ReferrerEnforcer::class, $request);
         return $referrerEnforcer->handle([
             'flags' => $referrerFlags,
@@ -121,7 +116,8 @@ class RouteDispatcher extends Dispatcher
                 1627905246
             );
         }
-        if (!$this->getFormProtection()->validateToken($token, 'route', $route->getOption('_identifier'))) {
+        $formProtection = $this->formProtectionFactory->createFromRequest($request);
+        if (!$formProtection->validateToken($token, 'route', $route->getOption('_identifier'))) {
             throw new InvalidRequestTokenException(
                 sprintf('Invalid request for route "%s"', $route->getPath()),
                 1425389455

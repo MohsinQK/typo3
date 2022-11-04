@@ -132,7 +132,6 @@ class AbstractAuthenticationService implements LoggerAwareInterface
             $query->getRestrictions()->removeAll()
                 ->add(GeneralUtility::makeInstance(DeletedRestriction::class));
             $constraints = array_filter([
-                QueryHelper::stripLogicalOperatorPrefix($dbUser['check_pid_clause']),
                 QueryHelper::stripLogicalOperatorPrefix($dbUser['enable_clause']),
                 QueryHelper::stripLogicalOperatorPrefix($extraWhere),
             ]);
@@ -141,7 +140,7 @@ class AbstractAuthenticationService implements LoggerAwareInterface
                     $constraints,
                     $query->expr()->eq(
                         $dbUser['username_column'],
-                        $query->createNamedParameter($username, \PDO::PARAM_STR)
+                        $query->createNamedParameter($username)
                     )
                 );
             }
